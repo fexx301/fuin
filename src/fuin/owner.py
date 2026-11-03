@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+import requests
+
 from fuin import attestation, core, inference, near
 from fuin import policy as P
 
@@ -67,28 +69,41 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict]) -> dict
 def run(bid: str, model: str) -> dict:
     st = load(bid)
     settings = st["policy"]["models"][model]
-    nonce = os.urandom(32).hex()
-    report = inference.model_report(model, nonce)
-    accepted = [c for c in report["model_attestations"]
-                if attestation.check_report(c, nonce, attestation_policy())["outcome"][0].startswith("accepted")]
-    if len(accepted) != 1:
-        raise SystemExit(f"{model}: need exactly one accepted attestation candidate, got {len(accepted)}")
-    signer = accepted[0]["signing_address"].lower()
-    rows = []
-    for i, r in enumerate(st["items"]):
+    rn = st["runs"].get(model)
+    if rn is None:  # fresh run: preflight report with a new nonce
+        nonce = os.urandom(32).hex()
+        report = inference.model_report(model, nonce)
+        accepted = [c for c in report["model_attestations"]
+                    if attestation.check_report(c, nonce, attestation_policy())["outcome"][0].startswith("accepted")]
+        if len(accepted) != 1:
+            raise SystemExit(f"{model}: need exactly one accepted attestation candidate, got {len(accepted)}")
+        rn = st["runs"][model] = {"preflight_nonce": nonce, "model_report": report,
+                                  "signer": accepted[0]["signing_address"].lower(), "rows": [], "attempt_log": []}
+        save(st)
+    if "commit" in rn:
+        raise SystemExit(f"{model} run already committed")
+    for i in range(len(rn["rows"]), len(st["items"])):  # resume after the last saved row
+        r = st["items"][i]
         req = inference.build_request(model, r["item"]["question"], r["item"]["request_nonce"], settings)
-        resp, parsed = inference.complete(req)
+        for attempt in range(3):
+            try:
+                resp, parsed = inference.complete(req)
+                break
+            except (requests.RequestException, ValueError) as e:
+                rn["attempt_log"].append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden
+                save(st)
+        else:
+            raise SystemExit(f"item {i}: inference failed 3 times; rerun `fuin run` to resume")
         sig = inference.fetch_signature(parsed["id"], model)
         if sig is None:
             raise SystemExit(f"item {i}: signature unavailable; run incomplete, not certifiable")
-        code = inference.check_signature(sig, model, req, resp, signer)
+        code = inference.check_signature(sig, model, req, resp, rn["signer"])
         if code:
             raise SystemExit(f"item {i}: {code}")
         score = P.scorer_for(st["policy"]).score_response(r["item"], resp)
-        rows.append({"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score})
-        print(f"  {i}: score {score}  answer {parsed['choices'][0]['message']['content'][:40]!r}")
-    st["runs"][model] = {"preflight_nonce": nonce, "model_report": report, "signer": signer, "rows": rows}
-    save(st)
+        rn["rows"].append({"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score})
+        save(st)
+        print(f"  {i}: score {score}  finish {parsed['choices'][0].get('finish_reason')}", flush=True)
     return st
 
 
