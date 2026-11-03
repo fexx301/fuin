@@ -8,7 +8,7 @@ import sys
 from fuin import owner, verify
 
 QWEN = "Qwen/Qwen3.8-27B"
-SETTINGS = {"max_tokens": 64, "temperature": 0, "chat_template_kwargs": {"enable_thinking": False}}
+SETTINGS = {"max_tokens": 4096, "temperature": 0}  # user, Nov 3: both models reason, 4096-token cap
 
 
 def _print_verdict(path: str, res: dict) -> None:

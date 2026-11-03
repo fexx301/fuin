@@ -46,6 +46,10 @@ def code_hash(account: str, network: str = "testnet") -> str:
     return rpc("query", {"request_type": "view_account", "finality": "final", "account_id": account}, network)["code_hash"]
 
 
+def access_key_count(account: str, network: str = "testnet") -> int:
+    return len(rpc("query", {"request_type": "view_access_key_list", "finality": "final", "account_id": account}, network)["keys"])
+
+
 def block(height: int | None = None, network: str = "testnet") -> dict | None:
     """Block header by height, or the latest final block. None if the RPC reports no block at that height."""
     try:

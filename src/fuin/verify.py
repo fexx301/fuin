@@ -117,6 +117,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             rc = near.tx_receipt(tx, reg["owner"], reg["account"], method)
             _req(rc["block_height"] == h, "record_mismatch")
         _req(rec["seal_height"] < r["commit_height"] < rec["close_height"], "commit_order_invalid")
+        if near.access_key_count(reg["account"]):
+            warnings.append(f"{reg['account']} still has an access key: its code can be replaced, so records are not guaranteed append-only")
         history = sorted(x["run_index"] for x in rec["runs"] if x["model_id"] == r["model_id"])
         ok("registry", f"{reg['account']} code {near.REGISTRY['code_hash'][:10]}…; seal {b['seal_height']} < commit {r['commit_height']} < close {a['close_height']}; committed runs for this model: {history}")
 
