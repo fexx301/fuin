@@ -137,7 +137,7 @@ def check_report(report: dict, nonce_hex: str, policy: dict, *, use_nras: bool =
         if not checks["nras_ok"]:
             return {**checks, "outcome": ("refused", "attestation_invalid")}
     checks["tcb"] = tcb
-    return {**checks, "outcome": ("accepted",) if tcb == "clean" else ("accepted_with_warning",)}
+    return {**checks, "td": td, "outcome": ("accepted",) if tcb == "clean" else ("accepted_with_warning",)}
 
 
 def is_tee_model(model_id: str, catalog: dict | None = None) -> bool:

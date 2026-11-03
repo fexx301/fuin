@@ -86,6 +86,14 @@ def _(c):
     rep["intel_quote"] = q.hex()
 
 
+@fixture("edited-deployment-log", "REFUSED attestation_invalid",
+         "one entry of NEAR's attested compose-manager action log edited (tag changed); its hash no longer matches the quote")
+def _(c):
+    acts = c["run"]["model_report"]["model_attestations"][0]["compose_manager_attestation"]["actions"]
+    up = next(a for a in reversed(acts) if a["action"] == "compose_up")
+    up["tag"] = "v0.0.999"
+
+
 @fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
     k = c["audit"]["k"]

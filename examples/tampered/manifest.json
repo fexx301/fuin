@@ -47,6 +47,11 @@
    "mutation": "one byte of the model's TDX quote signature flipped"
   },
   {
+   "file": "edited-deployment-log.json",
+   "expected": "REFUSED attestation_invalid",
+   "mutation": "one entry of NEAR's attested compose-manager action log edited (tag changed); its hash no longer matches the quote"
+  },
+  {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"

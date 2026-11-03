@@ -8,7 +8,7 @@ import base64
 import hashlib
 import requests
 
-from fuin import attestation, core, inference, near, owner
+from fuin import attestation, core, inference, near, owner, provenance
 from fuin import policy as P
 
 TOP = {"version", "registry", "benchmark", "run", "audit"}
@@ -44,7 +44,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     def ok(name, detail=""):
         checks.append((name, "pass", detail))
 
-    deferred: list[str] = []  # CAN'T CERTIFY codes, reported only if nothing is REFUSED
+    deferred: list[str] = []
+    trace = None  # CAN'T CERTIFY codes, reported only if nothing is REFUSED
     try:
         # 1. schema, rows, score range, totals
         _req(isinstance(cert, dict) and set(cert) == TOP and cert["version"] == 1, "certificate_invalid")
@@ -99,6 +100,20 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 warnings.append(f"TCB status {acc[0]['quote_status']} advisories {acc[0]['advisories']}")
             ok("attestation", f"signer {acc[0]['signing_address']} quote {acc[0]['quote_status']}, NRAS {acc[0].get('nras_ok')}, "
                f"compose {acc[0]['compose_hash'][:12]}… under {pol_att['version']}")
+            rep = next(c for c in reports if c["signing_address"].lower() in used)
+            try:
+                tr = provenance.trace(rep, r["preflight_nonce"], acc[0]["td"])
+            except provenance.TraceInvalid as e:
+                raise Refused("attestation_invalid") from e
+            except (provenance.TraceUnavailable, requests.RequestException, RuntimeError, ValueError) as e:
+                warnings.append(f"deployment not traced: {str(e)[:120]}")
+            else:
+                trace = tr
+                svc = tr["services"]
+                ok("deployment trace", f"compose-manager log (quote {tr['cm_quote_status']}) → {tr['repo']}: "
+                   + "; ".join(f"{x['service']} @{x['tag']} {x['file']} image …{x['image'][-12:]} weights {x['model_path'].split('/')[-1] if x['model_path'] else '?'}"
+                               + (f" rev {x['model_revision'][:10]}" if x['model_revision'] else "") for x in svc[:2])
+                   + (f" (+{len(svc) - 2} more replicas)" if len(svc) > 2 else ""))
 
         # 7. registry records (finalized RPC)
         reg = cert["registry"]
@@ -162,7 +177,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         return {"outcome": "REFUSED", "code": "certificate_invalid", "detail": repr(e)[:200], "checks": checks, "warnings": warnings}
     if deferred:
         return {"outcome": "CANT_CERTIFY", "code": deferred[0], "checks": checks, "warnings": warnings}
-    warnings.append("image provenance not verified")
+    warnings.append("container image build provenance (cosign/SLSA) not verified" if trace else "image provenance not verified")
     log = r.get("evidence", {}).get("attempt_log")
     warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
                     + " (not verifiable; an owner could omit them)")
@@ -170,7 +185,11 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); "
              f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
              f"scores under the stated sampling assumptions; disclosed {k}, hidden {n - k}")
-    return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": LIMITS}
+    limits = LIMITS if not trace else [l if not l.startswith("Accepted configurations") else
+        "Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The serving container is traced from "
+        "NEAR's attested deployment log to a public compose file (image digest, weights, revision); the image's build provenance "
+        "is not verified." for l in LIMITS]
+    return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 
 def _check_sig_text(sig: dict, text: str) -> str | None:

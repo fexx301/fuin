@@ -44,3 +44,13 @@ def test_compose_hash_matches_event_log():
 def test_image_digests_are_clean():
     for d in A.image_digests(REP):
         assert "$" not in d and "@sha256:" in d
+
+
+def test_compose_manager_action_log_hash_recomputes():
+    import hashlib
+    from fuin import provenance
+    cma = REP["compose_manager_attestation"]
+    assert hashlib.sha256(provenance.canonical_actions(cma["actions"])).hexdigest() == cma["actions_hash"]
+    tampered = copy.deepcopy(cma["actions"])
+    tampered[-1]["tag"] = "v9.9.9"
+    assert hashlib.sha256(provenance.canonical_actions(tampered)).hexdigest() != cma["actions_hash"]

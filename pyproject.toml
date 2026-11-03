@@ -10,6 +10,7 @@ dependencies = [
     "requests>=2.32",
     "eth-account>=0.13",
     "dcap-qvl==0.7.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]
