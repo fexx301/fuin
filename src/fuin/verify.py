@@ -8,7 +8,7 @@ import base64
 import hashlib
 import requests
 
-from fuin import attestation, core, inference, near, owner, scorer
+from fuin import attestation, core, inference, near, owner
 from fuin import policy as P
 
 TOP = {"version", "registry", "benchmark", "run", "audit"}
@@ -71,7 +71,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         if P.unsupported_reason(b["policy"], n, b["models"]):
             raise Refused("policy_mismatch")
         _req(r["model_id"] in b["policy"]["models"], "policy_mismatch")
-        ok("policy", f"fuin-v1; scorer sha256 {b['policy']['scorer']['sha256'][:12]}…; k={b['policy']['audit']['k']}")
+        ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; k={b['policy']['audit']['k']}")
 
         # 5. signatures (every item)
         reports = r["model_report"].get("model_attestations", [])
@@ -148,7 +148,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             _req(hashlib.sha256(resp).hexdigest() == it["resp_sha256"], "signature_text_mismatch")
             expected = inference.build_request(r["model_id"], x["item"]["question"], x["item"]["request_nonce"], b["policy"]["models"][r["model_id"]])
             _req(req == expected, "request_policy_mismatch")
-            _req(scorer.score_response(x["item"], resp) == it["score"], "score_mismatch")
+            _req(P.scorer_for(b["policy"]).score_response(x["item"], resp) == it["score"], "score_mismatch")
         ok("reveals", f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
     except Refused as e:
         return {"outcome": "REFUSED", "code": str(e), "checks": checks, "warnings": warnings}

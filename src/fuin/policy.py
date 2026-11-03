@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from fuin import core, scorer
+from fuin import core, scorer, scorer_v1
 
 PROTOCOL = "fuin-v1"
 TEMPLATE = "fuin-request-v1"  # inference.build_request
@@ -12,17 +12,26 @@ SAMPLER = "fuin-audit-v1"
 ALLOWED_SETTINGS = {"max_tokens", "temperature", "chat_template_kwargs"}
 
 
-def scorer_sha256() -> str:
-    return hashlib.sha256(Path(scorer.__file__).read_bytes()).hexdigest()
+def scorer_sha256(mod=scorer) -> str:
+    return hashlib.sha256(Path(mod.__file__).read_bytes()).hexdigest()
 
 
-def make_policy(n: int, models: dict[str, dict]) -> dict:
+SCORERS = {(m.NAME, scorer_sha256(m)): m for m in (scorer_v1, scorer)}  # supported, by name and file hash
+
+
+def scorer_for(policy: dict):
+    """The supported scorer module a sealed policy names, or None."""
+    sc = policy.get("scorer", {})
+    return SCORERS.get((sc.get("name"), sc.get("sha256")))
+
+
+def make_policy(n: int, models: dict[str, dict], mod=scorer) -> dict:
     d, k = core.audit_size(n)
     return {
         "protocol": PROTOCOL,
         "models": models,
         "request": {"template": TEMPLATE, "privacy_profile": PRIVACY},
-        "scorer": {"name": scorer.NAME, "sha256": scorer_sha256()},
+        "scorer": {"name": mod.NAME, "sha256": scorer_sha256(mod)},
         "score": {"values": [0, 1], "aggregate": "sum", "denominator": n},
         "audit": {"D": d, "target": {"numerator": 95, "denominator": 100}, "k": k, "sampler": SAMPLER},
     }
@@ -35,7 +44,8 @@ def policy_hash(policy: dict) -> str:
 def unsupported_reason(policy: dict, n: int, sealed_models: list[str]) -> str | None:
     """None if this verifier supports the sealed policy exactly; else a short reason."""
     try:
-        if policy != make_policy(n, policy["models"]):
+        mod = scorer_for(policy)
+        if mod is None or policy != make_policy(n, policy["models"], mod):
             return "policy differs from the supported fuin-v1 policy (scorer, template, privacy, score or audit)"
         if sorted(policy["models"]) != sorted(sealed_models):
             return "policy models differ from the sealed model list"

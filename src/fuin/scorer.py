@@ -1,6 +1,7 @@
-"""fuin-scorer-v1: deterministic 0/1 scoring. The verifier pins this file's sha256 in the sealed policy.
+"""fuin-scorer-v2 (v1 plus markdown-emphasis stripping): deterministic 0/1 scoring. The verifier pins this file's sha256 in the sealed policy.
 
-Extraction: the whole assistant message, trimmed; one trailing '.' and surrounding backticks/quotes removed.
+Extraction: the whole assistant message (not any separate reasoning field), trimmed; one trailing '.' and
+surrounding backticks, quotes and markdown emphasis (* _) removed.
 numeric: the extracted text must be one decimal number (',' and '_' between digits ignored);
          score 1 iff |x - answer| <= tolerance (decimal strings, exact arithmetic).
 exact:   casefolded extracted text must equal a casefolded entry of `accept` (or `answer`).
@@ -10,14 +11,14 @@ import json
 import re
 from decimal import Decimal, InvalidOperation
 
-NAME = "fuin-scorer-v1"
+NAME = "fuin-scorer-v2"
 NUMBER = re.compile(r"[-+]?\d+(\.\d+)?([eE][-+]?\d+)?")
 
 
 def extract(content: str) -> str:
     s = content.strip()
     s = s[:-1] if s.endswith(".") else s
-    return s.strip().strip("`\"'").strip()
+    return s.strip().strip("`\"'*_").strip()
 
 
 def score_text(item: dict, content: str) -> int:
