@@ -41,6 +41,22 @@ ack_file = PRIVATE / "suites" / "acknowledged.json"
 acknowledged = {(a["suite"], a["index"]) for a in json.loads(ack_file.read_text())} if ack_file.exists() else set()
 
 tracked = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True).stdout.split()
+
+# Items revealed by a tracked certificate of their own round (nonce-matched) are public, so they may appear anywhere.
+public = set()  # (suite, index)
+for path in tracked:
+    if not (path.endswith(".json") and Path(path).is_file()):
+        continue
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        reveals = doc.get("audit", {}).get("reveals", []) if isinstance(doc, dict) else []
+    except ValueError:
+        continue
+    for x in reveals:
+        for suite, i, q, _, _ in hidden:
+            if norm(x["item"].get("question", "")) == q and (suite, i, x["item"].get("request_nonce")) in allowed:
+                public.add((suite, i))
+
 leaks = []
 for path in tracked:
     p = Path(path)
@@ -48,19 +64,8 @@ for path in tracked:
         continue
     text = p.read_text(encoding="utf-8", errors="ignore")
     flat = norm(text)
-    revealed_here = set()  # (suite, index) legitimately revealed in this file
-    if p.suffix == ".json":
-        try:
-            doc = json.loads(text)
-            reveals = doc.get("audit", {}).get("reveals", []) if isinstance(doc, dict) else []
-        except ValueError:
-            reveals = []
-        for x in reveals:
-            for suite, i, q, _, _ in hidden:
-                if norm(x["item"].get("question", "")) == q and (suite, i, x["item"].get("request_nonce")) in allowed:
-                    revealed_here.add((suite, i))
     for suite, i, q, anchor, url in hidden:
-        if (suite, i) in revealed_here or (suite, i) in acknowledged:
+        if (suite, i) in public or (suite, i) in acknowledged:
             continue
         if q in flat:
             leaks.append((path, suite, i, "question"))
@@ -70,6 +75,6 @@ for path in tracked:
             leaks.append((path, suite, i, "source anchor"))
 for leak in leaks:
     print("LEAK", *leak)
-print(f"{len(hidden)} hidden items checked against {len(tracked)} tracked files: {len(leaks)} leak(s), "
-      f"{len(acknowledged)} acknowledged disclosure(s) skipped")
+print(f"{len(hidden)} hidden items checked against {len(tracked)} tracked files: {len(leaks)} leak(s); "
+      f"{len(public)} public by their own round's reveal, {len(acknowledged)} acknowledged disclosure(s)")
 sys.exit(1 if leaks else 0)
