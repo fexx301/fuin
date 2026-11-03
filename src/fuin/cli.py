@@ -32,6 +32,7 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("seal"); s.add_argument("suite"); s.add_argument("--id", required=True)
     s.add_argument("--owner", required=True); s.add_argument("--model", action="append", default=None)
+    s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
     p = sub.add_parser("close"); p.add_argument("--id", required=True)
@@ -41,7 +42,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     if a.cmd == "seal":
-        owner.seal(a.suite, a.id, a.owner, {m: SETTINGS for m in (a.model or [QWEN])})
+        owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])})
     elif a.cmd == "run":
         owner.run(a.id, a.model)
     elif a.cmd == "commit":
