@@ -10,7 +10,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 - `fuin verify` exit codes:
   - `0`: every certificate VERIFIED;
   - `1`: at least one REFUSED (invalid evidence);
-  - `2`: at least one CAN'T CERTIFY (unavailable or unsupported evidence).
+  - `2`: none REFUSED but at least one CAN'T CERTIFY (unavailable or unsupported evidence).
   With `--json`, each certificate prints one JSON line.
 
 ## Where each claim is evidenced

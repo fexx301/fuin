@@ -52,7 +52,7 @@ def main(argv=None) -> int:
         for p in owner.reveal(a.id, a.out):
             print(p)
     elif a.cmd == "verify":
-        worst = 0
+        outcomes = set()
         for path in a.certs:
             try:
                 cert = json.loads(open(path, encoding="utf-8").read())
@@ -61,8 +61,8 @@ def main(argv=None) -> int:
             else:
                 res = verify.verify(cert)
             print(json.dumps({"cert": path, **res}, default=list)) if a.json else _print_verdict(path, res)
-            worst = max(worst, {"VERIFIED": 0, "CANT_CERTIFY": 2, "REFUSED": 1}[res["outcome"]])
-        return worst
+            outcomes.add(res["outcome"])
+        return 1 if "REFUSED" in outcomes else 2 if "CANT_CERTIFY" in outcomes else 0  # REFUSED outranks CAN'T CERTIFY
     elif a.cmd == "show":
         cert = json.loads(open(a.cert, encoding="utf-8").read())
         b, r, au = cert["benchmark"], cert["run"], cert["audit"]
