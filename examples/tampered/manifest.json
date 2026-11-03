@@ -1,0 +1,68 @@
+{
+ "base": "examples/cert-near-dev-thin-1-qwen3.8-27b.json",
+ "fixtures": [
+  {
+   "file": "edited-answer.json",
+   "expected": "REFUSED signature_text_mismatch",
+   "mutation": "one revealed response's answer text edited after signing"
+  },
+  {
+   "file": "inflated-total.json",
+   "expected": "REFUSED total_score_mismatch",
+   "mutation": "published total raised by 1; item scores unchanged"
+  },
+  {
+   "file": "missing-item.json",
+   "expected": "REFUSED item_set_mismatch",
+   "mutation": "last item row deleted"
+  },
+  {
+   "file": "duplicate-item.json",
+   "expected": "REFUSED item_set_mismatch",
+   "mutation": "row 1 replaced by a copy of row 0"
+  },
+  {
+   "file": "out-of-range-score.json",
+   "expected": "REFUSED score_range_invalid",
+   "mutation": "one item score set to 2"
+  },
+  {
+   "file": "changed-set.json",
+   "expected": "REFUSED merkle_root_mismatch",
+   "mutation": "one benchmark leaf replaced, as if the set changed after the seal"
+  },
+  {
+   "file": "altered-policy.json",
+   "expected": "REFUSED policy_mismatch",
+   "mutation": "sealed policy's audit k lowered; policy hash left as sealed"
+  },
+  {
+   "file": "unattested-signer.json",
+   "expected": "REFUSED signer_not_attested_for_model",
+   "mutation": "item 0 re-signed (validly) by a key that is not in the model's attestation reports, as if another model answered"
+  },
+  {
+   "file": "invalid-attestation.json",
+   "expected": "REFUSED attestation_invalid",
+   "mutation": "one byte of the model's TDX quote signature flipped"
+  },
+  {
+   "file": "changed-audit.json",
+   "expected": "REFUSED audit_sample_mismatch",
+   "mutation": "audit seed replaced, as if the owner picked a different sample"
+  },
+  {
+   "file": "external-model.json",
+   "expected": "CANT_CERTIFY model_not_tee",
+   "mutation": "run relabelled as an external (non-TEE) gateway model"
+  },
+  {
+   "file": "evidence-unavailable.json",
+   "expected": "CANT_CERTIFY evidence_unavailable",
+   "mutation": "unmodified certificate; NEAR RPC unreachable",
+   "env": {
+    "FUIN_TESTNET_RPC": "http://127.0.0.1:9"
+   }
+  }
+ ]
+}

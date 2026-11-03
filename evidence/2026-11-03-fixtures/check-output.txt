@@ -1,0 +1,13 @@
+ok   edited-answer.json: REFUSED signature_text_mismatch
+ok   inflated-total.json: REFUSED total_score_mismatch
+ok   missing-item.json: REFUSED item_set_mismatch
+ok   duplicate-item.json: REFUSED item_set_mismatch
+ok   out-of-range-score.json: REFUSED score_range_invalid
+ok   changed-set.json: REFUSED merkle_root_mismatch
+ok   altered-policy.json: REFUSED policy_mismatch
+ok   unattested-signer.json: REFUSED signer_not_attested_for_model
+ok   invalid-attestation.json: REFUSED attestation_invalid
+FAIL changed-audit.json: CANT_CERTIFY evidence_unavailable (expected REFUSED audit_sample_mismatch)
+ok   external-model.json: CANT_CERTIFY model_not_tee
+ok   evidence-unavailable.json: CANT_CERTIFY evidence_unavailable
+exit 1

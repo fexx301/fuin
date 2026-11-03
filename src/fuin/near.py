@@ -2,13 +2,14 @@
 
 import base64
 import json
+import os
 import re
 import subprocess
 import time
 
 import requests
 
-NETWORKS = {"testnet": "https://rpc.testnet.near.org"}
+NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", "https://rpc.testnet.near.org")}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
             "code_hash": "HvqaWNNceCX7AMtsanPobAt5mkAE2MsZdP2BURA2cgef"}
