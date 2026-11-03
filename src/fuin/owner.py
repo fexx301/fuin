@@ -77,7 +77,7 @@ def run(bid: str, model: str) -> dict:
                     if attestation.check_report(c, nonce, attestation_policy())["outcome"][0].startswith("accepted")]
         if len(accepted) != 1:
             raise SystemExit(f"{model}: need exactly one accepted attestation candidate, got {len(accepted)}")
-        rn = st["runs"][model] = {"preflight_nonce": nonce, "model_report": report,
+        rn = st["runs"][model] = {"preflight_nonce": nonce, "model_report": report, "policy_version": attestation_policy()["version"],
                                   "signer": accepted[0]["signing_address"].lower(), "rows": [], "attempt_log": []}
         save(st)
     if "commit" in rn:
@@ -177,7 +177,7 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                           "seal_tx": st["seal"]["tx"], "seal_height": st["seal"]["height"], "seal_block_hash": st["seal"]["block_hash"]},
             "run": {"model_id": model, "run_index": rn["commit"]["run_index"], "preflight_nonce": rn["preflight_nonce"],
                     "model_report": rn["model_report"],
-                    "evidence": {"owner_checked_policy_version": attestation_policy()["version"],
+                    "evidence": {"owner_checked_policy_version": rn.get("policy_version", "not recorded"),
                                  # owner-reported, not verifiable: failed inference attempts before each saved row
                                  "attempt_log": rn.get("attempt_log", [])},
                     "items": [{"i": i, "benchmark_leaf": bl[i].hex(),
