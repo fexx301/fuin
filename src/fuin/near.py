@@ -11,7 +11,7 @@ import requests
 NETWORKS = {"testnet": "https://rpc.testnet.near.org"}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
-            "code_hash": "Ej6EQ3yyVPL9xNLdvpZJaJWUYnyrx6T7Gw67kwTkH8BA"}
+            "code_hash": "HvqaWNNceCX7AMtsanPobAt5mkAE2MsZdP2BURA2cgef"}
 
 
 class RpcError(RuntimeError):
@@ -106,14 +106,16 @@ def tx_receipt(tx_hash: str, sender: str, executor: str, method: str, network: s
     raise RpcError(f"no {method} receipt on {executor} in {tx_hash}")
 
 
-def call(signer: str, contract: str, method: str, args: dict, network: str = "testnet") -> str:
-    """Sign and send a function call with near-cli-rs (keychain key). Returns the transaction hash."""
+def call(signer: str, contract: str, method: str, args: dict, network: str = "testnet", deposit: str = "0.05 NEAR") -> str:
+    """Sign and send a function call with near-cli-rs (keychain key). The registry keeps only its storage cost
+    from `deposit` and refunds the rest. Returns the transaction hash."""
     cmd = ["near", "contract", "call-function", "as-transaction", contract, method, "json-args", json.dumps(args),
-           "prepaid-gas", "30 Tgas", "attached-deposit", "0 NEAR", "sign-as", signer,
+           "prepaid-gas", "30 Tgas", "attached-deposit", deposit, "sign-as", signer,
            "network-config", network, "sign-with-keychain", "send"]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
     out = p.stdout + p.stderr
     m = re.search(r"Transaction ID:\s*([1-9A-HJ-NP-Za-km-z]{43,44})", out)
     if not m:
-        raise RpcError(f"{method} not sent: {out[-500:]}")
+        panic = re.search(r"Smart contract panicked: ([^\"\n]+)", out)
+        raise RpcError(f"{method} rejected by the contract: {panic.group(1)}" if panic else f"{method} not sent: {out[-500:]}")
     return m.group(1)
