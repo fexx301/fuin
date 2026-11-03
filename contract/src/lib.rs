@@ -1,0 +1,247 @@
+//! Fūin registry: append-only seals and run commitments for private benchmarks.
+//!
+//! No owner/admin methods and no upgrade path in code. After deploy the registry
+//! account's full-access key is deleted so the code cannot be replaced.
+
+use near_sdk::store::LookupMap;
+use near_sdk::{env, near, require, AccountId, BlockHeight, PanicOnDefault};
+
+const MAX_ID: usize = 64;
+const MAX_MODELS: usize = 8;
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
+pub struct Benchmark {
+    pub owner: AccountId,
+    pub benchmark_id: String,
+    pub root: String,
+    pub n: u32,
+    pub policy_hash: String,
+    pub models: Vec<String>,
+    pub seal_height: BlockHeight,
+    pub last_commit_height: Option<BlockHeight>,
+    pub close_height: Option<BlockHeight>,
+    pub runs: Vec<RunRecord>,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
+pub struct RunRecord {
+    pub model_id: String,
+    pub run_index: u32,
+    pub run_root: String,
+    pub total_score: u32,
+    pub commit_height: BlockHeight,
+}
+
+#[near(contract_state)]
+#[derive(PanicOnDefault)]
+pub struct Registry {
+    benchmarks: LookupMap<String, Benchmark>,
+}
+
+fn key(owner: &AccountId, benchmark_id: &str) -> String {
+    format!("{owner}/{benchmark_id}")
+}
+
+fn require_hex32(s: &str, what: &str) {
+    require!(
+        s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+        format!("{what} must be 64 lowercase hex characters")
+    );
+}
+
+fn require_id(s: &str, what: &str) {
+    require!(
+        !s.is_empty() && s.len() <= MAX_ID && s.bytes().all(|b| b.is_ascii_graphic() && b != b'/'),
+        format!("{what} must be 1-{MAX_ID} printable ASCII characters without '/'")
+    );
+}
+
+#[near]
+impl Registry {
+    #[init]
+    pub fn new() -> Self {
+        Self { benchmarks: LookupMap::new(b"b") }
+    }
+
+    /// Seal a benchmark: its Merkle root, size and policy hash, under the caller's account.
+    pub fn seal(&mut self, benchmark_id: String, root: String, n: u32, policy_hash: String, models: Vec<String>) {
+        let owner = env::predecessor_account_id();
+        require_id(&benchmark_id, "benchmark_id");
+        require_hex32(&root, "root");
+        require_hex32(&policy_hash, "policy_hash");
+        require!(n >= 1, "n must be at least 1");
+        require!(!models.is_empty() && models.len() <= MAX_MODELS, "1-8 models");
+        for (i, m) in models.iter().enumerate() {
+            require!(!m.is_empty() && m.len() <= 128 && m.is_ascii(), "model ids are 1-128 ASCII characters");
+            require!(!models[..i].contains(m), "duplicate model id");
+        }
+        let k = key(&owner, &benchmark_id);
+        require!(!self.benchmarks.contains_key(&k), "benchmark already sealed");
+        self.benchmarks.insert(
+            k,
+            Benchmark {
+                owner,
+                benchmark_id,
+                root,
+                n,
+                policy_hash,
+                models,
+                seal_height: env::block_height(),
+                last_commit_height: None,
+                close_height: None,
+                runs: vec![],
+            },
+        );
+    }
+
+    /// Commit one run's result root and total; the registry assigns the run index.
+    pub fn commit_run(&mut self, benchmark_id: String, model_id: String, run_root: String, total_score: u32) -> u32 {
+        let owner = env::predecessor_account_id();
+        require_hex32(&run_root, "run_root");
+        let b = self.benchmarks.get_mut(&key(&owner, &benchmark_id)).unwrap_or_else(|| env::panic_str("no such benchmark for this owner"));
+        let height = env::block_height();
+        require!(b.close_height.is_none(), "round is closed");
+        require!(height > b.seal_height, "run must execute in a later block than its seal");
+        require!(b.models.contains(&model_id), "model not in the sealed list");
+        require!(total_score <= b.n, "total_score exceeds n");
+        let run_index = b.runs.iter().filter(|r| r.model_id == model_id).count() as u32;
+        b.runs.push(RunRecord { model_id, run_index, run_root, total_score, commit_height: height });
+        b.last_commit_height = Some(height);
+        run_index
+    }
+
+    /// Close the round: no more runs; the audit seed is taken from a finalized block after this one.
+    pub fn close_round(&mut self, benchmark_id: String) {
+        let owner = env::predecessor_account_id();
+        let b = self.benchmarks.get_mut(&key(&owner, &benchmark_id)).unwrap_or_else(|| env::panic_str("no such benchmark for this owner"));
+        require!(b.close_height.is_none(), "round already closed");
+        let height = env::block_height();
+        require!(height > b.last_commit_height.unwrap_or(b.seal_height), "close must execute after the last commit");
+        b.close_height = Some(height);
+    }
+
+    pub fn get_benchmark(&self, owner: AccountId, benchmark_id: String) -> Option<Benchmark> {
+        self.benchmarks.get(&key(&owner, &benchmark_id)).cloned()
+    }
+
+    pub fn get_run(&self, owner: AccountId, benchmark_id: String, model_id: String, run_index: u32) -> Option<RunRecord> {
+        self.benchmarks
+            .get(&key(&owner, &benchmark_id))?
+            .runs
+            .iter()
+            .find(|r| r.model_id == model_id && r.run_index == run_index)
+            .cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use near_sdk::test_utils::{accounts, VMContextBuilder};
+    use near_sdk::testing_env;
+
+    const H: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const R: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    fn at(who: usize, height: u64) {
+        testing_env!(VMContextBuilder::new().predecessor_account_id(accounts(who)).block_height(height).build());
+    }
+
+    fn sealed() -> Registry {
+        at(0, 10);
+        let mut r = Registry::new();
+        r.seal("suite".into(), H.into(), 5, H.into(), vec!["m1".into(), "m2".into()]);
+        r
+    }
+
+    #[test]
+    fn happy_path_numbers_runs_and_closes() {
+        let mut r = sealed();
+        at(0, 11);
+        assert_eq!(r.commit_run("suite".into(), "m1".into(), R.into(), 4), 0);
+        at(0, 12);
+        assert_eq!(r.commit_run("suite".into(), "m1".into(), R.into(), 5), 1);
+        assert_eq!(r.commit_run("suite".into(), "m2".into(), R.into(), 3), 0);
+        at(0, 13);
+        r.close_round("suite".into());
+        let b = r.get_benchmark(accounts(0), "suite".into()).unwrap();
+        assert_eq!((b.seal_height, b.close_height, b.runs.len()), (10, Some(13), 3));
+        assert_eq!(r.get_run(accounts(0), "suite".into(), "m1".into(), 1).unwrap().total_score, 5);
+    }
+
+    #[test]
+    #[should_panic(expected = "already sealed")]
+    fn no_overwrite() {
+        let mut r = sealed();
+        r.seal("suite".into(), R.into(), 5, H.into(), vec!["m1".into()]);
+    }
+
+    #[test]
+    fn same_id_is_scoped_per_owner() {
+        let mut r = sealed();
+        at(1, 11);
+        r.seal("suite".into(), R.into(), 3, H.into(), vec!["m1".into()]);
+        assert_eq!(r.get_benchmark(accounts(1), "suite".into()).unwrap().n, 3);
+        assert_eq!(r.get_benchmark(accounts(0), "suite".into()).unwrap().n, 5);
+    }
+
+    #[test]
+    #[should_panic(expected = "no such benchmark for this owner")]
+    fn others_cannot_commit() {
+        let mut r = sealed();
+        at(1, 11);
+        r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "later block than its seal")]
+    fn commit_same_block_as_seal() {
+        let mut r = sealed();
+        r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "round is closed")]
+    fn no_commit_after_close() {
+        let mut r = sealed();
+        at(0, 11);
+        r.close_round("suite".into());
+        at(0, 12);
+        r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "after the last commit")]
+    fn close_same_block_as_commit() {
+        let mut r = sealed();
+        at(0, 11);
+        r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+        r.close_round("suite".into());
+    }
+
+    #[test]
+    #[should_panic(expected = "exceeds n")]
+    fn score_range() {
+        let mut r = sealed();
+        at(0, 11);
+        r.commit_run("suite".into(), "m1".into(), R.into(), 6);
+    }
+
+    #[test]
+    #[should_panic(expected = "not in the sealed list")]
+    fn unsealed_model() {
+        let mut r = sealed();
+        at(0, 11);
+        r.commit_run("suite".into(), "gpt".into(), R.into(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "64 lowercase hex")]
+    fn bad_root() {
+        at(0, 10);
+        let mut r = Registry::new();
+        r.seal("s".into(), "AB".into(), 1, H.into(), vec!["m".into()]);
+    }
+}
