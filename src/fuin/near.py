@@ -9,7 +9,8 @@ import time
 
 import requests
 
-NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", "https://rpc.testnet.near.org")}
+# rpc.testnet.near.org rate-limits hard (HTTP 429 after ~15 calls); FastNEAR's public testnet RPC did not, Nov 3
+NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", "https://test.rpc.fastnear.com")}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
             "code_hash": "HvqaWNNceCX7AMtsanPobAt5mkAE2MsZdP2BURA2cgef"}
@@ -20,16 +21,20 @@ class RpcError(RuntimeError):
 
 
 def rpc(method: str, params, network: str = "testnet") -> dict:
-    for attempt in range(4):
+    attempts = 7  # public RPCs rate-limit (HTTP 429); back off ~1 minute in total before giving up
+    for attempt in range(attempts):
+        wait = min(2 ** attempt, 20)
         try:
             r = requests.post(NETWORKS[network], json={"jsonrpc": "2.0", "id": "fuin", "method": method, "params": params}, timeout=30)
             if r.status_code in (429, 502, 503, 504):
+                if r.headers.get("Retry-After", "").isdigit():
+                    wait = min(int(r.headers["Retry-After"]), 30)
                 raise RpcError(f"HTTP {r.status_code}")
             d = r.json()
         except (requests.RequestException, ValueError, RpcError) as e:
-            if attempt == 3:
-                raise RpcError(f"{method}: {e}") from e
-            time.sleep(1 + attempt)
+            if attempt == attempts - 1:
+                raise RpcError(f"{method}: {e} (set FUIN_TESTNET_RPC to another testnet RPC to retry elsewhere)") from e
+            time.sleep(wait)
             continue
         if "error" in d:
             raise RpcError(json.dumps(d["error"])[:300])

@@ -7,7 +7,7 @@ ok   changed-set.json: REFUSED merkle_root_mismatch
 ok   altered-policy.json: REFUSED policy_mismatch
 ok   unattested-signer.json: REFUSED signer_not_attested_for_model
 ok   invalid-attestation.json: REFUSED attestation_invalid
-FAIL changed-audit.json: CANT_CERTIFY evidence_unavailable (expected REFUSED audit_sample_mismatch)
+ok   changed-audit.json: REFUSED audit_sample_mismatch
 ok   external-model.json: CANT_CERTIFY model_not_tee
 ok   evidence-unavailable.json: CANT_CERTIFY evidence_unavailable
-exit 1
+exit 0
