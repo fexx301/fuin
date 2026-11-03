@@ -8,10 +8,9 @@ from pathlib import Path
 
 from fuin import attestation, core, inference, near
 from fuin import policy as P
-from fuin import scorer
 
 PRIVATE = Path("private")
-ATTESTATION_POLICY = Path(__file__).resolve().parents[2] / "policy" / "attestation-v1.json"
+ATTESTATION_POLICY = Path(__file__).resolve().parents[2] / "policy" / "attestation-v2.json"
 
 
 def b64(b: bytes) -> str:
@@ -85,7 +84,7 @@ def run(bid: str, model: str) -> dict:
         code = inference.check_signature(sig, model, req, resp, signer)
         if code:
             raise SystemExit(f"item {i}: {code}")
-        score = scorer.score_response(r["item"], resp)
+        score = P.scorer_for(st["policy"]).score_response(r["item"], resp)
         rows.append({"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score})
         print(f"  {i}: score {score}  answer {parsed['choices'][0]['message']['content'][:40]!r}")
     st["runs"][model] = {"preflight_nonce": nonce, "model_report": report, "signer": signer, "rows": rows}

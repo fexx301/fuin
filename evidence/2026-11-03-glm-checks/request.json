@@ -1,0 +1,1 @@
+{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"What is the smallest unit of NEAR called? Answer with one word."}],"stream":false,"user":"519dd83e815a010b511465f36b95df0243559ea43bbea2e7ff6610d8135d6ac3","max_tokens":64,"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}

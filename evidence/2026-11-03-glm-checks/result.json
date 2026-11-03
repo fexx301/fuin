@@ -1,0 +1,13 @@
+{
+ "settings": {
+  "max_tokens": 64,
+  "temperature": 0,
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ "keyless_outcome": [
+  "accepted"
+ ],
+ "signature_check": "OK"
+}
