@@ -1,0 +1,20 @@
+{
+ "model": "Qwen/Qwen3.8-27B",
+ "signing_address": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+ "quote_status": "UpToDate",
+ "advisories": [],
+ "signing_algo_ok": true,
+ "report_data_signer_ok": true,
+ "report_data_nonce_ok": true,
+ "request_nonce_ok": true,
+ "debug_off": true,
+ "mrconfigid_ok": true,
+ "gpu_nonce_ok": true,
+ "rtmr3_ok": true,
+ "compose_hash": "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29",
+ "nras_ok": true,
+ "tcb": "clean",
+ "outcome": [
+  "accepted"
+ ]
+}
