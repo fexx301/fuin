@@ -1,0 +1,13 @@
+{
+ "settings": {
+  "max_tokens": 64,
+  "temperature": 0,
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ "signers_in_gateway_report": [
+  "0x835ab53d20294ef795906dff21ae4c045336aa26"
+ ],
+ "result": "OK"
+}

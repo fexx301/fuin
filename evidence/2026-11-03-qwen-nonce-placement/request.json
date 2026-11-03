@@ -1,0 +1,1 @@
+{"model":"Qwen/Qwen3.8-27B","messages":[{"role":"user","content":"What is the smallest unit of NEAR called? Answer with one word."}],"stream":false,"user":"e80bc43358e7159926f286b0085b2e467f4462f6dc631aad5554d609e5b0174a","max_tokens":64,"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}
