@@ -163,6 +163,9 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     if deferred:
         return {"outcome": "CANT_CERTIFY", "code": deferred[0], "checks": checks, "warnings": warnings}
     warnings.append("image provenance not verified")
+    log = r.get("evidence", {}).get("attempt_log")
+    warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
+                    + " (not verifiable; an owner could omit them)")
     p = core.p_detect(n, d, k)
     scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); "
              f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
