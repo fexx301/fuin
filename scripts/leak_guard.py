@@ -36,6 +36,10 @@ for state in PRIVATE.glob("*/state.json"):
         if [r["item"]["question"] for r in st["items"]] == [it["question"] for it in items]:
             allowed |= {(name, i, r["item"]["request_nonce"]) for i, r in enumerate(st["items"])}
 
+# Disclosures the owner has acknowledged and counts as disclosed (private: it names hidden items).
+ack_file = PRIVATE / "suites" / "acknowledged.json"
+acknowledged = {(a["suite"], a["index"]) for a in json.loads(ack_file.read_text())} if ack_file.exists() else set()
+
 tracked = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True).stdout.split()
 leaks = []
 for path in tracked:
@@ -56,7 +60,7 @@ for path in tracked:
                 if norm(x["item"].get("question", "")) == q and (suite, i, x["item"].get("request_nonce")) in allowed:
                     revealed_here.add((suite, i))
     for suite, i, q, anchor, url in hidden:
-        if (suite, i) in revealed_here:
+        if (suite, i) in revealed_here or (suite, i) in acknowledged:
             continue
         if q in flat:
             leaks.append((path, suite, i, "question"))
@@ -66,5 +70,6 @@ for path in tracked:
             leaks.append((path, suite, i, "source anchor"))
 for leak in leaks:
     print("LEAK", *leak)
-print(f"{len(hidden)} hidden items checked against {len(tracked)} tracked files: {len(leaks)} leak(s)")
+print(f"{len(hidden)} hidden items checked against {len(tracked)} tracked files: {len(leaks)} leak(s), "
+      f"{len(acknowledged)} acknowledged disclosure(s) skipped")
 sys.exit(1 if leaks else 0)
