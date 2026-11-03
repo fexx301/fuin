@@ -7,6 +7,7 @@ unavailable or unsupported; else VERIFIED with its scope, warnings and limits.
 import base64
 import hashlib
 import requests
+import yaml
 
 from fuin import attestation, core, inference, near, owner, provenance
 from fuin import policy as P
@@ -105,7 +106,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 tr = provenance.trace(rep, r["preflight_nonce"], acc[0]["td"])
             except provenance.TraceInvalid as e:
                 raise Refused("attestation_invalid") from e
-            except (provenance.TraceUnavailable, requests.RequestException, RuntimeError, ValueError) as e:
+            except (provenance.TraceUnavailable, requests.RequestException, RuntimeError, ValueError, yaml.YAMLError) as e:
                 warnings.append(f"deployment not traced: {str(e)[:120]}")
             else:
                 trace = tr
@@ -187,8 +188,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
              f"scores under the stated sampling assumptions; disclosed {k}, hidden {n - k}")
     limits = LIMITS if not trace else [l if not l.startswith("Accepted configurations") else
         "Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The serving container is traced from "
-        "NEAR's attested deployment log to a public compose file (image digest, weights, revision); the image's build provenance "
-        "is not verified." for l in LIMITS]
+        "NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during "
+        "the run would not show, and the image's build provenance is not verified." for l in LIMITS]
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

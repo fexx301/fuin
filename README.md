@@ -24,7 +24,7 @@ Every claim below maps to a command:
 | Each answer is signed by the model's TEE-attested key | same output, `signatures` and `attestation` lines | `60/60 provider_tee …`; `quote UpToDate, NRAS True` |
 | The served container and weights are traced to NEAR's public deployment repo | same output, `deployment trace` line | `… nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc …` |
 | The set and results were committed on NEAR, with the seal before the commit and the commit before the close | same output, `registry` line | `seal … < commit … < close …` |
-| The owner can't choose the audit sample | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
+| The owner can't choose which items a committed round reveals | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
 | Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 14 `ok` lines, exit 0 |
 | The registry can't be changed | `curl -s https://test.rpc.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
@@ -46,7 +46,7 @@ Round `near-dev-60-r1`: 60 private questions with exact answers, each cited to a
 | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **25/60** | 10/23 | 7/23 | 21/60 |
 | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **17/60** | 6/23 | 8/23 | 17/60 |
 
-Read this as "correct within a 4,096-token budget". A cut-off answer scores 0 whatever the model knew, and both models often reason past the cap. The weights column comes from the deployment trace (see below): these are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
+Read this as "correct within a 4,096-token budget". A cut-off answer scores 0 whatever the model knew, and both models often reason past the cap. The weights column comes from the deployment trace taken at each run's preflight (see below): these are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
 
 **Disclosure:** 23 items are revealed by the audit. One more unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs, so it counts as disclosed: **24 disclosed, 36 hidden.**
 
@@ -140,7 +140,7 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 
 - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
 - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
-- Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The serving container is traced from NEAR's attested deployment log to a public compose file (image digest, weights, revision); the image's build provenance is not verified.
+- Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
 - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
