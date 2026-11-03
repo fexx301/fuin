@@ -1,0 +1,28 @@
+examples/cert-near-dev-thin-1-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 5 items, scores in {0,1}, total 2/5
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; scorer sha256 01cdd5c68e16…; k=5
+  [pass] signatures: 5/5 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v1
+  [pass] registry: registry.fuin.testnet code Ej6EQ3yyVP…; seal 276073537 < commit 276073620 < close 276073646; committed runs for this model: [0]
+  [pass] audit sample: seed block 276073648 (first final block ≥ close+2); indices [0, 1, 2, 3, 4]
+  [pass] reveals: 5/5 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  scope: signature evidence verified; commitments and total consistent (2/5); audit passed 5/5 with zero mismatches; detection power 100.0000% for ≥1 incorrect item scores under the stated sampling assumptions; disclosed 5, hidden 0
+  warning: image provenance not verified
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The accepted compose hash pins NEAR's compose-manager launcher, not the model containers; image provenance not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/tampered/edited-answer.json: REFUSED signature_text_mismatch
+  [pass] rows: 5 items, scores in {0,1}, total 2/5
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; scorer sha256 01cdd5c68e16…; k=5
+  [pass] signatures: 5/5 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v1
+  [pass] registry: registry.fuin.testnet code Ej6EQ3yyVP…; seal 276073537 < commit 276073620 < close 276073646; committed runs for this model: [0]
+  [pass] audit sample: seed block 276073648 (first final block ≥ close+2); indices [0, 1, 2, 3, 4]
+exit code 1
