@@ -4,10 +4,11 @@
 //! account's full-access key is deleted so the code cannot be replaced.
 
 use near_sdk::store::LookupMap;
-use near_sdk::{env, near, require, AccountId, BlockHeight, PanicOnDefault};
+use near_sdk::{env, near, require, AccountId, BlockHeight, NearToken, PanicOnDefault, Promise};
 
 const MAX_ID: usize = 64;
 const MAX_MODELS: usize = 8;
+const MAX_RUNS: usize = 32;
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
@@ -58,6 +59,17 @@ fn require_id(s: &str, what: &str) {
     );
 }
 
+/// Callers pay for the storage their call adds; any excess deposit is refunded.
+fn charge_storage(before: u64) {
+    let added = env::storage_usage().saturating_sub(before) as u128;
+    let cost = added * env::storage_byte_cost().as_yoctonear();
+    let paid = env::attached_deposit().as_yoctonear();
+    require!(paid >= cost, format!("attach at least {cost} yoctoNEAR to pay for {added} bytes of storage"));
+    if paid > cost {
+        Promise::new(env::predecessor_account_id()).transfer(NearToken::from_yoctonear(paid - cost)).detach();
+    }
+}
+
 #[near]
 impl Registry {
     #[init]
@@ -66,6 +78,7 @@ impl Registry {
     }
 
     /// Seal a benchmark: its Merkle root, size and policy hash, under the caller's account.
+    #[payable]
     pub fn seal(&mut self, benchmark_id: String, root: String, n: u32, policy_hash: String, models: Vec<String>) {
         let owner = env::predecessor_account_id();
         require_id(&benchmark_id, "benchmark_id");
@@ -79,6 +92,7 @@ impl Registry {
         }
         let k = key(&owner, &benchmark_id);
         require!(!self.benchmarks.contains_key(&k), "benchmark already sealed");
+        let before = env::storage_usage();
         self.benchmarks.insert(
             k,
             Benchmark {
@@ -94,9 +108,12 @@ impl Registry {
                 runs: vec![],
             },
         );
+        self.benchmarks.flush();
+        charge_storage(before);
     }
 
     /// Commit one run's result root and total; the registry assigns the run index.
+    #[payable]
     pub fn commit_run(&mut self, benchmark_id: String, model_id: String, run_root: String, total_score: u32) -> u32 {
         let owner = env::predecessor_account_id();
         require_hex32(&run_root, "run_root");
@@ -106,13 +123,18 @@ impl Registry {
         require!(height > b.seal_height, "run must execute in a later block than its seal");
         require!(b.models.contains(&model_id), "model not in the sealed list");
         require!(total_score <= b.n, "total_score exceeds n");
+        require!(b.runs.len() < MAX_RUNS, "run limit reached for this benchmark");
         let run_index = b.runs.iter().filter(|r| r.model_id == model_id).count() as u32;
         b.runs.push(RunRecord { model_id, run_index, run_root, total_score, commit_height: height });
         b.last_commit_height = Some(height);
+        let before = env::storage_usage();
+        self.benchmarks.flush();
+        charge_storage(before);
         run_index
     }
 
     /// Close the round: no more runs; the audit seed is taken from a finalized block after this one.
+    #[payable]
     pub fn close_round(&mut self, benchmark_id: String) {
         let owner = env::predecessor_account_id();
         let b = self.benchmarks.get_mut(&key(&owner, &benchmark_id)).unwrap_or_else(|| env::panic_str("no such benchmark for this owner"));
@@ -120,6 +142,9 @@ impl Registry {
         let height = env::block_height();
         require!(height > b.last_commit_height.unwrap_or(b.seal_height), "close must execute after the last commit");
         b.close_height = Some(height);
+        let before = env::storage_usage();
+        self.benchmarks.flush();
+        charge_storage(before);
     }
 
     pub fn get_benchmark(&self, owner: AccountId, benchmark_id: String) -> Option<Benchmark> {
@@ -146,7 +171,15 @@ mod tests {
     const R: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     fn at(who: usize, height: u64) {
-        testing_env!(VMContextBuilder::new().predecessor_account_id(accounts(who)).block_height(height).build());
+        pay(who, height, NearToken::from_millinear(100));
+    }
+
+    fn pay(who: usize, height: u64, deposit: NearToken) {
+        testing_env!(VMContextBuilder::new()
+            .predecessor_account_id(accounts(who))
+            .block_height(height)
+            .attached_deposit(deposit)
+            .build());
     }
 
     fn sealed() -> Registry {
@@ -243,5 +276,47 @@ mod tests {
         at(0, 10);
         let mut r = Registry::new();
         r.seal("s".into(), "AB".into(), 1, H.into(), vec!["m".into()]);
+    }
+
+    #[test]
+    #[should_panic(expected = "to pay for")]
+    fn seal_without_storage_deposit_is_rejected() {
+        pay(0, 10, NearToken::from_yoctonear(0));
+        let mut r = Registry::new();
+        r.seal("s".into(), H.into(), 1, H.into(), vec!["m".into()]);
+    }
+
+    #[test]
+    #[should_panic(expected = "to pay for")]
+    fn commit_without_storage_deposit_is_rejected() {
+        let mut r = sealed();
+        pay(0, 11, NearToken::from_yoctonear(0));
+        r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "run limit")]
+    fn run_count_is_capped() {
+        let mut r = sealed();
+        for h in 0..=MAX_RUNS as u64 {
+            at(0, 11 + h);
+            r.commit_run("suite".into(), "m1".into(), R.into(), 1);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "1-64 printable")]
+    fn oversized_id_is_rejected() {
+        at(0, 10);
+        let mut r = Registry::new();
+        r.seal("x".repeat(65), H.into(), 1, H.into(), vec!["m".into()]);
+    }
+
+    #[test]
+    #[should_panic(expected = "1-8 models")]
+    fn too_many_models_is_rejected() {
+        at(0, 10);
+        let mut r = Registry::new();
+        r.seal("s".into(), H.into(), 1, H.into(), (0..9).map(|i| format!("m{i}")).collect());
     }
 }
