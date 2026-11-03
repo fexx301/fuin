@@ -67,12 +67,22 @@ def main(argv=None) -> int:
         cert = json.loads(open(a.cert, encoding="utf-8").read())
         b, r, au = cert["benchmark"], cert["run"], cert["audit"]
         print(f"{b['id']} · {r['model_id']} run {r['run_index']} · committed total {r['total_score']}/{b['n']}")
-        print(f"audit: D={au['D']} k={au['k']} (target 95%) · disclosed {au['k']} of {b['n']}, hidden {b['n'] - au['k']}")
+        print(f"audit: D={au['D']} k={au['k']} (target 95%) · revealed {au['k']} of {b['n']}, unrevealed {b['n'] - au['k']}")
+        print(f"settings: {b['policy']['models'][r['model_id']]} · scorer {b['policy']['scorer']['name']}")
+        items = {it["i"]: it for it in r["items"]}
+        rows = []
+        for x in au["reveals"]:
+            resp = json.loads(base64.b64decode(x["response_b64"]))
+            ch = resp["choices"][0]
+            rows.append((x, ch.get("finish_reason"), (ch["message"].get("content") or "").strip()))
+        cut = sum(f == "length" for _, f, _ in rows)
+        right = sum(items[x["i"]]["score"] for x, _, _ in rows)
+        print(f"revealed sample: {right}/{len(rows)} correct; {cut}/{len(rows)} cut off at max_tokens (scored 0) — checkable from the revealed bytes")
         if a.audit:
-            items = {it["i"]: it for it in r["items"]}
-            for x in au["reveals"]:
-                content = json.loads(base64.b64decode(x["response_b64"]))["choices"][0]["message"]["content"]
-                print(f"  #{x['i']} score {items[x['i']]['score']} · Q: {x['item']['question']}\n      expected {x['item']['answer']!r} · model said {content.strip()[:60]!r}")
+            for x, fin, content in rows:
+                said = "(cut off before answering)" if fin == "length" and not content else repr(content[:50])
+                print(f"  #{x['i']:>2} score {items[x['i']]['score']} · Q: {x['item']['question']}\n       expected {x['item']['answer']!r} · model said {said}"
+                      f" · source {x['item'].get('source', {}).get('url', '-')}")
     return 0
 
 
