@@ -4,7 +4,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Reproduce
 
-- Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 10 minutes. It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
+- Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 5 minutes. It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
 - No account, API key or hidden test set is needed. The script unsets `NEARAI_API_KEY`.
 - If the NEAR RPC rate-limits you (HTTP 429), set `FUIN_TESTNET_RPC` to another testnet RPC.
 - `fuin verify` exit codes:
