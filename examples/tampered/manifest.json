@@ -1,5 +1,5 @@
 {
- "base": "examples/cert-near-dev-thin-1-qwen3.8-27b.json",
+ "base": "examples/cert-near-dev-60-r1-qwen3.8-27b.json",
  "fixtures": [
   {
    "file": "edited-answer.json",
@@ -49,7 +49,7 @@
   {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
-   "mutation": "audit seed replaced, as if the owner picked a different sample"
+   "mutation": "owner cherry-picks the sample: indices replaced by the first k items"
   },
   {
    "file": "external-model.json",

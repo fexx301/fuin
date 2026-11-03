@@ -86,9 +86,10 @@ def _(c):
     rep["intel_quote"] = q.hex()
 
 
-@fixture("changed-audit", "REFUSED audit_sample_mismatch", "audit seed replaced, as if the owner picked a different sample")
+@fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
-    c["audit"]["seed"] = "11" * 32
+    k = c["audit"]["k"]
+    c["audit"]["indices"] = list(range(k)) if c["audit"]["indices"] != list(range(k)) else list(range(1, k + 1))
 
 
 @fixture("external-model", "CANT_CERTIFY model_not_tee", "run relabelled as an external (non-TEE) gateway model")
@@ -102,5 +103,8 @@ def _(c):
     pass
 
 
-(out / "manifest.json").write_text(json.dumps({"base": sys.argv[1], "fixtures": fixtures}, indent=1) + "\n")
+made = {f["file"] for f in fixtures}
+prev = out / "manifest.json"
+kept = [f for f in json.loads(prev.read_text())["fixtures"] if f["file"] not in made] if prev.exists() else []  # e.g. answer-hint (a real round)
+prev.write_text(json.dumps({"base": sys.argv[1], "fixtures": fixtures + kept}, indent=1) + "\n")
 print(f"wrote {len(fixtures)} fixtures to {out}")

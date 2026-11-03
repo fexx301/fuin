@@ -10,4 +10,5 @@ ok   invalid-attestation.json: REFUSED attestation_invalid
 ok   changed-audit.json: REFUSED audit_sample_mismatch
 ok   external-model.json: CANT_CERTIFY model_not_tee
 ok   evidence-unavailable.json: CANT_CERTIFY evidence_unavailable
+ok   answer-hint.json: REFUSED request_policy_mismatch
 exit 0
