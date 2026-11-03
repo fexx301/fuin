@@ -63,6 +63,11 @@
    "env": {
     "FUIN_TESTNET_RPC": "http://127.0.0.1:9"
    }
+  },
+  {
+   "file": "answer-hint.json",
+   "expected": "REFUSED request_policy_mismatch",
+   "mutation": "real round fixture-answer-hint-2: the owner appended the answer to the prompt; signed by the model and committed on chain"
   }
  ]
 }
