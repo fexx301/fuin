@@ -13,7 +13,7 @@ from fuin import attestation, core, inference, near
 from fuin import policy as P
 
 PRIVATE = Path("private")
-ATTESTATION_POLICY = Path(__file__).resolve().parents[2] / "policy" / "attestation-v4.json"
+ATTESTATION_POLICY = Path(__file__).resolve().parents[2] / "policy" / "attestation-v5.json"
 
 
 def b64(b: bytes) -> str:

@@ -46,14 +46,18 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
     cma = report.get("compose_manager_attestation")
     if not cma:
         raise TraceUnavailable("no compose_manager_attestation in the report")
-    actions = cma["actions"]
-    ah = hashlib.sha256(canonical_actions(actions)).hexdigest()
-    if ah != cma["actions_hash"] or cma["nonce"].lower() != nonce_hex.lower() or cma["report_data"].lower() != ah + nonce_hex.lower():
-        raise TraceInvalid("action log hash, nonce or report data mismatch")
-    status, _adv, td = A.verify_quote(cma["quote"])
+    try:  # the attestation is present, so anything malformed in it is invalid evidence, not a missing trace
+        actions = cma["actions"]
+        ah = hashlib.sha256(canonical_actions(actions)).hexdigest()
+        if ah != cma["actions_hash"] or cma["nonce"].lower() != nonce_hex.lower() or cma["report_data"].lower() != ah + nonce_hex.lower():
+            raise TraceInvalid("action log hash, nonce or report data mismatch")
+        status, _adv, td = A.verify_quote(cma["quote"])  # RuntimeError (Intel unreachable) propagates as an outage
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise TraceInvalid(f"malformed compose-manager attestation ({type(e).__name__})") from e
     if td["report_data"].lower() != ah + nonce_hex.lower():
         raise TraceInvalid("compose-manager quote does not bind the action log and nonce")
-    if td_model is not None and (td["mr_config_id"], td["rt_mr3"]) != (td_model["mr_config_id"], td_model["rt_mr3"]):
+    same_cvm = ("mr_td", "rt_mr0", "rt_mr1", "rt_mr2", "mr_config_id", "rt_mr3")  # OS and application measurements
+    if td_model is not None and any(td[k] != td_model[k] for k in same_cvm):
         raise TraceInvalid("compose-manager quote is from a different CVM than the model report")
     repo = _repo(report)
 

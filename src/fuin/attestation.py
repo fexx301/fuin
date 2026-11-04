@@ -8,6 +8,7 @@ import base64
 import hashlib
 import inspect
 import json
+import time
 import re
 import struct
 
@@ -57,14 +58,34 @@ def parse_report_data(report_data: bytes) -> tuple[bytes, bytes]:
     return report_data[:32], report_data[32:]
 
 
-async def _verify(quote: bytes):
-    r = dcap_qvl.get_collateral_and_verify(quote, dcap_qvl.INTEL_PCS_URL)
+async def _collateral(quote: bytes):
+    r = dcap_qvl.get_collateral(dcap_qvl.INTEL_PCS_URL, quote)
     return await r if inspect.isawaitable(r) else r
 
 
+def _pcs_reachable() -> bool:
+    try:
+        requests.get(f"{dcap_qvl.INTEL_PCS_URL.rstrip('/')}/tdx/certification/v4/qe/identity", timeout=15)
+        return True
+    except requests.RequestException:
+        return False
+
+
 def verify_quote(quote_hex: str):
-    """Returns (status, advisory_ids, td_report dict). Raises on forged/invalid quotes."""
-    res = asyncio.run(_verify(bytes.fromhex(quote_hex)))
+    """Returns (status, advisory_ids, td_report dict).
+
+    Raises ValueError/TypeError for a malformed or invalid quote, and RuntimeError when Intel's collateral can't be
+    fetched for a well-formed quote: an outage, not evidence of tampering. (The combined dcap call raised ValueError
+    for both, so an Intel outage was refused as an invalid quote.)"""
+    raw = bytes.fromhex(quote_hex)
+    dcap_qvl.parse_quote(raw)
+    try:
+        collateral = asyncio.run(_collateral(raw))
+    except ValueError as e:  # an outage only if the request failed or Intel doesn't answer; otherwise the quote is at fault
+        if any(m in str(e) for m in ("error sending request", "timed out", "dns error")) or not _pcs_reachable():
+            raise RuntimeError(f"Intel collateral unavailable: {str(e)[:160]}") from e
+        raise ValueError(f"quote rejected at the collateral step: {str(e)[:160]}") from e
+    res = dcap_qvl.verify(raw, collateral, int(time.time()))
     rep = json.loads(res.to_json())["report"]
     td = rep.get("TD10") or rep.get("TD15")
     if td is None:
@@ -98,7 +119,7 @@ def check_report(report: dict, nonce_hex: str, policy: dict, *, use_nras: bool =
     nonce = nonce_hex.lower()
     try:
         status, advisories, td = verify_quote(report["intel_quote"])
-    except (ValueError, KeyError) as e:
+    except (ValueError, KeyError, TypeError) as e:
         return {**checks, "error": str(e), "outcome": ("refused", "attestation_invalid")}
     except RuntimeError as e:  # collateral service unreachable
         return {**checks, "error": str(e), "outcome": ("cant_certify", "evidence_unavailable")}
@@ -129,6 +150,14 @@ def check_report(report: dict, nonce_hex: str, policy: dict, *, use_nras: bool =
     checks["compose_hash"] = compose_hash(report)
     if checks["compose_hash"] not in accepted:
         return {**checks, "outcome": ("cant_certify", "measurement_unapproved")}
+    # the OS the application runs on (firmware, kernel, initrd, cmdline) must be an approved measurement too; MRCONFIGID and
+    # RTMR3 only identify the application, and an unapproved OS could fake those extends
+    entry = accepted[checks["compose_hash"]]
+    os_seen = {k: td[k] for k in ("mr_td", "rt_mr0", "rt_mr1", "rt_mr2")}
+    checks["os_approved"] = (os_seen in entry.get("os_measurements", [])
+                             and (report.get("info") or {}).get("os_image_hash") == entry.get("os_image_hash"))
+    if not checks["os_approved"]:
+        return {**checks, "os_seen": os_seen, "outcome": ("cant_certify", "measurement_unapproved")}
     if use_nras:
         try:
             checks["nras_ok"] = nras_verdict(report["nvidia_payload"])

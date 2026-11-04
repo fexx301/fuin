@@ -94,6 +94,23 @@ def _(c):
     up["tag"] = "v0.0.999"
 
 
+@fixture("deployment-untraced", "CANT_CERTIFY deployment_untraced",
+         "NEAR's compose-manager attestation removed from the model report, so the serving container can't be traced")
+def _(c):
+    c["run"]["model_report"]["model_attestations"][0].pop("compose_manager_attestation")
+
+
+@fixture("emptied-deployment-quote", "REFUSED attestation_invalid",
+         "the compose-manager attestation kept but its TDX quote replaced with an empty string")
+def _(c):
+    c["run"]["model_report"]["model_attestations"][0]["compose_manager_attestation"]["quote"] = ""
+
+
+@fixture("malformed-evidence", "REFUSED certificate_invalid", "run.evidence (the attempt log's container) replaced with a string")
+def _(c):
+    c["run"]["evidence"] = "x"
+
+
 @fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
     k = c["audit"]["k"]

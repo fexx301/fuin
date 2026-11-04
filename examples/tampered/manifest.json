@@ -52,6 +52,21 @@
    "mutation": "one entry of NEAR's attested compose-manager action log edited (tag changed); its hash no longer matches the quote"
   },
   {
+   "file": "deployment-untraced.json",
+   "expected": "CANT_CERTIFY deployment_untraced",
+   "mutation": "NEAR's compose-manager attestation removed from the model report, so the serving container can't be traced"
+  },
+  {
+   "file": "emptied-deployment-quote.json",
+   "expected": "REFUSED attestation_invalid",
+   "mutation": "the compose-manager attestation kept but its TDX quote replaced with an empty string"
+  },
+  {
+   "file": "malformed-evidence.json",
+   "expected": "REFUSED certificate_invalid",
+   "mutation": "run.evidence (the attempt log's container) replaced with a string"
+  },
+  {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"

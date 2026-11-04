@@ -16,7 +16,7 @@ TOP = {"version", "registry", "benchmark", "run", "audit"}
 LIMITS = [
     "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.",
     "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
-    "Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The accepted compose hash pins NEAR's compose-manager launcher, not the model containers; image provenance not verified.",
+    "Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.",
     "Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.",
     "Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.",
     "Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.",
@@ -78,6 +78,8 @@ def _validate(c) -> None:
         need(isinstance(rep, dict) and isinstance(rep.get("signing_address"), str), f"run.model_report.model_attestations[{j}]")
     h32(r.get("run_root"), "run.run_root"); num(r.get("total_score"), "run.total_score")
     txt(r.get("commit_tx"), "run.commit_tx"); num(r.get("commit_height"), "run.commit_height")
+    ev = r.get("evidence", {})
+    need(isinstance(ev, dict) and (ev.get("attempt_log") is None or isinstance(ev["attempt_log"], list)), "run.evidence")
     need(isinstance(r.get("items"), list), "run.items")
     for j, it in enumerate(r["items"]):
         w = f"run.items[{j}]"
@@ -222,8 +224,11 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 tr = provenance.trace(rep, r["preflight_nonce"], acc[0]["td"])
             except provenance.TraceInvalid as e:
                 raise Refused("attestation_invalid") from e
-            except (provenance.TraceUnavailable, requests.RequestException, RuntimeError, ValueError, KeyError, yaml.YAMLError) as e:
-                warnings.append(f"deployment not traced: {str(e)[:120]}")
+            except (requests.RequestException, RuntimeError) as e:  # GitHub or Intel unreachable
+                deferred.append(("evidence_unavailable", f"deployment trace: {str(e)[:200]}"))
+                return
+            except (provenance.TraceUnavailable, ValueError, KeyError, yaml.YAMLError) as e:  # VERIFIED requires the trace
+                deferred.append(("deployment_untraced", str(e)[:200]))
                 return
             trace = tr
             svc = tr["services"]
@@ -285,7 +290,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         return out("CANT_CERTIFY", "verifier_error", f"{type(e).__name__}: {str(e)[:200]}")
     if deferred:
         return out("CANT_CERTIFY", deferred[0][0], deferred[0][1] or None)
-    warnings.append("container image build provenance (cosign/SLSA) not verified" if trace else "image provenance not verified")
+    warnings.append("container image build provenance (cosign/SLSA) not verified")
     log = r.get("evidence", {}).get("attempt_log")
     warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
                     + " (not verifiable; an owner could omit them)")
@@ -294,10 +299,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
              f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
              f"scores under the stated sampling assumptions (not the probability that the total is correct); "
              f"directly revealed {k}, unrevealed {n - k} (indirect disclosure, such as shared sources, is not computed here)")
-    limits = LIMITS if not trace else [l if not l.startswith("Accepted configurations") else
-        "Accepted configurations are recorded from NEAR's endpoints in the verifier's policy. The serving container is traced from "
-        "NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during "
-        "the run would not show, and the image's build provenance is not verified." for l in LIMITS]
+    limits = LIMITS
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

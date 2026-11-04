@@ -71,6 +71,8 @@ def test_local_tampering_is_refused_during_an_outage(name, mutate, code):
     ("negative height", lambda c: c["run"].__setitem__("commit_height", -1)),
     ("signature not a dict", lambda c: c["run"]["items"][0].__setitem__("signature", "0x00")),
     ("reveal index out of range", lambda c: c["audit"]["reveals"][0].__setitem__("i", 10_000)),
+    ("evidence not an object", lambda c: c["run"].__setitem__("evidence", "x")),
+    ("attempt log not a list", lambda c: c["run"].__setitem__("evidence", {"attempt_log": "x"})),
 ])
 def test_malformed_input_gets_a_structured_refusal(name, mutate):
     res = run(mutate)

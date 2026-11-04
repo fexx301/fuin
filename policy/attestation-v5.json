@@ -1,0 +1,102 @@
+{
+  "version": "attestation-v5",
+  "note": "Accepted configurations recorded from NEAR's keyless direct report; reviewed by the verifier author, not sealed by owners. v2 adds z-ai/glm-5.3-flash (2026-11-03). v3 adds GLM's second instance (2026-11-03): the gateway routed to it; its app_compose differs from the direct host's only in INSTANCE_LABEL (gpu03 vs gpu04). v4 adds Qwen's redeployed configuration (2026-11-04): NEAR upgraded the compose-manager launcher image to sha256:a320bb48\u2026 (SLSA v1 provenance verified via GitHub attestations: nearai/compose-manager build.yml on master, commit be649f88) and moved the instance label to cm-gpu32-g7. v5 (2026-11-04) pins each configuration's OS measurements (MRTD, RTMR0-2) as observed in Intel-verified quotes from NEAR's reports (18 distinct genuine quotes across the published certificates and evidence), and requires the report's os_image_hash to match. A quote with any other OS measurement is CAN'T CERTIFY measurement_unapproved. The measurements are recorded from NEAR's attested reports, not recomputed from the dstack OS image. Prompted by an external blind review that found v1-v4 checked the application measurements (MRCONFIGID, RTMR3) but not the OS ones.",
+  "models": {
+    "Qwen/Qwen3.8-27B": {
+      "compose_hashes": {
+        "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29": {
+          "source": "https://qwen3-8-27b.completions.near.ai/v1/attestation/report",
+          "fetched_utc": "2026-11-03T16:13Z",
+          "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+          "image_digests": [
+            "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+            "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+            "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+            "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+          ],
+          "signing_address_seen": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+          "evidence": "evidence/2026-11-03-qwen-keyless-report/",
+          "model_workload_note": "compose_hash pins the compose-manager launcher, not the model containers; the model workload is named by compose_manager_attestation (git tag/commit/file), verified separately or reported as image provenance not verified",
+          "os_measurements": [
+            {
+              "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+              "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+              "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+              "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+            }
+          ]
+        },
+        "31d3b2389e06a4450e342f3a45fdbb5d7ce4c607c359f5b291635548b0b80007": {
+          "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B (keyed gateway report)",
+          "fetched_utc": "2026-11-04T16:00Z",
+          "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+          "image_digests": [
+            "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+            "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+            "nearaidev/compose-manager@sha256:a320bb4882341c8e19ef1944436f6591ed73303732009ed5db9f6db6c9da756a",
+            "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+          ],
+          "signing_address_seen": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+          "evidence": "evidence/2026-11-04-qwen-redeploy/",
+          "differs_from": "5e513dbd72e1\u2026 in the compose-manager image digest (6e035c8f\u2026 \u2192 a320bb48\u2026, SLSA-attested by nearai/compose-manager) and INSTANCE_LABEL (gpu13 \u2192 cm-gpu32-g7)",
+          "os_measurements": [
+            {
+              "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+              "rt_mr0": "f0f303d15fb7619b87ec60daf0db241e937b30a4e1f2c405b5420f14b27c6e301735094feea9693a33b868d00eeb07f9",
+              "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+              "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+            }
+          ]
+        }
+      }
+    },
+    "z-ai/glm-5.3-flash": {
+      "compose_hashes": {
+        "a0e3c6f4f21a60ea3f5c96bc7ef319b03a184ca2049605399275fbcea74e8c5f": {
+          "source": "https://glm-5-3-flash.completions.near.ai/v1/attestation/report",
+          "fetched_utc": "2026-11-03T17:22Z",
+          "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+          "image_digests": [
+            "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+            "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+            "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+            "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+          ],
+          "signing_address_seen": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+          "evidence": "evidence/2026-11-03-glm-checks/",
+          "model_workload_note": "compose_hash pins the compose-manager launcher, not the model containers; the model workload is named by compose_manager_attestation (git tag/commit/file), verified separately or reported as image provenance not verified",
+          "os_measurements": [
+            {
+              "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+              "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+              "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+              "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+            }
+          ]
+        },
+        "5f7ebd85cf1f480a118f75dd10fd0cb277e4ddbb23845f1c20d8ea0f1e87efa6": {
+          "source": "https://cloud-api.near.ai/v1/attestation/report?model=z-ai/glm-5.3-flash (keyed gateway report)",
+          "fetched_utc": "2026-11-03T17:54Z",
+          "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+          "image_digests": [
+            "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+            "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+            "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+            "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+          ],
+          "signing_address_seen": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+          "evidence": "evidence/2026-11-03-glm-checks/gateway-candidate-gpu04.json",
+          "differs_from": "a0e3c6f4f21a60ea3f5c96bc7ef319b03a184ca2049605399275fbcea74e8c5f only in INSTANCE_LABEL=gpu04 (was gpu03)",
+          "os_measurements": [
+            {
+              "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+              "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+              "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+              "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
