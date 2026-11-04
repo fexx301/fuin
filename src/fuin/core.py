@@ -61,7 +61,8 @@ def loads_strict(data: bytes | str):
 # --- Merkle (spec: leaves ordered by index, duplicate last node at odd widths) ---
 
 def benchmark_leaf(i: int, salt: bytes, item: dict) -> bytes:
-    assert len(salt) == 32
+    if len(salt) != 32:
+        raise ValueError("salt must be 32 bytes")
     return sha256(b"\x00", u64(i), salt, jcs(item))
 
 
