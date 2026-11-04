@@ -108,7 +108,7 @@
   const STEPS = [
     ['schema', 'Certificate shape', 'local'], ['model', 'Model is attested', 'local'], ['rows', 'Rows and total', 'local'],
     ['commitments', 'Merkle commitments', 'local'], ['policy', 'Sealed policy', 'local'], ['signatures', 'Every model signature', 'local'],
-    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX + NVIDIA GPU attestation', 'CLI'],
+    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU, recorded)', 'Intel via PCCS'],
     ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Audit sample from a NEAR block', 'NEAR RPC'],
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -161,7 +161,7 @@
     $('#certTitle').textContent = `${short(r.model_id || '?')} · ${b.id || 'uploaded certificate'}`;
     $('#certMeta').textContent = `committed ${r.total_score}/${b.n} · seal ${String(b.seal_tx || '').slice(0, 10)}… · run ${r.run_index}`;
     renderChecks(); $('#stamp').className = 'stamp';
-    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, recorded: recordedLine(entry, !!mutate) },
+    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
     if (id === running) stamp(res);
   }

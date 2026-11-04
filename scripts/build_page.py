@@ -1,8 +1,8 @@
 """Build site/data.js for the interactive results page (site/index.html + site/app.js).
 
 Usage: uv run python scripts/build_page.py
-Bundles, from committed files only: the real certificates (attestation reports trimmed to their signer addresses;
-the browser can't check TDX/GPU evidence, so the page shows the CLI's recorded result for those checks), the recorded
+Bundles, from committed files only: the real certificates (attestation reports trimmed to what the browser checks:
+quote, event log, app_compose and nonce; NVIDIA's GPU verdict service blocks browsers, so the page shows the CLI's recorded NRAS result), the recorded
 `fuin verify --json` output, the answer-hint fixture, the verifier's supported-policy constants, the fixtures manifest
 and the hero's dot map. Loaded with a <script> tag so the page also works from file://.
 """
@@ -20,8 +20,10 @@ from fuin import policy as P  # noqa: E402
 
 def slim(cert: dict) -> dict:
     c = json.loads(json.dumps(cert))
-    c["run"]["model_report"] = {"model_attestations": [
-        {"signing_address": a["signing_address"], "model_name": a.get("model_name")} for a in cert["run"]["model_report"]["model_attestations"]]}
+    keep = lambda a: {"signing_address": a["signing_address"], "model_name": a.get("model_name"), "request_nonce": a.get("request_nonce"),
+                      "intel_quote": a.get("intel_quote"), "event_log": a.get("event_log"),
+                      "info": {"tcb_info": {"app_compose": a.get("info", {}).get("tcb_info", {}).get("app_compose")}}}
+    c["run"]["model_report"] = {"model_attestations": [keep(a) for a in cert["run"]["model_report"]["model_attestations"]]}  # GPU payload dropped
     return c
 
 
@@ -63,6 +65,9 @@ def main() -> None:
                       "allowed_settings": sorted(P.ALLOWED_SETTINGS),
                       "scorers": {name: sha for (name, sha) in P.SCORERS}},
         "attested_models": sorted(owner.attestation_policy()["models"]),
+        "attestation_policy": {"version": owner.attestation_policy()["version"],
+                               "models": {m: sorted(v["compose_hashes"]) for m, v in owner.attestation_policy()["models"].items()}},
+        "pccs": "https://pccs.phala.network",
         "rounds": rounds,
         "hint": {"file": "examples/tampered/answer-hint.json", "cert": slim(json.loads(Path("examples/tampered/answer-hint.json").read_text()))},
         "manifest": json.loads(Path("examples/tampered/manifest.json").read_text())["fixtures"],

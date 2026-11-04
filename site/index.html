@@ -49,7 +49,7 @@
       <div class="diff" id="diff"></div>
       <ul class="checks" id="checks"></ul>
       <div class="stamp" id="stamp"></div>
-      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public RPC. Intel TDX and NVIDIA GPU attestation need services a browser can't call, so this page shows the result recorded by the command-line verifier for the bundled certificates. Run <code>fuin verify</code> to check those yourself. The command line is the reference verifier.</p>
+      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses. Its collateral comes from a public mirror and is signed by Intel. NVIDIA's GPU verdict service blocks browsers, so that one result is shown as recorded by the command-line verifier. The command line is the reference verifier.</p>
     </div>
   </div>
 </div></section>
@@ -118,6 +118,7 @@ env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r2-glm-5.3-fl
 </div></footer>
 
 <script src="vendor/noble.js"></script>
+<script src="vendor/dcap.js"></script>
 <script src="data.js"></script>
 <script src="verify.js"></script>
 <script src="app.js"></script>

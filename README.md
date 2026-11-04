@@ -181,6 +181,6 @@ Also: verification needs the public services listed above (it is account-free, n
 | `examples/` | real certificates; `tampered/` fixtures and their manifest |
 | `evidence/` | dated command output, transactions and probe write-ups behind every claim here |
 | `scripts/` | fixture builder and checker, suite source checker, leak guard, results-page builder |
-| `site/index.html` | static results page built from the committed certificates and recorded verifier output (`uv run python scripts/build_page.py`) |
+| `site/` | interactive page: verify certificates in the browser (every local check, live NEAR RPC checks, and the Intel TDX quote via Phala's WASM build of `dcap-qvl`; NVIDIA's GPU verdict is shown as recorded), tamper with them live, explore results. Open `site/index.html`; data from `scripts/build_page.py`, vendored crypto from `scripts/build_vendor.sh`, tested by `node scripts/test_site_verifier.mjs` |
 
 MIT licence.

@@ -1,16 +1,18 @@
 // Run site/verify.js in Node against the bundled certificates and live mutations; compare with the Python verdicts.
 // Usage: node scripts/test_site_verifier.mjs   (needs network for the NEAR RPC steps)
 import fs from 'node:fs';
-import vm from 'node:vm';
-const ctx = { console, crypto: globalThis.crypto, fetch, TextEncoder, TextDecoder, atob, btoa, setTimeout, Uint8Array, BigInt, URL };
-ctx.globalThis = ctx; ctx.window = ctx; vm.createContext(ctx);
-for (const f of ['site/vendor/noble.js', 'site/data.js', 'site/verify.js']) vm.runInContext(fs.readFileSync(f, 'utf8') + (f.endsWith('noble.js') ? '\nglobalThis.Noble = Noble;' : ''), ctx, { filename: f });
+globalThis.window = globalThis;
+for (const f of ['site/vendor/noble.js', 'site/vendor/dcap.js', 'site/data.js', 'site/verify.js']) {
+  const g = f.endsWith('noble.js') ? '\nglobalThis.Noble = Noble;' : f.endsWith('dcap.js') ? '\nglobalThis.Dcap = Dcap;' : '';
+  (0, eval)(fs.readFileSync(f, 'utf8') + g);
+}
+const ctx = globalThis;
 const F = ctx.FUIN, V = ctx.FuinVerify;
-const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, recorded: rec });
+const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: rec });
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let fails = 0;
 const check = async (name, cert, want, net = true) => {
-  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9' };
+  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', pccs: net ? F.pccs : 'http://127.0.0.1:9' };
   const res = await V.verify(cert, c);
   const got = res.outcome + (res.code ? ' ' + res.code : '');
   const ok = got === want; fails += !ok;
@@ -28,6 +30,8 @@ await check('wrong key', mut((c) => { const it = c.run.items[0]; const s = ctx.N
 await check('cherry-picked sample', mut((c) => { c.audit.indices = [...Array(c.audit.k).keys()]; }), 'REFUSED audit_sample_mismatch');
 await check('answer hint (real round)', F.hint.cert, 'REFUSED request_policy_mismatch');
 await check('relabelled as GPT', mut((c) => { c.run.model_id = 'openai/gpt-5.5'; }), "CANT_CERTIFY model_not_tee");
+await check('flipped TDX quote byte', mut((c) => { const r = c.run.model_report.model_attestations[0]; const q = r.intel_quote; const k = q.length - 200; r.intel_quote = q.slice(0, k) + (q[k] === '0' ? '1' : '0') + q.slice(k + 1); }), 'REFUSED attestation_invalid');
+await check('edited app_compose (MRCONFIGID)', mut((c) => { c.run.model_report.model_attestations[0].info.tcb_info.app_compose += ' '; }), 'REFUSED attestation_invalid');
 await check('one-byte salt', mut((c) => { c.audit.reveals[0].salt = 'ab'; }), 'REFUSED certificate_invalid');
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);

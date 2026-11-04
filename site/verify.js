@@ -252,6 +252,7 @@
         return `${n}/${n} provider_tee signatures recover to ${items[0].signature.signing_address.slice(0, 10)}…`;
       });
       const rv = a.reveals.map((x) => x.i);
+      const used = new Set(items.map((it) => it.signature.signing_address.toLowerCase()));
       await local('reveals', async () => {
         req(rv.length === k && rv.every((v, j) => j === 0 || v > rv[j - 1]) && rv.every((v) => v >= 0 && v < n), 'reveal_mismatch');
         for (const x of a.reveals) {
@@ -268,8 +269,48 @@
         return `${k}/${k} revealed: proofs pass, exact request rebuilt, re-score matches`;
       });
 
-      await start('attestation');
-      await onStep('attestation', 'info', cfg.recorded ? `recorded by fuin verify: ${cfg.recorded}` : 'needs Intel PCS and NVIDIA NRAS: run fuin verify');
+      const gpu = cfg.recorded ? `GPU: NVIDIA NRAS true (recorded by fuin verify)` : 'GPU: NVIDIA NRAS blocks browsers; run fuin verify';
+      const reps = r.model_report.model_attestations.filter((x) => used.has(String(x.signing_address).toLowerCase()));
+      if (root.Dcap && reps.length && reps.every((x) => x.intel_quote)) {
+        await online('attestation', async () => {
+          const out = [];
+          for (const rep of reps) {
+            const quote = unhex(rep.intel_quote);
+            let coll;
+            try { coll = await root.Dcap.collateral(quote, cfg.pccs); }
+            catch (e) {
+              // dcap-qvl reports a network failure and an unparseable quote with the same message, so ask the mirror
+              // directly: reachable means the quote is at fault (invalid evidence); unreachable means unavailable evidence.
+              let up = false;
+              try { up = (await fetch(cfg.pccs.replace(/\/$/, '') + '/tdx/certification/v4/qe/identity')).ok; } catch { up = false; }
+              if (!up) throw new Unavailable('TDX collateral service unreachable');
+              throw new Refused('attestation_invalid');
+            }
+            let res; try { res = root.Dcap.verify(quote, coll); } catch (e) { throw new Refused('attestation_invalid'); }
+            req(res.status !== 'Revoked', 'tcb_revoked');
+            const td = res.report.TD10 || res.report.TD15; req(!!td, 'attestation_invalid');
+            const signer = String(rep.signing_address).toLowerCase().replace(/^0x/, '');
+            req(td.report_data === signer.padEnd(64, '0') + r.preflight_nonce && rep.request_nonce === r.preflight_nonce, 'attestation_invalid');
+            req((parseInt(td.td_attributes.slice(0, 2), 16) & 1) === 0, 'attestation_invalid');
+            const compose = rep.info.tcb_info.app_compose, ch = hex(await sha256(enc.encode(compose)));
+            req(td.mr_config_id === '01' + ch + '00'.repeat(15), 'attestation_invalid');
+            let rt = new Uint8Array(48);
+            for (const ev of rep.event_log) {
+              if (ev.imr !== 3) continue;
+              const le = new Uint8Array(4); new DataView(le.buffer).setUint32(0, ev.event_type, true);
+              const d = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([le, enc.encode(':' + ev.event + ':'), unhex(ev.event_payload)])));
+              rt = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([rt, d])));
+            }
+            req(hex(rt) === td.rt_mr3, 'attestation_invalid');
+            if (!((cfg.attestationPolicy.models[r.model_id] || []).includes(ch))) throw new CantCertify('measurement_unapproved');
+            out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… accepted by ${cfg.attestationPolicy.version}`);
+          }
+          return `TDX checked in your browser: ${out.join('; ')}. ${gpu}`;
+        });
+      } else {
+        await start('attestation');
+        await onStep('attestation', 'info', cfg.recorded ? `recorded by fuin verify: ${cfg.recorded}` : 'needs Intel PCS and NVIDIA NRAS: run fuin verify');
+      }
 
       const reg = cert.registry, url = cfg.rpc; let rec = null;
       await online('registry', async () => {
