@@ -31,7 +31,9 @@ def build_request(model: str, question: str, nonce_hex: str, settings: dict) -> 
 
 
 def complete(request: bytes) -> tuple[bytes, dict]:
-    r = requests.post(f"{GATEWAY}/v1/chat/completions", data=request, timeout=180, headers={
+    # long reasoning (up to max_tokens) under parallel load can take many minutes; a short read timeout
+    # abandons answers NEAR keeps generating (and bills), so wait long enough for the cap to be reached
+    r = requests.post(f"{GATEWAY}/v1/chat/completions", data=request, timeout=(30, 1200), headers={
         **_auth(), "Content-Type": "application/json", "x-no-aliasing": "true", "Accept-Encoding": "identity"})
     r.raise_for_status()
     return r.content, r.json()
