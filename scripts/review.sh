@@ -29,10 +29,10 @@ else
 fi
 
 step "5/5 in-browser verifier, run in Node (expect every line 'ok')"
-if command -v node >/dev/null; then
+if command -v node >/dev/null && node -e 'if (!globalThis.crypto?.subtle || !globalThis.fetch) process.exit(1)' 2>/dev/null; then
   node scripts/test_site_verifier.mjs || fail=1
 else
-  echo "node not found: skipped (the page itself runs in any modern browser)"
+  echo "skipped: needs Node 20+ (Web Crypto and fetch); the page itself runs in any modern browser"
 fi
 
 printf '\n== %s\n' "$([ $fail -eq 0 ] && echo 'ALL CHECKS PASSED' || echo 'SOME CHECKS FAILED')"

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="15 8 240 240" role="img" aria-labelledby="title desc">
+<title id="title">Fuin symbol</title>
+<desc id="desc">Dimensional vermilion Fuin seal symbol on a transparent background.</desc>
+<defs>
+ <linearGradient id="sealFace" x1="0" y1="0" x2="0.85" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#F07758" /><stop offset="0.38" stop-color="#D64D36" /><stop offset="1" stop-color="#A62925" /></linearGradient>
+ <linearGradient id="sealEdge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8F2422" /><stop offset="1" stop-color="#571B1B" /></linearGradient>
+ <filter id="shadow" x="-25%" y="-25%" width="160%" height="170%" color-interpolation-filters="sRGB"><feDropShadow dx="2" dy="8" stdDeviation="5" flood-color="#351812" flood-opacity="0.18" /></filter>
+ <g id="seal"><path d="M35 25h190v78h-22V47H57v146h56v22H35z" />
+    <path d="M225 125v90h-90v-22h68v-68z" />
+    <path d="M79 69h102v22H101v80H79z" />
+    <path d="M123 113h58v58h-58z" />
+  </g>
+ </defs>
+<g filter="url(#shadow)">
+ <g fill="url(#sealEdge)">
+  <use href="#seal" transform="translate(7 9)" />
+  <use href="#seal" transform="translate(6 8)" />
+  <use href="#seal" transform="translate(5 7)" />
+  <use href="#seal" transform="translate(4 6)" />
+  <use href="#seal" transform="translate(3 4)" />
+  <use href="#seal" transform="translate(1.5 2)" />
+ </g>
+ <use href="#seal" fill="url(#sealFace)" stroke="#FCAC84" stroke-opacity="0.48" stroke-width="0.65" />
+</g>
+</svg>

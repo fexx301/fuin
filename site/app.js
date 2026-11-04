@@ -21,7 +21,7 @@
     const back = h('div', { class: 'back' }); back.innerHTML = flat('#8f2422');
     coin.append(back);
     for (let i = 9; i >= 1; i--) { const e = h('div', { class: 'edge' }); e.innerHTML = flat(i > 5 ? '#571b1b' : '#8f2422'); e.style.transform = `translateZ(${-i * 1.1}px)`; coin.append(e); }
-    const front = h('img', { src: '../assets/fuin-symbol-depth.svg', alt: '' }); front.style.transform = 'translateZ(0.5px)';
+    const front = h('img', { src: 'assets/fuin-symbol-depth.svg', alt: '' }); front.style.transform = 'translateZ(0.5px)';
     coin.append(front);
   }
 
@@ -72,8 +72,10 @@
         s.x = s.sx + (coinXY.x - s.sx) * e; s.y = s.sy + (coinXY.y - s.sy) * e - Math.sin(e * Math.PI) * 18;
         cx.fillStyle = `rgba(208,74,59,${1 - Math.max(0, s.p - 0.7) / 0.3})`; cx.beginPath(); cx.arc(s.x, s.y, 2.1, 0, 6.283); cx.fill(); }
       sparks = sparks.filter((s) => s.p < 1);
-      if (!reduced) requestAnimationFrame(frame);
+      if (!reduced && visible) requestAnimationFrame(frame);
     }
+    let visible = true;  // stop drawing ~5,000 dots per frame once the hero is off-screen
+    new IntersectionObserver((es) => { const was = visible; visible = es[0].isIntersecting; if (visible && !was && !reduced) requestAnimationFrame(frame); }).observe(cv);
     addEventListener('resize', () => { layout(); fingertips = tips(); if (reduced) frame(performance.now()); });
     cv.addEventListener('pointermove', (e) => {
       const r = cv.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top };

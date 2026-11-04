@@ -11,8 +11,8 @@ const F = ctx.FUIN, V = ctx.FuinVerify;
 const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: rec });
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let fails = 0;
-const check = async (name, cert, want, net = true) => {
-  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', pccs: net ? F.pccs : 'http://127.0.0.1:9' };
+const check = async (name, cert, want, net = true, over = {}) => {
+  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   const res = await V.verify(cert, c);
   const got = res.outcome + (res.code ? ' ' + res.code : '');
   const ok = got === want; fails += !ok;
@@ -32,6 +32,9 @@ await check('answer hint (real round)', F.hint.cert, 'REFUSED request_policy_mis
 await check('relabelled as GPT', mut((c) => { c.run.model_id = 'openai/gpt-5.5'; }), "CANT_CERTIFY model_not_tee");
 await check('flipped TDX quote byte', mut((c) => { const r = c.run.model_report.model_attestations[0]; const q = r.intel_quote; const k = q.length - 200; r.intel_quote = q.slice(0, k) + (q[k] === '0' ? '1' : '0') + q.slice(k + 1); }), 'REFUSED attestation_invalid');
 await check('edited app_compose (MRCONFIGID)', mut((c) => { c.run.model_report.model_attestations[0].info.tcb_info.app_compose += ' '; }), 'REFUSED attestation_invalid');
+await check('unapproved config does not hide registry tampering', mut((c) => { c.benchmark.seal_height += 1; }), 'REFUSED record_mismatch', true,
+  { attestationPolicy: { version: 'empty', models: {} } });
+await check('unapproved config alone', base, 'CANT_CERTIFY measurement_unapproved', true, { attestationPolicy: { version: 'empty', models: {} } });
 await check('one-byte salt', mut((c) => { c.audit.reveals[0].salt = 'ab'; }), 'REFUSED certificate_invalid');
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);

@@ -12,6 +12,7 @@
   class Refused extends Error { constructor(code, where) { super(code); this.code = code; this.where = where; } }
   class CantCertify extends Error { constructor(code) { super(code); this.code = code; } }
   class Unavailable extends Error {}
+  const COLLATERAL = new Map();  // Intel-signed TDX collateral per quote, cached for the session (verify() still checks it every time)
   const req = (cond, code, where) => { if (!cond) throw new Refused(code, where); };
 
   // ---- bytes ----
@@ -276,8 +277,8 @@
           const out = [];
           for (const rep of reps) {
             const quote = unhex(rep.intel_quote);
-            let coll;
-            try { coll = await root.Dcap.collateral(quote, cfg.pccs); }
+            let coll = COLLATERAL.get(rep.intel_quote);
+            if (!coll) try { coll = await root.Dcap.collateral(quote, cfg.pccs); COLLATERAL.set(rep.intel_quote, coll); }
             catch (e) {
               // dcap-qvl reports a network failure and an unparseable quote with the same message, so ask the mirror
               // directly: reachable means the quote is at fault (invalid evidence); unreachable means unavailable evidence.
@@ -302,7 +303,9 @@
               rt = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([rt, d])));
             }
             req(hex(rt) === td.rt_mr3, 'attestation_invalid');
-            if (!((cfg.attestationPolicy.models[r.model_id] || []).includes(ch))) throw new CantCertify('measurement_unapproved');
+            if (!((cfg.attestationPolicy.models[r.model_id] || []).includes(ch))) {  // defer, like the CLI: later checks can still refuse
+              deferred.push(['measurement_unapproved', '']); out.push(`quote ${res.status} but configuration ${ch.slice(0, 10)}… is not in ${cfg.attestationPolicy.version} (CAN'T CERTIFY measurement_unapproved)`); continue;
+            }
             out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… accepted by ${cfg.attestationPolicy.version}`);
           }
           return `TDX checked in your browser: ${out.join('; ')}. ${gpu}`;
