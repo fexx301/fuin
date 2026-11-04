@@ -4,7 +4,7 @@ import base64
 import hashlib
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 import requests
@@ -108,21 +108,31 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
         return row, log, None
 
     n, width = len(st["items"]), max(1, parallel)
+    nxt, done, failed = len(rn["rows"]), {}, None  # rolling window: a new question starts as soon as any finishes
     with ThreadPoolExecutor(max_workers=width) as pool:
-        for start in range(len(rn["rows"]), n, width):  # resume after the last saved row; save once per group, in order
-            results = list(pool.map(answer, range(start, min(start + width, n))))
-            for row, log, err in results:
+        inflight = {}
+        while inflight or (failed is None and nxt < n):
+            while failed is None and nxt < n and len(inflight) < width:
+                inflight[pool.submit(answer, nxt)] = nxt
+                nxt += 1
+            finished, _ = wait(inflight, return_when=FIRST_COMPLETED)
+            for f in finished:
+                i = inflight.pop(f)
+                row, log, err = f.result()
                 rn["attempt_log"].extend(log)
-            for k, (row, log, err) in enumerate(results):
-                if err:
-                    for later, _, _ in results[k + 1:]:  # completed but thrown away: they will be asked again on resume
-                        if later:
-                            rn["attempt_log"].append({"i": later["i"], "attempt": "discarded",
-                                                      "error": "completed but discarded because an earlier item in its group failed"})
-                    save(st)
-                    raise SystemExit(err)
-                rn["rows"].append(row)
+                if err and (failed is None or i < failed[0]):
+                    failed = (i, err)
+                elif not err:
+                    done[i] = row
+            while len(rn["rows"]) in done and (failed is None or len(rn["rows"]) < failed[0]):
+                rn["rows"].append(done.pop(len(rn["rows"])))  # save strictly in index order
             save(st)
+    if failed:
+        for i in sorted(done):  # finished after the failing item: thrown away and re-asked on resume, so disclosed
+            rn["attempt_log"].append({"i": i, "attempt": "discarded",
+                                      "error": "completed but discarded because an earlier item failed"})
+        save(st)
+        raise SystemExit(failed[1])
     return st
 
 

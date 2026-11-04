@@ -58,3 +58,19 @@ def test_failure_keeps_earlier_groups_logs_retries_and_resumes(fake, tmp_path):
     fake["fail_at"] = None
     owner.run("t", "m", parallel=4)                            # resume
     assert [r["i"] for r in owner.load("t")["runs"]["m"]["rows"]] == list(range(10))
+
+
+def test_one_slow_item_does_not_stall_the_window(fake, monkeypatch, tmp_path):
+    make_state(tmp_path, 12)
+    base = inference.complete
+
+    def slow_first(req):
+        if json.loads(req)["messages"][0]["content"].startswith("q0?"):
+            time.sleep(0.6)  # item 0 reasons for a long time
+        return base(req)
+
+    monkeypatch.setattr(inference, "complete", slow_first)
+    t = time.time()
+    owner.run("t", "m", parallel=4)
+    assert time.time() - t < 1.0  # batch-and-wait would take ≥0.6 s per batch containing a slow item; rolling overlaps it
+    assert [r["i"] for r in owner.load("t")["runs"]["m"]["rows"]] == list(range(12))
