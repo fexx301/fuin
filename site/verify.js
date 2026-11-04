@@ -202,6 +202,7 @@
    * onStep(id, state, detail) with state in running|pass|fail|skip|info, for the UI. */
   async function verify(cert, cfg, onStep = () => {}) {
     const S = cfg.supported, deferred = [];
+    let attMode = 'none';  // live: TDX checked here · recorded: shown from fuin verify · none: not checked
     let step = '';
     const start = async (id) => { step = id; await onStep(id, 'running', ''); };
     const pass = async (detail) => onStep(step, 'pass', detail);
@@ -309,11 +310,13 @@
             }
             out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… accepted by ${cfg.attestationPolicy.version}`);
           }
+          attMode = 'live';
           return `TDX checked in your browser: ${out.join('; ')}. ${gpu}`;
         });
       } else {
         await start('attestation');
-        await onStep('attestation', 'info', cfg.recorded ? `recorded by fuin verify: ${cfg.recorded}` : 'needs Intel PCS and NVIDIA NRAS: run fuin verify');
+        attMode = cfg.recorded ? 'recorded' : 'none';
+        await onStep('attestation', cfg.recorded ? 'info' : 'skip', cfg.recorded ? `recorded by fuin verify, not checked here: ${cfg.recorded}` : 'not checked here: the Intel TDX verifier did not load or the certificate has no quote. Run fuin verify.');
       }
 
       const reg = cert.registry, url = cfg.rpc; let rec = null;
@@ -359,7 +362,8 @@
     }
     if (deferred.length) return { outcome: 'CANT_CERTIFY', code: deferred[0][0], detail: deferred[0][1] };
     const au = auditSize(cert.benchmark.n);
-    return { outcome: 'VERIFIED', scope: `audit passed ${au.k}/${cert.benchmark.n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)` };
+    if (attMode === 'none') return { outcome: 'PARTIAL', code: 'attestation not checked', attestation: attMode };
+    return { outcome: 'VERIFIED', attestation: attMode, gpu: cfg.recorded ? 'recorded' : 'not checked', scope: `audit passed ${au.k}/${cert.benchmark.n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)` };
   }
 
   root.FuinVerify = { verify, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };

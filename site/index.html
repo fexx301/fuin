@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fūin — benchmark scores anyone can check, on test sets nobody sees</title>
+<title>Fūin — benchmark scores anyone can check, without publishing the whole test set</title>
 <meta name="description" content="Fūin seals a private test set on NEAR, runs models in NEAR AI Cloud TEEs, and publishes a certificate anyone can verify without an account or the test set.">
 <link rel="icon" type="image/svg+xml" href="assets/fuin-mark-small.svg">
 <style>/* critical: paints before anything else downloads */
@@ -34,7 +34,8 @@ html,body{background:#161616;margin:0}
 <div id="topbar"></div>
 <nav>
   <a href="#top" aria-label="Fūin home"><img src="assets/fuin-logo-dark.svg" alt="Fūin"></a>
-  <div class="links"><a href="#verify">Verify</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#refusals">Refusals</a><a href="https://github.com/fexx301/fuin">GitHub</a></div>
+  <button class="menu" id="menuBtn" aria-expanded="false" aria-controls="navLinks" aria-label="Menu">Menu</button>
+  <div class="links" id="navLinks"><a href="#verify">Verify</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#refusals">Refusals</a><a href="https://github.com/fexx301/fuin">GitHub</a></div>
 </nav>
 
 <header class="hero" id="top">
@@ -45,7 +46,7 @@ html,body{background:#161616;margin:0}
   </div>
   <div class="hero-copy"><div class="wrap">
     <p class="kicker">NEAR HACKATHON · Privacy &amp; Private AI</p>
-    <h1>Benchmark scores anyone can check. <span>Test sets nobody sees.</span></h1>
+    <h1>Benchmark scores anyone can check. <span>Without publishing the whole test set.</span></h1>
     <p class="sub">Fūin seals a private test set on NEAR, runs open models inside NEAR AI Cloud TEEs, and publishes a certificate that a stranger verifies with no account and no access to the questions.</p>
     <div class="cta"><a class="btn primary" href="#verify">Verify a certificate in your browser →</a><a class="btn" href="#results">See the results</a></div>
     <p class="pron">Fūin · 封印 · pronounced <i>foo-een</i> · Japanese for "seal"</p>
@@ -57,6 +58,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="verify"><div class="wrap">
   <p class="eyebrow">01 · Verify</p>
   <h2>Run the checks yourself. Then try to cheat.</h2>
+  <p class="who">For benchmark owners who want to publish credible model comparisons while keeping most of their evaluation questions private. <a href="https://github.com/fexx301/fuin#audit-your-own-suite">Audit your own suite →</a></p>
   <p class="lead">Pick a certificate. Your browser rebuilds the commitments, recovers every model signature, re-scores the revealed answers and asks NEAR which items the audit had to reveal. Then use the buttons to tamper with it the way a dishonest owner would, and watch the exact check that catches it.</p>
   <div class="console">
     <aside class="panel picker" id="picker">
@@ -64,7 +66,7 @@ html,body{background:#161616;margin:0}
       <div id="certList"></div>
       <h4>A dishonest owner</h4>
       <div id="hintList"></div>
-      <label class="drop" id="drop">Drop or choose your own <code>cert.json</code><input type="file" id="file" accept=".json,application/json" hidden></label>
+      <label class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a certificate file to verify">Drop or choose your own <code>cert.json</code><input type="file" id="file" accept=".json,application/json" hidden></label>
     </aside>
     <div class="panel stage">
       <div class="stage-head"><div><div class="t" id="certTitle">—</div><div class="meta" id="certMeta"></div></div></div>
@@ -72,7 +74,8 @@ html,body{background:#161616;margin:0}
       <div class="cheat" id="cheat"><span class="lbl">Try to cheat</span></div>
       <div class="diff" id="diff"></div>
       <ul class="checks" id="checks"></ul>
-      <div class="stamp" id="stamp"></div>
+      <div class="stamp" id="stamp" aria-hidden="true"></div>
+      <div class="sr" id="announce" role="status" aria-live="polite"></div>
       <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses. Its collateral comes from a public mirror and is signed by Intel. NVIDIA's GPU verdict service blocks browsers, so that one result is shown as recorded by the command-line verifier. The command line is the reference verifier.</p>
     </div>
   </div>
@@ -83,13 +86,13 @@ html,body{background:#161616;margin:0}
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
   <p class="lead">Two independent rounds of 60 private NEAR-developer questions, each answer cited to a line of the NEAR docs. Each round was sealed before its run. The scorer is strict: the number or name alone.</p>
   <div class="rounds" id="rounds"></div>
-  <div class="callout">On both question sets, GLM-5.3-flash as NEAR serves it answers more questions correctly. With the 8,192-token budget few answers are cut off, and Qwen's misses are mostly wrong answers, so the gap reflects knowledge rather than budget. The weights shown are what NEAR actually serves, traced from its attested deployment log: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+  <div class="callout">GLM leads on both suites. In round 2's audited sample, most of Qwen's misses are wrong answers rather than cut-offs. The two rounds use different questions, so they show a consistent lead, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
 
 <section class="band" id="explore"><div class="wrap">
   <p class="eyebrow">03 · The revealed sample</p>
   <h2>Every audited question, and what each model said.</h2>
-  <p class="lead">A NEAR block that didn't exist when the results were committed chose these 23 of 60. The other 37 stay private. Miss types are a reading aid computed from the revealed bytes, not a score.</p>
+  <p class="lead" id="exLead"></p>
   <div class="ex-tools" id="exRound"></div>
   <div class="ex-tools" id="exFilter"></div>
   <div id="qa"></div>
@@ -111,15 +114,15 @@ html,body{background:#161616;margin:0}
       <li>Hidden scores are checked statistically, not item by item.</li>
       <li>Instances of a model can share a key; the trace is taken at preflight.</li>
       <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
-      <li>Reveals permanently disclose their questions.</li>
+      <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's.</li>
       <li>When inference happened. Testnet only.</li></ul></div>
   </div>
 </div></section>
 
 <section class="band" id="refusals"><div class="wrap">
   <p class="eyebrow">05 · Refusals</p>
-  <h2>Fourteen ways to cheat, each caught by name.</h2>
-  <p class="lead">Each fixture makes one change to a real certificate. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
+  <h2>14 tests of tampering, unsupported models and missing evidence.</h2>
+  <p class="lead">Each fixture makes one change to a real certificate, or withholds a service the verifier needs. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
   <div class="refusals" id="refList"></div>
 </div></section>
 

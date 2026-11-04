@@ -114,6 +114,21 @@
   const breakdown = (cert) => { const sc = Object.fromEntries(cert.run.items.map((i) => [i.i, i.score])); const o = { correct: 0, wrong: 0, format: 0, cut: 0 }; for (const x of cert.audit.reveals) o[classify(x, sc[x.i])]++; return o; };
   const served = (e) => [...new Set(((e.recorded && e.recorded.trace && e.recorded.trace.services) || []).map((s) => s.model_path).filter(Boolean))].join(', ');
 
+  /* ---------------- evidence links, pressed state ---------------- */
+  // Known disclosure per round: direct reveals plus items disclosed indirectly (README "Disclosure").
+  const DISCLOSURE = { 'near-dev-60-r1': { revealed: 23, indirect: 1 }, 'near-dev-60-r2': { revealed: 23, indirect: 0 } };
+  const TX = 'https://testnet.nearblocks.io/txns/';
+  function evidenceLinks(entry, c) {
+    const a = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
+    const out = [];
+    if (entry && entry.file) out.push(a('https://github.com/fexx301/fuin/blob/main/' + entry.file, 'certificate'), ' · ');
+    if (c.benchmark && c.benchmark.seal_tx) out.push(a(TX + c.benchmark.seal_tx, 'seal tx'), ' · ');
+    if (c.run && c.run.commit_tx) out.push(a(TX + c.run.commit_tx, 'commit tx'), ' · ');
+    if (c.audit && c.audit.close_tx) out.push(a(TX + c.audit.close_tx, 'close tx'));
+    return out;
+  }
+  function press(group, btn) { group.querySelectorAll('.chip').forEach((x) => { x.classList.toggle('on', x === btn); if (x.hasAttribute('aria-pressed')) x.setAttribute('aria-pressed', String(x === btn)); }); }
+
   /* ---------------- verifier console ---------------- */
   const STEPS = [
     ['schema', 'Certificate shape', 'local'], ['model', 'Model is attested', 'local'], ['rows', 'Rows and total', 'local'],
@@ -142,21 +157,27 @@
   ];
   function renderChecks() {
     const ul = $('#checks'); ul.innerHTML = '';
-    for (const [id, name, where] of STEPS) ul.append(h('li', { id: 'ck-' + id }, h('span', { class: 'ic' }), h('div', { class: 'nm' }, name, h('small', {}, where)), h('div', { class: 'dt' }, '')));
+    for (const [id, name, where] of STEPS) ul.append(h('li', { id: 'ck-' + id }, h('span', { class: 'ic', 'aria-hidden': 'true' }), h('div', { class: 'nm' }, name, h('small', {}, where), h('span', { class: 'st' }, '')), h('div', { class: 'dt' }, '')));
   }
   async function onStep(id, state, detail) {
     const li = $('#ck-' + id); if (!li) return;
     li.className = state === 'running' ? 'active running' : state;
     $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : '';
+    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? 'TDX checked now · GPU recorded'
+      : { pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', running: '' }[state] ?? '';
     if (detail) $('.dt', li).textContent = detail;
     await sleep(state === 'running' ? 260 : 90);
   }
   function stamp(res) {
     const s = $('#stamp'); s.className = 'stamp';
     void s.offsetWidth;
-    const cls = res.outcome === 'VERIFIED' ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
-    s.innerHTML = ''; s.append(res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome, h('small', {}, res.code || 'browser checks'));
+    const live = res.outcome === 'VERIFIED' && res.attestation === 'live';
+    const cls = live ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
+    const title = res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome === 'PARTIAL' ? 'PARTLY CHECKED' : res.outcome;
+    const sub = res.outcome === 'VERIFIED' ? (live ? 'TDX checked now · GPU recorded' : 'attestation recorded, not checked here') : res.code;
+    s.innerHTML = ''; s.append(title, h('small', {}, sub));
     s.classList.add('show', cls);
+    $('#announce').textContent = `${title}: ${sub}`;
   }
   function recordedLine(entry, tampered) {
     if (!entry || !entry.recorded || tampered) return null;
@@ -172,7 +193,8 @@
     const diff = $('#diff'); diff.classList.toggle('show', !!note); diff.textContent = note ? 'Tampered: ' + note : '';
     const r = cert.run || {}, b = cert.benchmark || {};
     $('#certTitle').textContent = `${short(r.model_id || '?')} · ${b.id || 'uploaded certificate'}`;
-    $('#certMeta').textContent = `committed ${r.total_score}/${b.n} · seal ${String(b.seal_tx || '').slice(0, 10)}… · run ${r.run_index}`;
+    const meta = $('#certMeta'); meta.innerHTML = '';
+    meta.append(`committed ${r.total_score}/${b.n} · run ${r.run_index} · `, ...evidenceLinks(entry, cert));
     renderChecks(); $('#stamp').className = 'stamp';
     const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
@@ -182,19 +204,20 @@
     const list = $('#certList');
     const all = [];
     for (const rd of F.rounds) for (const e of rd.certs) {
-      const btn = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/60`),
+      const btn = h('button', { class: 'cert-btn', 'aria-pressed': 'false' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/60`),
         h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`));
       btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
     }
     const hb = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, 'Answer slipped into the prompt'), h('span', { class: 's' }, '1/1'),
       h('span', { class: 'r' }, 'real round, signed and committed'));
-    hb.addEventListener('click', () => select(hb, { cert: F.hint.cert, recorded: null })); $('#hintList').append(hb);
+    hb.addEventListener('click', () => select(hb, { cert: F.hint.cert, recorded: null, file: F.hint.file })); $('#hintList').append(hb);
     const cheat = $('#cheat');
-    CHEATS.forEach(([label, tip, fn]) => { const c = h('button', { class: 'chip', title: tip }, label); c.addEventListener('click', () => { [...cheat.querySelectorAll('.chip')].forEach((x) => x.classList.remove('on')); c.classList.add('on'); run(current, fn); }); cheat.append(c); });
-    const reset = h('button', { class: 'chip reset' }, 'Reset'); reset.addEventListener('click', () => { [...cheat.querySelectorAll('.chip')].forEach((x) => x.classList.remove('on')); run(current); }); cheat.append(reset);
+    CHEATS.forEach(([label, tip, fn]) => { const c = h('button', { class: 'chip', title: tip, 'aria-pressed': 'false' }, label); c.addEventListener('click', () => { press(cheat, c); run(current, fn); }); cheat.append(c); });
+    const reset = h('button', { class: 'chip reset' }, 'Reset'); reset.addEventListener('click', () => { press(cheat, null); run(current); }); cheat.append(reset);
     const again = h('button', { class: 'chip reset' }, 'Run again'); again.addEventListener('click', () => run(current)); cheat.append(again);
-    function select(btn, e) { document.querySelectorAll('.cert-btn').forEach((x) => x.classList.remove('on')); btn.classList.add('on'); [...cheat.querySelectorAll('.chip')].forEach((x) => x.classList.remove('on')); run(e); }
+    function select(btn, e) { document.querySelectorAll('.cert-btn').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); }); btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true'); press(cheat, null); run(e); }
     const file = $('#file'), drop = $('#drop');
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
     const load = async (f) => { try { const c = JSON.parse(await f.text()); document.querySelectorAll('.cert-btn').forEach((x) => x.classList.remove('on')); run({ cert: c, recorded: null }); } catch { $('#diff').classList.add('show'); $('#diff').textContent = 'That file is not JSON.'; } };
     file.addEventListener('change', () => file.files[0] && load(file.files[0]));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
@@ -210,7 +233,8 @@
   function results() {
     const box = $('#rounds');
     for (const rd of F.rounds) {
-      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, `${rd.cap}-token cap · reasoning on · 23 of 60 revealed`));
+      const dis = DISCLOSURE[rd.id] || { revealed: 23, indirect: 0 }, known = dis.revealed + dis.indirect;
+      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${60 - known} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;
         const bar = h('i'); bar.dataset.w = pct + '%';
@@ -218,7 +242,8 @@
           h('div', { class: 'top' }, h('div', {}, h('div', { class: 'name' }, c.run.model_id), h('div', { class: 'served' }, 'served as ' + (served(e) || '—'))), h('div', { class: 'score' }, c.run.total_score, h('small', {}, '/' + c.benchmark.n))),
           h('div', { class: 'bar' }, bar),
           h('div', { class: 'pills' }, h('span', { class: 'pill' }, 'revealed 23:'), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
-            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`))));
+            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)),
+          h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
     }
@@ -231,18 +256,23 @@
       const rd = F.rounds[ri], qa = $('#qa'); qa.innerHTML = '';
       const per = rd.certs.map((e) => ({ m: short(e.cert.run.model_id), sc: Object.fromEntries(e.cert.run.items.map((i) => [i.i, i.score])), rv: Object.fromEntries(e.cert.audit.reveals.map((x) => [x.i, x])) }));
       for (const x of rd.certs[0].cert.audit.reveals) {
-        const lines = per.map((p) => { const rx = p.rv[x.i], cls = classify(rx, p.sc[x.i]), said = cls === 'cut' && !answerOf(rx) ? '(cut off before answering)' : answerOf(rx).slice(0, 48);
-          return { cls, el: h('span', { class: 'said' }, h('span', { class: 'tag ' + cls }, cls === 'cut' ? 'cut off' : cls), `${p.m}: ${said}`) }; });
+        const lines = per.map((p) => {
+          const rx = p.rv[x.i], cls = classify(rx, p.sc[x.i]), full = answerOf(rx), tag = h('span', { class: 'tag ' + cls }, cls === 'cut' ? 'cut off' : cls);
+          if (cls === 'cut' && !full) return { cls, el: h('span', { class: 'said' }, tag, `${p.m}: (cut off before answering)`) };
+          if (full.length <= 48) return { cls, el: h('span', { class: 'said' }, tag, `${p.m}: ${full}`) };
+          return { cls, el: h('details', { class: 'said' }, h('summary', {}, tag, `${p.m}: ${full.slice(0, 48)}… `, h('u', {}, 'view full answer')), h('pre', { class: 'full' }, full)) }; });
         if (filt !== 'all' && !lines.some((l) => l.cls === filt)) continue;
         qa.append(h('div', { class: 'qa' }, h('div', { class: 'n' }, '#' + x.i),
           h('div', { class: 'q' }, x.item.question, x.item.source ? h('a', { href: x.item.source.url, target: '_blank', rel: 'noopener' }, 'source') : ''),
           h('div', { class: 'a' }, h('span', { class: 'exp' }, 'expected ' + x.item.answer), ...lines.map((l) => l.el))));
       }
     };
-    F.rounds.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : '') }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; tabs.querySelectorAll('.chip').forEach((x) => x.classList.remove('on')); c.classList.add('on'); draw(); }); tabs.append(c); });
+    F.rounds.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; press(tabs, c); draw(); lead(); }); tabs.append(c); });
     [['all', 'All 23'], ['correct', 'Correct'], ['wrong', 'Wrong'], ['format', 'Format'], ['cut', 'Cut off']].forEach(([k, label], i) => {
-      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : '') }, label); c.addEventListener('click', () => { filt = k; fl.querySelectorAll('.chip').forEach((x) => x.classList.remove('on')); c.classList.add('on'); draw(); }); fl.append(c); });
-    draw();
+      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, label); c.addEventListener('click', () => { filt = k; press(fl, c); draw(); }); fl.append(c); });
+    const lead = () => { const d = DISCLOSURE[F.rounds[ri].id] || { revealed: 23, indirect: 0 };
+      $('#exLead').textContent = `A NEAR block that didn't exist when the results were committed chose these ${d.revealed} of 60.` + (d.indirect ? ` ${d.indirect} more is disclosed indirectly (it shares a cited docs line with revealed items), so ${60 - d.revealed - d.indirect} stay private.` : ` The other ${60 - d.revealed} stay private.`) + ' Miss types are a reading aid computed from the revealed bytes, not a score.'; };
+    draw(); lead();
   }
   function steps() {
     const S = [['Seal', 'The owner commits a Merkle root of the salted questions and the scoring policy on NEAR.'],
@@ -297,6 +327,8 @@
     // the TDX verifier (1.4 MB of WASM) is only needed partway through a run; verify.js waits on this promise
     window.DcapReady = load('vendor/dcap.js', 'Intel TDX verifier');
   }
+  const menu = $('#menuBtn'); menu.addEventListener('click', () => { const open = document.body.classList.toggle('menu-open'); menu.setAttribute('aria-expanded', String(open)); });
+  document.querySelectorAll('nav .links a').forEach((a) => a.addEventListener('click', () => { document.body.classList.remove('menu-open'); menu.setAttribute('aria-expanded', 'false'); }));
   buildCoin(); hero(); steps();
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); }));
   boot().catch((e) => { const vs = $('#verifyLoading'); if (vs) vs.textContent = 'Could not load the verifier: ' + e + '. Reload to try again.'; });

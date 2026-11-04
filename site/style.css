@@ -160,3 +160,21 @@ footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wr
   .stamp.show { animation: none; opacity: 1; }
   html { scroll-behavior: auto; }
 }
+
+/* review fixes: status labels, full answers, links, mobile menu, screen-reader text */
+.checks .st { font: 600 11px var(--mono); margin-left: 10px; color: var(--muted); letter-spacing: .02em; }
+.checks li.pass .st { color: var(--pass); } .checks li.fail .st { color: #ff8b7c; } .checks li.info .st, .checks li.skip .st { color: var(--warn); }
+.who { color: var(--bone); font-size: 16px; max-width: 70ch; margin: -14px 0 26px; padding-left: 14px; border-left: 2px solid var(--seal); }
+.who a { white-space: nowrap; }
+.links { font: 12px var(--mono); color: var(--muted); margin-top: 8px; } .links a, .stage-head .meta a { color: var(--muted); }
+.links a:hover, .stage-head .meta a:hover { color: var(--bone); }
+details.said summary { cursor: pointer; list-style: none; } details.said summary::-webkit-details-marker { display: none; }
+details.said summary u { color: var(--muted); text-decoration-color: var(--seal); }
+pre.full { white-space: pre-wrap; background: #111; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 6px 0 10px; font-size: 12px; max-height: 340px; overflow: auto; color: #dcd8cf; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.drop:focus-visible, .chip:focus-visible, .cert-btn:focus-visible, .btn:focus-visible, nav .menu:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+nav .menu { display: none; background: #1f1f1ecc; color: var(--bone); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font: 600 13px var(--sans); cursor: pointer; }
+@media (max-width: 980px) {
+  nav .menu { display: inline-flex; }
+  body.menu-open nav .links { display: flex; position: absolute; top: 64px; right: 16px; flex-direction: column; gap: 14px; background: #1f1f1e; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+}
