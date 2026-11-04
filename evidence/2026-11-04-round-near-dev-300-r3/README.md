@@ -19,12 +19,12 @@ A third, independent hidden suite, five times larger than the earlier rounds. It
 **Qwen's 92 failed attempts, all disclosed in its certificate (`run.evidence.attempt_log`):**
 - **40 read timeouts.** The client gave up after 180 s. Long reasoning answers under 4–8 parallel requests took longer, so they were abandoned and re-asked. The timeout is now 1200 s (entry commit `836c00a`).
 - **40 `RemoteDisconnected`.** The gateway closed long-running connections without a response. Each was retried.
-- **10 discarded.** These answers completed after an earlier item in the same parallel window failed. They were thrown away and re-asked so that rows stay in index order.
+- **10 discarded.** For these items a signed, scored answer arrived after an earlier item in the same parallel window had failed. It was dropped so that rows stay in index order, and the item was asked again. The dropped answers' scores were not recorded, so these 10 items were effectively asked twice, with only the second answer kept. That is covered by the stated limit that discarded API calls aren't exposed. From entry commit `e86952c` on, a discarded entry records the dropped answer's score and response hash.
 - **2 abandoned.** Two operator restarts, one to switch from batch to rolling-window parallelism and one to switch to the network-patient runner (`scripts/run_round.sh`). The requests in flight at those moments were dropped.
 
-None of these is a scored answer. Each committed row is the first answer that came back signed for its item, after earlier attempts failed. The verifier prints the count, and it is owner-reported.
+The other 82 attempts produced no answer. The verifier prints the count, which is owner-reported.
 
-**The preflight was refused before policy v4.** As the run started, NEAR had redeployed Qwen with a new compose-manager launcher. `fuin run` refused the unrecognised configuration (`measurement_unapproved`) until it was reviewed and added as attestation policy v4 (`../2026-11-04-qwen-redeploy/`). The preflight that was eventually accepted drew the v3 configuration `5e513dbd…`, and GLM's drew `5f7ebd85…`.
+**Some preflights were refused.** As the run started, the gateway offered a redeployed Qwen configuration (`31d3b238…`, new compose-manager launcher) that wasn't in policy v3, and `fuin run` refused it (`measurement_unapproved`). It was reviewed and added as attestation policy v4 (`../2026-11-04-qwen-redeploy/`). The preflight that was eventually accepted, though, drew the older v3 configuration `5e513dbd…` (the run state records policy v3). GLM's drew `5f7ebd85…`. So neither certificate uses v4's new entry.
 
 **Disclosure:** 28 directly revealed per model, from the same sample, and 272 hidden. No cited line is shared with earlier rounds, so there is no known indirect disclosure. `verify-output.txt` and `verify.jsonl` show both certificates VERIFIED with no API key, exit 0.
 
