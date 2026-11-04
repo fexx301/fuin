@@ -55,7 +55,7 @@ Three independent rounds of private questions (60, 60 and 300), each with exact 
 | `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | (23) 10 · 5 · 1 · 7 | 21/60 |
 | `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | (23) 6 · 9 · 0 · 8 | 17/60 |
 
-On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs, so the gap reflects knowledge rather than token budget. The round-3 suite is harder per question (more SDK, RPC and standards detail), so its percentages aren't comparable with rounds 1–2. Compare models within a round.
+On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs. At the same 8,192 cap, round 3 cut off more answers (GLM 72/300, Qwen 54/300). GLM loses more answers to the cap and still leads, so the cap doesn't explain the gap. The rounds use different questions, so compare models within a round, not percentages across rounds.
 
 **Reading the columns:**
 - **Revealed breakdown:** a reading aid computed from the revealed bytes (`fuin show`), not a score. *Format* means the right value in a form the strict scorer rejects, such as `**10%**`. *Cut off* means no final answer before the cap.
@@ -122,7 +122,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (61 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
+4. **Run the tests.** `uv run pytest` (64 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
 
 ## How it works
 
