@@ -178,3 +178,13 @@ nav .menu { display: none; background: #1f1f1ecc; color: var(--bone); border: 1p
   nav .menu { display: inline-flex; }
   body.menu-open nav .links { display: flex; position: absolute; top: 64px; right: 16px; flex-direction: column; gap: 14px; background: #1f1f1e; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
 }
+
+/* phones: the copy flows below the hands instead of being pinned to the bottom; app.js sets --copy-top from the hand art's size.
+   On tall screens the copy still sits at the bottom; on short ones the hero grows rather than letting the hands cover the headline. */
+@media (max-width: 760px) {
+  .hero { height: auto; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; justify-content: flex-end; }
+  .hero-copy { position: relative; bottom: auto; margin-top: var(--copy-top, 220px); padding-bottom: 7vh; }
+  .kicker { letter-spacing: .06em; }
+}
+/* explorer rows: let long identifiers wrap instead of widening the grid past a narrow phone screen */
+.qa > * { min-width: 0; } .qa .q, .qa .a { overflow-wrap: anywhere; }
