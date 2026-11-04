@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fūin — benchmark scores anyone can check, on test sets nobody sees</title>
+<meta name="description" content="Fūin seals a private test set on NEAR, runs models in NEAR AI Cloud TEEs, and publishes a certificate anyone can verify without an account or the test set.">
+<link rel="icon" type="image/svg+xml" href="../assets/fuin-mark-small.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="#top" aria-label="Fūin home"><img src="../assets/fuin-logo-dark.svg" alt="Fūin"></a>
+  <div class="links"><a href="#verify">Verify</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#refusals">Refusals</a><a href="https://github.com/fexx301/fuin">GitHub</a></div>
+</nav>
+
+<header class="hero" id="top">
+  <canvas id="dots" aria-hidden="true"></canvas>
+  <div class="coin-tilt" id="coinTilt" aria-hidden="true">
+    <div class="coin-glow"></div>
+    <div class="coin" id="coin"></div>
+  </div>
+  <div class="hero-copy"><div class="wrap">
+    <p class="kicker">NEAR HACKATHON · Privacy &amp; Private AI</p>
+    <h1>Benchmark scores anyone can check. <span>Test sets nobody sees.</span></h1>
+    <p class="sub">Fūin seals a private test set on NEAR, runs open models inside NEAR AI Cloud TEEs, and publishes a certificate that a stranger verifies with no account and no access to the questions.</p>
+    <div class="cta"><a class="btn primary" href="#verify">Verify a certificate in your browser →</a><a class="btn" href="#results">See the results</a></div>
+    <p class="pron">Fūin · 封印 · pronounced <i>foo-een</i> · Japanese for "seal"</p>
+  </div></div>
+  <div class="scroll-hint">SCROLL</div>
+</header>
+
+<main>
+<section class="band" id="verify"><div class="wrap">
+  <p class="eyebrow">01 · Verify</p>
+  <h2>Run the checks yourself. Then try to cheat.</h2>
+  <p class="lead">Pick a certificate. Your browser rebuilds the commitments, recovers every model signature, re-scores the revealed answers and asks NEAR which items the audit had to reveal. Then use the buttons to tamper with it the way a dishonest owner would, and watch the exact check that catches it.</p>
+  <div class="console">
+    <aside class="panel picker" id="picker">
+      <h4>Real certificates</h4>
+      <div id="certList"></div>
+      <h4>A dishonest owner</h4>
+      <div id="hintList"></div>
+      <label class="drop" id="drop">Drop or choose your own <code>cert.json</code><input type="file" id="file" accept=".json,application/json" hidden></label>
+    </aside>
+    <div class="panel stage">
+      <div class="stage-head"><div><div class="t" id="certTitle">—</div><div class="meta" id="certMeta"></div></div></div>
+      <div class="cheat" id="cheat"><span class="lbl">Try to cheat</span></div>
+      <div class="diff" id="diff"></div>
+      <ul class="checks" id="checks"></ul>
+      <div class="stamp" id="stamp"></div>
+      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public RPC. Intel TDX and NVIDIA GPU attestation need services a browser can't call, so this page shows the result recorded by the command-line verifier for the bundled certificates. Run <code>fuin verify</code> to check those yourself. The command line is the reference verifier.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="band" id="results"><div class="wrap">
+  <p class="eyebrow">02 · Results</p>
+  <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
+  <p class="lead">Two independent rounds of 60 private NEAR-developer questions, each answer cited to a line of the NEAR docs. Each round was sealed before its run. The scorer is strict: the number or name alone.</p>
+  <div class="rounds" id="rounds"></div>
+  <div class="callout">On both question sets, GLM-5.3-flash as NEAR serves it answers more questions correctly. With the 8,192-token budget few answers are cut off, and Qwen's misses are mostly wrong answers, so the gap reflects knowledge rather than budget. The weights shown are what NEAR actually serves, traced from its attested deployment log: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+</div></section>
+
+<section class="band" id="explore"><div class="wrap">
+  <p class="eyebrow">03 · The revealed sample</p>
+  <h2>Every audited question, and what each model said.</h2>
+  <p class="lead">A NEAR block that didn't exist when the results were committed chose these 23 of 60. The other 37 stay private. Miss types are a reading aid computed from the revealed bytes, not a score.</p>
+  <div class="ex-tools" id="exRound"></div>
+  <div class="ex-tools" id="exFilter"></div>
+  <div id="qa"></div>
+</div></section>
+
+<section class="band" id="how"><div class="wrap">
+  <p class="eyebrow">04 · How it works</p>
+  <h2>Seal, run, commit, close, sample, reveal, verify.</h2>
+  <p class="lead">Each step leaves evidence a stranger can check. The NEAR registry contract has no access keys, so nobody can rewrite it.</p>
+  <div class="steps" id="steps"></div>
+  <div class="split" style="margin-top:22px">
+    <div class="panel"><p class="eyebrow">What a VERIFIED certificate proves</p><ul>
+      <li>A named model's attested TEE key signed every committed answer, byte for byte.</li>
+      <li>The test set and policy were sealed on NEAR before the results were committed.</li>
+      <li>A future NEAR block, not the owner, picked the audited items.</li>
+      <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
+      <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
+    <div class="panel"><p class="eyebrow">What it doesn't prove</p><ul>
+      <li>Hidden scores are checked statistically, not item by item.</li>
+      <li>Instances of a model can share a key; the trace is taken at preflight.</li>
+      <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
+      <li>Reveals permanently disclose their questions.</li>
+      <li>When inference happened. Testnet only.</li></ul></div>
+  </div>
+</div></section>
+
+<section class="band" id="refusals"><div class="wrap">
+  <p class="eyebrow">05 · Refusals</p>
+  <h2>Fourteen ways to cheat, each caught by name.</h2>
+  <p class="lead">Each fixture makes one change to a real certificate. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
+  <div class="refusals" id="refList"></div>
+</div></section>
+
+<section class="band" id="repro"><div class="wrap">
+  <p class="eyebrow">06 · Reproduce</p>
+  <h2>Check everything on your own machine.</h2>
+  <p class="lead">No account, no API key, no test set. About five minutes.</p>
+  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 14 fixtures and the tests</span>
+git clone https://github.com/fexx301/fuin &amp;&amp; cd fuin
+./scripts/review.sh
+
+<span class="c"># one certificate, with every check printed</span>
+env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r2-glm-5.3-flash.json</pre>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span>Built at NEAR HACKATHON 2026 · registry <a href="https://testnet.nearblocks.io/address/registry.fuin.testnet">registry.fuin.testnet</a> (locked)</span>
+  <span id="buildInfo"></span>
+</div></footer>
+
+<script src="vendor/noble.js"></script>
+<script src="data.js"></script>
+<script src="verify.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

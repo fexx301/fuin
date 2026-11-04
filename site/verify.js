@@ -202,20 +202,20 @@
   async function verify(cert, cfg, onStep = () => {}) {
     const S = cfg.supported, deferred = [];
     let step = '';
-    const start = (id) => { step = id; onStep(id, 'running', ''); };
-    const pass = (detail) => onStep(step, 'pass', detail);
-    const local = async (id, fn) => { start(id); pass(await fn()); };
+    const start = async (id) => { step = id; await onStep(id, 'running', ''); };
+    const pass = async (detail) => onStep(step, 'pass', detail);
+    const local = async (id, fn) => { await start(id); await pass(await fn()); };
     const online = async (id, fn) => {
-      start(id);
-      try { pass(await fn()); }
-      catch (e) { if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); onStep(id, 'skip', 'unavailable: ' + e.message); } else throw e; }
+      await start(id);
+      try { await pass(await fn()); }
+      catch (e) { if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep(id, 'skip', 'unavailable: ' + e.message); } else throw e; }
     };
     try {
-      start('schema'); validate(cert); pass('every field has the right type and form');
+      await start('schema'); validate(cert); await pass('every field has the right type and form');
       const { benchmark: b, run: r, audit: a } = cert, n = b.n, items = r.items;
-      start('model');
+      await start('model');
       if (!cfg.attested.includes(r.model_id)) throw new CantCertify(/^(openai|anthropic|google|xai)\//.test(r.model_id) ? 'model_not_tee' : 'policy_unsupported');
-      pass(`${r.model_id} is a TEE model in the verifier's attestation policy`);
+      await pass(`${r.model_id} is a TEE model in the verifier's attestation policy`);
 
       let bl, rl, k;
       await local('rows', async () => {
@@ -268,8 +268,8 @@
         return `${k}/${k} revealed: proofs pass, exact request rebuilt, re-score matches`;
       });
 
-      start('attestation');
-      onStep('attestation', 'info', cfg.recorded ? `recorded by fuin verify: ${cfg.recorded}` : 'needs Intel PCS and NVIDIA NRAS: run fuin verify');
+      await start('attestation');
+      await onStep('attestation', 'info', cfg.recorded ? `recorded by fuin verify: ${cfg.recorded}` : 'needs Intel PCS and NVIDIA NRAS: run fuin verify');
 
       const reg = cert.registry, url = cfg.rpc; let rec = null;
       await online('registry', async () => {
@@ -308,9 +308,9 @@
         return `seed block ${seedHdr.height} (first final block ≥ close+2) re-derives the ${k} audited items`;
       });
     } catch (e) {
-      if (e instanceof Refused) { onStep(step, 'fail', e.code + (e.where ? ` (${e.where})` : '')); return { outcome: 'REFUSED', code: e.code, where: e.where }; }
-      if (e instanceof CantCertify) { onStep(step, 'fail', e.code); return { outcome: 'CANT_CERTIFY', code: e.code }; }
-      onStep(step, 'fail', 'certificate_invalid'); return { outcome: 'REFUSED', code: 'certificate_invalid', where: String(e && e.message).slice(0, 120) };
+      if (e instanceof Refused) { await onStep(step, 'fail', e.code + (e.where ? ` (${e.where})` : '')); return { outcome: 'REFUSED', code: e.code, where: e.where }; }
+      if (e instanceof CantCertify) { await onStep(step, 'fail', e.code); return { outcome: 'CANT_CERTIFY', code: e.code }; }
+      await onStep(step, 'fail', 'certificate_invalid'); return { outcome: 'REFUSED', code: 'certificate_invalid', where: String(e && e.message).slice(0, 120) };
     }
     if (deferred.length) return { outcome: 'CANT_CERTIFY', code: deferred[0][0], detail: deferred[0][1] };
     const au = auditSize(cert.benchmark.n);
