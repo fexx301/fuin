@@ -44,16 +44,18 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Two independent rounds, each of 60 private questions with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Both models ran with reasoning on and temperature 0. The scorer is strict: the answer must be the number or term alone.
+Three independent rounds of private questions (60, 60 and 300), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Both models ran with reasoning on and temperature 0. The scorer is strict: the answer must be the number or term alone.
 
-| Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed 23: correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
+| Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
-| `near-dev-60-r2` (8,192) | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **32/60** | 13 · 4 · 2 · 4 | 6/60 |
-| `near-dev-60-r2` (8,192) | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **17/60** | 7 · 13 · 0 · 3 | 7/60 |
-| `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | 10 · 5 · 1 · 7 | 21/60 |
-| `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | 6 · 9 · 0 · 8 | 17/60 |
+| `near-dev-300-r3` (8,192) | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **122/300** (40.7%) | (28) 10 · 14 · 0 · 4 | 72/300 |
+| `near-dev-300-r3` (8,192) | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **77/300** (25.7%) | (28) 9 · 17 · 0 · 2 | 54/300 |
+| `near-dev-60-r2` (8,192) | z-ai/glm-5.3-flash | **32/60** | (23) 13 · 4 · 2 · 4 | 6/60 |
+| `near-dev-60-r2` (8,192) | Qwen/Qwen3.8-27B | **17/60** | (23) 7 · 13 · 0 · 3 | 7/60 |
+| `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | (23) 10 · 5 · 1 · 7 | 21/60 |
+| `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | (23) 6 · 9 · 0 · 8 | 17/60 |
 
-On both suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. With the larger budget, few answers are cut off, and Qwen's misses are mostly wrong answers, so the gap reflects knowledge rather than token budget.
+On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs, so the gap reflects knowledge rather than token budget. The round-3 suite is harder per question (more SDK, RPC and standards detail), so its percentages aren't comparable with rounds 1–2. Compare models within a round.
 
 **Reading the columns:**
 - **Revealed breakdown:** a reading aid computed from the revealed bytes (`fuin show`), not a score. *Format* means the right value in a form the strict scorer rejects, such as `**10%**`. *Cut off* means no final answer before the cap.
@@ -63,6 +65,7 @@ On both suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer ques
 **Disclosure:**
 - **Round 1:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
 - **Round 2:** one question per cited line, so its known disclosure is the 23 revealed; **37 stay hidden.**
+- **Round 3:** one question per cited line, and none shares a line with rounds 1–2. The audit reveals 28; **272 of 300 (91%) stay hidden**, at the same 95% detection power as the 60-question rounds.
 
 **Disclosure at scale.** The audit size depends on the detection target, not on suite size, so larger private suites disclose a far smaller share. From the same `core.audit_size` code, at ≥95% detection power for ≥10% incorrect scores:
 
@@ -70,6 +73,7 @@ On both suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer ques
 |---|---|---|
 | 60 | 23 | 38.3% |
 | 200 | 27 | 13.5% |
+| **300 (round 3, measured)** | **28** | **9.3%** |
 | 500 | 28 | 5.6% |
 | 1,000 | 29 | 2.9% |
 
