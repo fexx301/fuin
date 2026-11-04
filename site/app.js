@@ -1,7 +1,8 @@
 /* Fūin page: dot-art hero, rotating seal, interactive verifier, results, revealed-sample explorer. */
 (function () {
   'use strict';
-  const F = window.FUIN, V = window.FuinVerify;
+  const HERO = window.FUIN_HERO;
+  let F = null, V = null;  // set once data.js and verify.js have loaded (see boot)
   const $ = (s, el = document) => el.querySelector(s);
   const h = (tag, attrs = {}, ...kids) => {
     const el = document.createElement(tag);
@@ -27,7 +28,7 @@
 
   function hero() {
     const cv = $('#dots'), cx = cv.getContext('2d'), tilt = $('#coinTilt');
-    const rows = F.hands.rows, cols = F.hands.cols;
+    const rows = HERO.hands.rows, cols = HERO.hands.cols;
     let W = 0, H = 0, dpr = 1, dots = [], dust = [], sparks = [], band = {}, mouse = { x: -9999, y: -9999 }, coinXY = { x: 0, y: 0 };
     function layout() {
       dpr = Math.min(devicePixelRatio || 1, 2); W = cv.clientWidth; H = cv.clientHeight;
@@ -46,7 +47,7 @@
         dots.push({ x, y, bx: x, by: y, vx: 0, vy: 0, big: c === '#', tw: Math.random() * 6.28 });
       }));
       dust = Array.from({ length: Math.round((W * H) / 2600) }, () => ({ x: Math.random() * W, y: Math.random() * H, s: Math.random() * 0.9 + 0.3, a: Math.random(), v: Math.random() * 0.15 + 0.03 }));
-      coinXY = { x: band.off + F.hands.gap.x * cols * cw, y: band.top + F.hands.gap.y * band.h };
+      coinXY = { x: band.off + HERO.hands.gap.x * cols * cw, y: band.top + HERO.hands.gap.y * band.h };
       const size = sealPx;
       tilt.style.setProperty('--coin', size + 'px'); tilt.style.left = coinXY.x + 'px'; tilt.style.top = coinXY.y + 'px';
     }
@@ -77,8 +78,10 @@
         s.x = s.sx + (coinXY.x - s.sx) * e; s.y = s.sy + (coinXY.y - s.sy) * e - Math.sin(e * Math.PI) * 18;
         cx.fillStyle = `rgba(208,74,59,${1 - Math.max(0, s.p - 0.7) / 0.3})`; cx.beginPath(); cx.arc(s.x, s.y, 2.1, 0, 6.283); cx.fill(); }
       sparks = sparks.filter((s) => s.p < 1);
+      if (!painted) { painted = true; heroReady(); }
       if (!reduced && visible) requestAnimationFrame(frame);
     }
+    let painted = false;
     let visible = true;  // stop drawing ~5,000 dots per frame once the hero is off-screen
     new IntersectionObserver((es) => { const was = visible; visible = es[0].isIntersecting; if (visible && !was && !reduced) requestAnimationFrame(frame); }).observe(cv);
     addEventListener('resize', () => { layout(); fingertips = tips(); if (reduced) frame(performance.now()); });
@@ -256,7 +259,45 @@
       $('#refList').append(h('div', { class: 'panel ref' + (cant ? ' cant' : '') }, h('code', {}, f.expected.replace('CANT_CERTIFY', "CAN'T CERTIFY")), h('p', {}, f.mutation))); }
   }
 
-  buildCoin(); hero(); picker(); results(); explorer(); steps(); refusals();
+  /* ---------------- loading: hero first, then the heavy files with real progress ---------------- */
+  const loader = $('#loader'), bar = $('#topbar'), t0 = performance.now();
+  const total = Object.values(HERO.assets).reduce((a, b) => a + b, 0), got = {};
+  const progress = (label) => {
+    const done = Object.values(got).reduce((a, b) => a + b, 0), pct = Math.min(100, Math.round((100 * done) / total));
+    bar.style.width = pct + '%'; bar.classList.toggle('done', pct >= 100); const lb = $('#loaderBar'); if (lb) lb.style.width = pct + '%';
+    const msg = `${label} · ${pct}%`;
+    const ls = $('#loaderStatus'); if (ls) ls.textContent = msg;  // the loader is removed once the hero is up
+    const vs = $('#verifyLoading'); if (vs) vs.textContent = 'Loading the verifier · ' + msg;
+  };
+  // Stream over http(s) to count real bytes (decompressed, so it matches the sizes from build_page.py);
+  // file:// can't be fetched, so fall back to a plain <script> and count the file when it lands.
+  function load(src, label) {
+    const size = HERO.assets[src];
+    const viaTag = () => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = () => { got[src] = size; progress(label); res(); }; el.onerror = rej; document.body.append(el); });
+    if (!/^https?:$/.test(location.protocol) || !window.ReadableStream) return viaTag();
+    return fetch(src).then(async (r) => {
+      if (!r.ok || !r.body) throw new Error('fetch failed');
+      const rd = r.body.getReader(), parts = []; let n = 0;
+      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; got[src] = Math.min(n, size); progress(label); }
+      const url = URL.createObjectURL(new Blob(parts, { type: 'text/javascript' }));
+      await new Promise((res, rej) => { const el = document.createElement('script'); el.src = url; el.onload = () => { URL.revokeObjectURL(url); res(); }; el.onerror = rej; document.body.append(el); });
+      got[src] = size; progress(label);
+    }).catch(viaTag);
+  }
+  function heroReady() {  // keep the seal animation up long enough to read, never longer than needed
+    setTimeout(() => { loader.classList.add('gone'); setTimeout(() => loader.remove(), 700); }, Math.max(0, 1400 - (performance.now() - t0)));
+  }
+  async function boot() {
+    progress('Loading certificates');
+    await Promise.all([load('vendor/noble.js', 'signature checker'), load('verify.js', 'verifier'), load('data.js', 'certificates')]);
+    F = window.FUIN; V = window.FuinVerify;
+    const vl = $('#verifyLoading'); if (vl) vl.remove();
+    picker(); results(); explorer(); refusals();
+    $('#buildInfo').textContent = `Page data from commit ${F.commit} · ${F.generated_utc}`;
+    // the TDX verifier (1.4 MB of WASM) is only needed partway through a run; verify.js waits on this promise
+    window.DcapReady = load('vendor/dcap.js', 'Intel TDX verifier');
+  }
+  buildCoin(); hero(); steps();
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); }));
-  $('#buildInfo').textContent = `Page data from commit ${F.commit} · ${F.generated_utc}`;
+  boot().catch((e) => { const vs = $('#verifyLoading'); if (vs) vs.textContent = 'Could not load the verifier: ' + e + '. Reload to try again.'; });
 })();

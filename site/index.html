@@ -6,9 +6,32 @@
 <title>Fūin — benchmark scores anyone can check, on test sets nobody sees</title>
 <meta name="description" content="Fūin seals a private test set on NEAR, runs models in NEAR AI Cloud TEEs, and publishes a certificate anyone can verify without an account or the test set.">
 <link rel="icon" type="image/svg+xml" href="assets/fuin-mark-small.svg">
+<style>/* critical: paints before anything else downloads */
+html,body{background:#161616;margin:0}
+#loader{position:fixed;inset:0;z-index:100;background:#161616;display:grid;place-items:center;transition:opacity .6s ease,visibility .6s}
+#loader.gone{opacity:0;visibility:hidden}
+#loader .box{display:flex;flex-direction:column;align-items:center;gap:22px;font:13px ui-monospace,Menlo,monospace;color:#8a8f8c}
+#loader svg{width:96px;height:96px;overflow:visible}
+#loader path{fill:transparent;stroke:#d04a3b;stroke-width:4;stroke-dasharray:640;stroke-dashoffset:640;animation:draw 1s cubic-bezier(.6,0,.2,1) forwards,ink .35s ease-out 1s forwards}
+#loader path:nth-child(2){animation-delay:.12s,1s}#loader path:nth-child(3){animation-delay:.24s,1s}#loader path:nth-child(4){animation-delay:.36s,1s}
+#loader g{transform-origin:135px 128px;animation:stamp .35s cubic-bezier(.2,.9,.3,1.4) 1s both}
+@keyframes draw{to{stroke-dashoffset:0}}@keyframes ink{to{fill:#d04a3b}}@keyframes stamp{0%{transform:scale(1)}40%{transform:scale(.9)}100%{transform:scale(1)}}
+#loader .track{width:180px;height:2px;background:#2c2c2a;border-radius:2px;overflow:hidden}
+#loader .word{color:#f2eee6;font:600 15px ui-sans-serif,system-ui,sans-serif;letter-spacing:.02em}
+#topbar{position:fixed;top:0;left:0;height:2px;width:0;background:#d04a3b;z-index:101;transition:width .25s ease,opacity .8s ease .4s}
+#topbar.done{opacity:0}
+@media (prefers-reduced-motion:reduce){#loader path,#loader g{animation:none;fill:#d04a3b}}
+</style>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="loader" role="status" aria-live="polite"><div class="box">
+  <svg viewBox="15 8 240 240" aria-hidden="true"><g><path d="M35 25h190v78h-22V47H57v146h56v22H35z"/><path d="M225 125v90h-90v-22h68v-68z"/><path d="M79 69h102v22H101v80H79z"/><path d="M123 113h58v58h-58z"/></g></svg>
+  <div class="word">Fūin · sealing the evidence</div>
+  <div class="track"><div id="loaderBar" style="height:100%;width:0;background:#d04a3b"></div></div>
+  <div id="loaderStatus">Loading</div>
+</div></div>
+<div id="topbar"></div>
 <nav>
   <a href="#top" aria-label="Fūin home"><img src="assets/fuin-logo-dark.svg" alt="Fūin"></a>
   <div class="links"><a href="#verify">Verify</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#refusals">Refusals</a><a href="https://github.com/fexx301/fuin">GitHub</a></div>
@@ -45,6 +68,7 @@
     </aside>
     <div class="panel stage">
       <div class="stage-head"><div><div class="t" id="certTitle">—</div><div class="meta" id="certMeta"></div></div></div>
+      <p class="note" id="verifyLoading">Loading the verifier…</p>
       <div class="cheat" id="cheat"><span class="lbl">Try to cheat</span></div>
       <div class="diff" id="diff"></div>
       <ul class="checks" id="checks"></ul>
@@ -117,10 +141,7 @@ env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r2-glm-5.3-fl
   <span id="buildInfo"></span>
 </div></footer>
 
-<script src="vendor/noble.js"></script>
-<script src="vendor/dcap.js"></script>
-<script src="data.js"></script>
-<script src="verify.js"></script>
+<script src="hero-data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

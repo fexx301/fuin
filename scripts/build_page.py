@@ -73,8 +73,12 @@ def main() -> None:
         "manifest": json.loads(Path("examples/tampered/manifest.json").read_text())["fixtures"],
         "hands": hands(),
     }
+    hero_data = data.pop("hands")
     js = "window.FUIN = " + json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n"
     Path("site/data.js").write_text(js, encoding="utf-8")
+    # Small file the page loads first: the hero's dot map plus the byte size of each heavy script, for real progress.
+    sizes = {f: Path("site", f).stat().st_size for f in ("vendor/noble.js", "verify.js", "data.js", "vendor/dcap.js")}
+    Path("site/hero-data.js").write_text("window.FUIN_HERO = " + json.dumps({"hands": hero_data, "assets": sizes}, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"wrote site/data.js ({len(js) // 1024} KB; rounds {', '.join(r['id'] for r in rounds)}; commit {data['commit']})")
 
 

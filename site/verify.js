@@ -272,6 +272,7 @@
 
       const gpu = cfg.recorded ? `GPU: NVIDIA NRAS true (recorded by fuin verify)` : 'GPU: NVIDIA NRAS blocks browsers; run fuin verify';
       const reps = r.model_report.model_attestations.filter((x) => used.has(String(x.signing_address).toLowerCase()));
+      if (root.DcapReady && !root.Dcap) { await onStep('attestation', 'running', 'loading the Intel TDX verifier…'); try { await root.DcapReady; } catch { /* falls back below */ } }
       if (root.Dcap && reps.length && reps.every((x) => x.intel_quote)) {
         await online('attestation', async () => {
           const out = [];
