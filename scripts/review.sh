@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-command review: every check a judge can run without an account, API key or the hidden test set.
 # Exit 0 only if all pass. Needs uv and network (Intel PCS, NVIDIA NRAS, NEAR testnet RPC, NEAR AI catalog, GitHub raw).
-# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 5 minutes.
+# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 6 minutes.
 set -u
 cd "$(dirname "$0")/.."
 unset NEARAI_API_KEY

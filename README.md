@@ -18,7 +18,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), track `privacy`.
 2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 14 tampering cases, each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
-- Run `scripts/review.sh`. It needs uv and network, takes about 5 minutes, and exits 0 with `ALL CHECKS PASSED`.
+- Run `scripts/review.sh`. It needs uv and network, takes about 6 minutes, and exits 0 with `ALL CHECKS PASSED`.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:
