@@ -2,6 +2,11 @@
 
 Fūin (封印, pronounced *foo-een*) is Japanese for "seal": the test set is sealed on NEAR before any model runs.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/fuin-logo-dark.svg">
+  <img src="assets/fuin-logo.svg" alt="Fūin logo" width="320">
+</picture>
+
 Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and a sample picked by a future NEAR block is revealed and re-scored.
 
 Built at NEAR HACKATHON (Nov 1–14, 2026), track `privacy`.
@@ -157,6 +162,7 @@ Also: verification needs the public services listed above (it is account-free, n
 | `policy/` | the verifier's attestation policies (accepted configurations per model) |
 | `examples/` | real certificates; `tampered/` fixtures and their manifest |
 | `evidence/` | dated command output, transactions and probe write-ups behind every claim here |
-| `scripts/` | fixture builder and checker, suite source checker, leak guard |
+| `scripts/` | fixture builder and checker, suite source checker, leak guard, results-page builder |
+| `site/index.html` | static results page built from the committed certificates and recorded verifier output (`uv run python scripts/build_page.py`) |
 
 MIT licence.
