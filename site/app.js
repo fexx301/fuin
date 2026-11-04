@@ -138,7 +138,7 @@
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const utf8b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
-  let current = null, running = 0;
+  let current = null, running = 0, gpuRecorded = false;  // gpuRecorded: this run has the CLI's recorded NRAS result
   const CHEATS = [
     ['Edit an answer', 'Rewrites a revealed answer after the model signed it.', (c) => {
       const x = c.audit.reveals[0], j = JSON.parse(new TextDecoder().decode(V.b64(x.response_b64)));
@@ -163,7 +163,7 @@
     const li = $('#ck-' + id); if (!li) return;
     li.className = state === 'running' ? 'active running' : state;
     $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : '';
-    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? 'TDX checked now · GPU recorded'
+    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU ${gpuRecorded ? 'recorded' : 'not checked'}`
       : { pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', running: '' }[state] ?? '';
     if (detail) $('.dt', li).textContent = detail;
     await sleep(state === 'running' ? 260 : 90);
@@ -174,7 +174,7 @@
     const live = res.outcome === 'VERIFIED' && res.attestation === 'live';
     const cls = live ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
     const title = res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome === 'PARTIAL' ? 'PARTLY CHECKED' : res.outcome;
-    const sub = res.outcome === 'VERIFIED' ? (live ? 'TDX checked now · GPU recorded' : 'attestation recorded, not checked here') : res.code;
+    const sub = res.outcome === 'VERIFIED' ? (live ? `TDX checked now · GPU ${res.gpu === 'recorded' ? 'recorded' : 'not checked'}` : 'attestation recorded, not checked here') : res.code;
     s.innerHTML = ''; s.append(title, h('small', {}, sub));
     s.classList.add('show', cls);
     $('#announce').textContent = `${title}: ${sub}`;
@@ -186,6 +186,7 @@
   }
   async function run(entry, mutate) {
     const id = ++running;
+    gpuRecorded = !!recordedLine(entry, !!mutate);
     current = entry;
     const cert = clone(entry.cert);
     let note = '';
