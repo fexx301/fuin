@@ -51,9 +51,9 @@ Round `near-dev-60-r1`: 60 private questions with exact answers, each cited to a
 | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **25/60** | 10/23 | 7/23 | 21/60 |
 | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **17/60** | 6/23 | 8/23 | 17/60 |
 
-Read this as "correct within a 4,096-token budget". A cut-off answer scores 0 whatever the model knew, and both models often reason past the cap. The weights column comes from the deployment trace taken at each run's preflight (see below): these are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
+Read this as "correct within a 4,096-token budget". The scorer reads only the final answer text and ignores whether generation was cut off. A cut-off response usually has no final answer, so it scores 0; every revealed cut-off in this round had none. Both models often reason past the cap. The weights column comes from the deployment trace taken at each run's preflight (see below): these are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
 
-**Disclosure:** 23 items are revealed by the audit. One more unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs, so it counts as disclosed: **24 disclosed, 36 hidden.**
+**Disclosure:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
 
 ## Try it (no account, no API key, no test set)
 
@@ -66,7 +66,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json
    ```
 
-   You see `VERIFIED` with nine passing checks (rows, commitments, policy, signatures, attestation, deployment trace, registry, audit sample, reveals), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores …; disclosed 23, hidden 37`), the warnings and the limits. Repeat with `examples/cert-near-dev-60-r1-glm-5.3-flash.json`.
+   You see `VERIFIED` with nine passing checks (rows, commitments, policy, signatures, attestation, deployment trace, registry, audit sample, reveals), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with `examples/cert-near-dev-60-r1-glm-5.3-flash.json`.
 
 2. **Watch tampering get refused.**
 
@@ -100,19 +100,19 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see each of the 23 revealed questions, its expected answer and docs source, what the model said, and its score.
 
-4. **Run the tests.** `uv run pytest` (33 tests) and `cd contract && cargo test` (15 tests).
+4. **Run the tests.** `uv run pytest` (54 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
 
 ## How it works
 
 Flow: **seal → run → commit → close → sample → reveal → verify.**
 
-1. **Seal.** The owner commits a Merkle root over the salted items (each with a secret 32-byte nonce) and a policy hash on the NEAR registry. The policy fixes the request template, generation settings, scorer (pinned by file hash) and audit size: `k` is the smallest sample that catches at least one of `D = ceil(n/10)` wrong scores with probability ≥ 95%, computed exactly (k = 23 for n = 60).
+1. **Seal.** The owner commits a Merkle root over the salted items (each with a secret 32-byte nonce) and a policy hash on the NEAR registry. The policy fixes the request template, generation settings, scorer (pinned by file hash) and audit size: `k` is the smallest sample that catches at least one of `D = ceil(n/10)` wrong scores with probability ≥ 95%, computed exactly (k = 23 for n = 60). That is detection power against a stated amount of mis-scoring, not a probability that the total is correct.
 2. **Run.** Each question goes to the NEAR AI Cloud gateway non-streaming, with the nonce in the request's `user` field. The model's TEE key signs `model:sha256(request):sha256(response)` over the exact bytes (`provider_tee` signature). A fresh attestation report is fetched before the run.
 3. **Commit.** The owner commits each run's Merkle root and total; the contract numbers the runs.
 4. **Close.** The round closes, and no more runs can join it.
 5. **Sample.** The audit seed is the hash of the first finalized block at height ≥ close + 2, bound to the round's records. The owner can't know it when committing. One sample serves every model in the round.
 6. **Reveal.** The sampled items, salts, nonces and exact request and response bytes are published with Merkle proofs.
-7. **Verify.** Anyone rebuilds both roots from all `n` rows, checks every signature against a key attested in an Intel TDX quote (with NVIDIA GPU attestation via NRAS), and reads the registry over RPC. They then re-derive the sample from the chain, rebuild each revealed request from the sealed template, and re-score each revealed answer.
+7. **Verify.** The verifier first checks every field's form; malformed input is refused, never crashes. It runs every check that needs no network before any that does, so a service outage can't hide tampering that local checks catch. An outage only defers the verdict to CAN'T CERTIFY. Anyone rebuilds both roots from all `n` rows, checks every signature against a key attested in an Intel TDX quote (with NVIDIA GPU attestation via NRAS), and reads the registry over RPC. They then re-derive the sample from the chain, rebuild each revealed request from the sealed template, and re-score each revealed answer.
 
 **Deployment trace.** Each model report includes NEAR's compose-manager attestation: a second TDX quote over the log of deployments on that machine. Fūin recomputes the log hash and fetches each logged compose file from the public [nearai/cvm-compose-files](https://github.com/nearai/cvm-compose-files) repo at the logged commit, checking its sha256. From those files it reports the container image digest and the weights serving the model. Details: `evidence/2026-11-03-provenance-probe/`.
 
