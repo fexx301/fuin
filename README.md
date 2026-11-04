@@ -118,7 +118,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (55 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
+4. **Run the tests.** `uv run pytest` (61 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
 
 ## How it works
 
@@ -147,6 +147,8 @@ Transactions for every round: `evidence/*/README.md`.
 
 ```sh
 # put NEARAI_API_KEY in .env (gitignored); have a NEAR testnet account in near-cli-rs's keychain
+uv run --env-file .env fuin check my-suite.jsonl --owner you.testnet \
+    --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash      # validates the suite, explains disclosure, checks prerequisites
 uv run --env-file .env fuin seal my-suite.jsonl --id my-bench-1 --owner you.testnet \
     --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash
 uv run --env-file .env fuin run --id my-bench-1 --model Qwen/Qwen3.8-27B   # resumable
@@ -155,7 +157,10 @@ uv run --env-file .env fuin commit --id my-bench-1 --model Qwen/Qwen3.8-27B
 uv run --env-file .env fuin commit --id my-bench-1 --model z-ai/glm-5.3-flash
 uv run --env-file .env fuin close --id my-bench-1
 uv run fuin reveal --id my-bench-1 --out examples
+uv run fuin status --id my-bench-1      # at any point: which steps are done and the exact next command
 ```
+
+`fuin check` catches malformed items, duplicate questions, answers that appear in their own question, questions that don't say what form to answer in, and two items citing the same source line (revealing one can disclose the other). It also states the disclosure for your suite size, for example "60 items → reveals 23 (38.3%)" or "1,000 items → reveals 29 (2.9%)". `fuin seal` runs the same suite check and refuses a suite with errors, because a seal can't be undone.
 
 Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "accept"?, "tolerance"?, "source"?}`. Salts, nonces and raw bytes stay in `private/` (gitignored); back that folder up, because without it a round can't be revealed. `scripts/leak_guard.py` checks that no hidden item appears in tracked files except as its own round's reveal.
 

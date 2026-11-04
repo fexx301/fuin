@@ -1,11 +1,11 @@
-"""fuin: seal | run | commit | close | reveal (owner) and verify | show (anyone, no credentials)."""
+"""fuin: check | seal | run | commit | close | reveal | status (owner) and verify | show (anyone, no credentials)."""
 
 import argparse
 import base64
 import json
 import sys
 
-from fuin import diagnose, owner, verify
+from fuin import diagnose, owner, tooling, verify
 
 QWEN = "Qwen/Qwen3.8-27B"
 SETTINGS = {"max_tokens": 4096, "temperature": 0}  # user, Nov 3: both models reason, 4096-token cap
@@ -38,10 +38,23 @@ def main(argv=None) -> int:
     p = sub.add_parser("close"); p.add_argument("--id", required=True)
     p = sub.add_parser("reveal"); p.add_argument("--id", required=True); p.add_argument("--out", default="examples")
     p = sub.add_parser("verify"); p.add_argument("certs", nargs="+"); p.add_argument("--json", action="store_true")
+    p = sub.add_parser("check", help="validate a suite and the prerequisites before sealing"); p.add_argument("suite")
+    p.add_argument("--owner"); p.add_argument("--model", action="append", default=None)
+    p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
     a = ap.parse_args(argv)
 
+    if a.cmd == "check":
+        return tooling.print_check(a.suite, a.owner, a.model or [QWEN])
+    if a.cmd == "status":
+        print("\n".join(tooling.status(a.id)))
+        return 0
     if a.cmd == "seal":
+        res = tooling.check_suite(a.suite)
+        if res["errors"]:  # a seal can't be undone: refuse a broken suite
+            print("Not sealing: the suite has errors. Run `fuin check` for details.\n" + "\n".join("  ✗ " + e for e in res["errors"][:10]))
+            return 1
+        print(tooling.disclosure(res["n"]))
         owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])})
     elif a.cmd == "run":
         owner.run(a.id, a.model)
