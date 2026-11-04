@@ -7,3 +7,7 @@
 - 33 Python tests and 15 contract tests passed.
 
 **Not yet shown:** a fresh AI-agent session (Claude Code or Codex) given only the README, and a machine without uv or Rust preinstalled.
+
+## Re-run, 2026-11-04 (after the review fixes and round 2)
+
+Fresh clone at `9d68c4c`, `./scripts/review.sh` with no API key: **ALL CHECKS PASSED** in 234 s. All 4 certificates (2 models × 2 rounds) VERIFIED; 14/14 fixtures with their expected verdicts; 55 Python tests (including 21 offline hostile-input and outage tests) and 15 contract tests passed.
