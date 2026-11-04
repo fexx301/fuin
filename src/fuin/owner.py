@@ -128,8 +128,10 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
                 rn["rows"].append(done.pop(len(rn["rows"])))  # save strictly in index order
             save(st)
     if failed:
-        for i in sorted(done):  # finished after the failing item: thrown away and re-asked on resume, so disclosed
-            rn["attempt_log"].append({"i": i, "attempt": "discarded",
+        for i in sorted(done):  # finished after the failing item: thrown away and re-asked on resume, so disclosed with its score
+            row = done[i]
+            rn["attempt_log"].append({"i": i, "attempt": "discarded", "score": row["score"],
+                                      "response_sha256": hashlib.sha256(base64.b64decode(row["response_b64"])).hexdigest(),
                                       "error": "completed but discarded because an earlier item failed"})
         save(st)
         raise SystemExit(failed[1])

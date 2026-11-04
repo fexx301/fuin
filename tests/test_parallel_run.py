@@ -54,7 +54,8 @@ def test_failure_keeps_earlier_groups_logs_retries_and_resumes(fake, tmp_path):
     rn = owner.load("t")["runs"]["m"]
     assert [r["i"] for r in rn["rows"]] == [0, 1, 2, 3, 4, 5]  # every row before the failing item is kept, in order
     assert any(e["i"] == 1 for e in rn["attempt_log"]) and sum(e["i"] == 6 for e in rn["attempt_log"]) == 3
-    assert any(e["i"] == 7 and e["attempt"] == "discarded" for e in rn["attempt_log"])  # item 7 finished but is re-asked: disclosed
+    assert any(e["i"] == 7 and e["attempt"] == "discarded" and e["score"] == 1 and len(e["response_sha256"]) == 64
+               for e in rn["attempt_log"])  # item 7 finished but is re-asked: disclosed with the dropped answer's score
     fake["fail_at"] = None
     owner.run("t", "m", parallel=4)                            # resume
     assert [r["i"] for r in owner.load("t")["runs"]["m"]["rows"]] == list(range(10))
