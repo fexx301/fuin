@@ -34,22 +34,27 @@
       cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const scale = W < 760 ? 1.9 : 1.3, bw = W * scale, cw = bw / cols, ch = cw * (36.437 / 19.313);
       band = { cw, ch, off: (W - bw) / 2, h: rows.length * ch, top: H * (W < 760 ? 0.26 : 0.31) - (rows.length * ch) / 2 };
+      // pull the hands in: fingertip gap ≈ 1.6 seal widths, whatever the screen size
+      const mid = cols / 2; let lt = 0, rt = cols;
+      rows.forEach((r) => [...r].forEach((c, i) => { if (c !== ' ') { if (i < mid && i > lt) lt = i; if (i >= mid && i < rt) rt = i; } }));
+      const sealPx = Math.max(78, Math.min(150, W * 0.085));
+      band.shift = Math.max(0, ((rt - lt) * cw - sealPx * 1.6) / 2);
       dots = [];
       rows.forEach((row, j) => [...row].forEach((c, i) => {
         if (c === ' ') return;
-        const x = band.off + (i + 0.5) * cw, y = band.top + (j + 0.5) * ch + (c === '.' ? ch * 0.18 : 0);
+        const x = band.off + (i + 0.5) * cw + (i < mid ? band.shift : -band.shift), y = band.top + (j + 0.5) * ch + (c === '.' ? ch * 0.18 : 0);
         dots.push({ x, y, bx: x, by: y, vx: 0, vy: 0, big: c === '#', tw: Math.random() * 6.28 });
       }));
       dust = Array.from({ length: Math.round((W * H) / 2600) }, () => ({ x: Math.random() * W, y: Math.random() * H, s: Math.random() * 0.9 + 0.3, a: Math.random(), v: Math.random() * 0.15 + 0.03 }));
       coinXY = { x: band.off + F.hands.gap.x * cols * cw, y: band.top + F.hands.gap.y * band.h };
-      const size = Math.max(78, Math.min(150, W * 0.085));
+      const size = sealPx;
       tilt.style.setProperty('--coin', size + 'px'); tilt.style.left = coinXY.x + 'px'; tilt.style.top = coinXY.y + 'px';
     }
     // fingertips, for the occasional seal-ink spark travelling into the seal
     const tips = () => {
       const mid = cols / 2; let L = [0, 0], R = [cols, 0];
       rows.forEach((r, j) => [...r].forEach((c, i) => { if (c === ' ') return; if (i < mid && i > L[0]) L = [i, j]; if (i >= mid && i < R[0]) R = [i, j]; }));
-      return [L, R].map(([i, j]) => ({ x: band.off + (i + 0.5) * band.cw, y: band.top + (j + 0.5) * band.ch }));
+      return [L, R].map(([i, j], side) => ({ x: band.off + (i + 0.5) * band.cw + (side === 0 ? band.shift : -band.shift), y: band.top + (j + 0.5) * band.ch }));
     };
     let fingertips = [];
     let last = 0, t0 = performance.now();
