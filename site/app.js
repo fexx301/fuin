@@ -125,6 +125,9 @@
       const it = c.run.items[0], s = window.Noble.signText(it.signature.text), was = it.signature.signing_address;
       it.signature.signature = s.signature; it.signature.signing_address = s.address; return `run.items[0] signer: ${was.slice(0, 10)}… → ${s.address.slice(0, 10)}… (fresh key)`; }],
     ['Cherry-pick the audit', 'Replaces the sample with items the owner prefers.', (c) => { const was = c.audit.indices.slice(0, 4); c.audit.indices = [...Array(c.audit.k).keys()]; return `audit.indices: [${was}, …] → [${c.audit.indices.slice(0, 4)}, …]`; }],
+    ['Forge the TDX quote', 'Flips one byte of the Intel TDX quote that attests the model\'s signing key.', (c) => {
+      const r0 = c.run.model_report.model_attestations[0], q = r0.intel_quote, k = q.length - 200;
+      r0.intel_quote = q.slice(0, k) + (q[k] === '0' ? '1' : '0') + q.slice(k + 1); return `run.model_report…intel_quote: one byte flipped at offset ${k / 2}`; }],
     ['Relabel as GPT', 'Claims a non-TEE gateway model produced the answers.', (c) => { const was = c.run.model_id; c.run.model_id = 'openai/gpt-5.5'; return `run.model_id: ${was} → openai/gpt-5.5`; }],
   ];
   function renderChecks() {
