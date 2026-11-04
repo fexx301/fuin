@@ -19,7 +19,7 @@ const check = async (name, cert, want, net = true, over = {}) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: ${got}${ok ? '' : ' (want ' + want + ')'}`);
 };
 for (const r of F.rounds) for (const e of r.certs) await check(e.file, e.cert, 'VERIFIED');
-const base = F.rounds[1].certs[1].cert;  // r1 qwen
+const base = F.rounds.find((r) => r.id === 'near-dev-60-r1').certs.find((e) => /qwen/i.test(e.cert.run.model_id)).cert;  // r1 qwen, by id: round order changes as rounds are added
 const mut = (fn) => { const c = clone(base); fn(c); return c; };
 await check('edited answer', mut((c) => { const x = c.audit.reveals[0]; const j = JSON.parse(atob(x.response_b64)); j.choices[0].message.content = '1000'; x.response_b64 = btoa(unescape(encodeURIComponent(JSON.stringify(j)))); }), 'REFUSED signature_text_mismatch');
 await check('inflated total', mut((c) => c.run.total_score++), 'REFUSED total_score_mismatch');
