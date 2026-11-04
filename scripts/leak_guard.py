@@ -69,7 +69,7 @@ for path in tracked:
             continue
         if q in flat:
             leaks.append((path, suite, i, "question"))
-        elif url and url in text:
+        elif url and re.search(re.escape(url) + r"(?!\d)", text):  # #L19 must not match #L199
             leaks.append((path, suite, i, "same source line"))
         elif anchor and len(anchor) > 12 and anchor in text:
             leaks.append((path, suite, i, "source anchor"))
