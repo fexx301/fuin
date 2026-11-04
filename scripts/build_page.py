@@ -47,7 +47,7 @@ def hands() -> dict:
 
 def main() -> None:
     rounds = []
-    for rid in ("near-dev-60-r2", "near-dev-60-r1"):
+    for rid in ("near-dev-300-r3", "near-dev-60-r2", "near-dev-60-r1"):
         rec = recorded(rid)
         certs = []
         for p in sorted(glob.glob(f"examples/cert-{rid}-*.json")):

@@ -116,7 +116,7 @@
 
   /* ---------------- evidence links, pressed state ---------------- */
   // Known disclosure per round: direct reveals plus items disclosed indirectly (README "Disclosure").
-  const DISCLOSURE = { 'near-dev-60-r1': { revealed: 23, indirect: 1 }, 'near-dev-60-r2': { revealed: 23, indirect: 0 } };
+  const DISCLOSURE = { 'near-dev-60-r1': { revealed: 23, indirect: 1 }, 'near-dev-60-r2': { revealed: 23, indirect: 0 }, 'near-dev-300-r3': { revealed: 28, indirect: 0 } };
   const TX = 'https://testnet.nearblocks.io/txns/';
   function evidenceLinks(entry, c) {
     const a = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
@@ -234,15 +234,15 @@
   function results() {
     const box = $('#rounds');
     for (const rd of F.rounds) {
-      const dis = DISCLOSURE[rd.id] || { revealed: 23, indirect: 0 }, known = dis.revealed + dis.indirect;
-      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${60 - known} hidden`));
+      const n = rd.certs[0].cert.benchmark.n, dis = DISCLOSURE[rd.id] || { revealed: rd.certs[0].cert.audit.reveals.length, indirect: 0 }, known = dis.revealed + dis.indirect;
+      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;
         const bar = h('i'); bar.dataset.w = pct + '%';
         card.append(h('div', { class: 'bar-row' },
           h('div', { class: 'top' }, h('div', {}, h('div', { class: 'name' }, c.run.model_id), h('div', { class: 'served' }, 'served as ' + (served(e) || '—'))), h('div', { class: 'score' }, c.run.total_score, h('small', {}, '/' + c.benchmark.n))),
           h('div', { class: 'bar' }, bar),
-          h('div', { class: 'pills' }, h('span', { class: 'pill' }, 'revealed 23:'), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
+          h('div', { class: 'pills' }, h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
             h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
@@ -269,10 +269,10 @@
       }
     };
     F.rounds.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; press(tabs, c); draw(); lead(); }); tabs.append(c); });
-    [['all', 'All 23'], ['correct', 'Correct'], ['wrong', 'Wrong'], ['format', 'Format'], ['cut', 'Cut off']].forEach(([k, label], i) => {
+    [['all', 'All revealed'], ['correct', 'Correct'], ['wrong', 'Wrong'], ['format', 'Format'], ['cut', 'Cut off']].forEach(([k, label], i) => {
       const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, label); c.addEventListener('click', () => { filt = k; press(fl, c); draw(); }); fl.append(c); });
-    const lead = () => { const d = DISCLOSURE[F.rounds[ri].id] || { revealed: 23, indirect: 0 };
-      $('#exLead').textContent = `A NEAR block that didn't exist when the results were committed chose these ${d.revealed} of 60.` + (d.indirect ? ` ${d.indirect} more is disclosed indirectly (it shares a cited docs line with revealed items), so ${60 - d.revealed - d.indirect} stay private.` : ` The other ${60 - d.revealed} stay private.`) + ' Miss types are a reading aid computed from the revealed bytes, not a score.'; };
+    const lead = () => { const c0 = F.rounds[ri].certs[0].cert, n = c0.benchmark.n, d = DISCLOSURE[F.rounds[ri].id] || { revealed: c0.audit.reveals.length, indirect: 0 };
+      $('#exLead').textContent = `A NEAR block that didn't exist when the results were committed chose these ${d.revealed} of ${n}.` + (d.indirect ? ` ${d.indirect} more is disclosed indirectly (it shares a cited docs line with revealed items), so ${n - d.revealed - d.indirect} stay private.` : ` The other ${n - d.revealed} stay private.`) + ' Miss types are a reading aid computed from the revealed bytes, not a score.'; };
     draw(); lead();
   }
   function steps() {
