@@ -113,8 +113,12 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
             results = list(pool.map(answer, range(start, min(start + width, n))))
             for row, log, err in results:
                 rn["attempt_log"].extend(log)
-            for row, log, err in results:
+            for k, (row, log, err) in enumerate(results):
                 if err:
+                    for later, _, _ in results[k + 1:]:  # completed but thrown away: they will be asked again on resume
+                        if later:
+                            rn["attempt_log"].append({"i": later["i"], "attempt": "discarded",
+                                                      "error": "completed but discarded because an earlier item in its group failed"})
                     save(st)
                     raise SystemExit(err)
                 rn["rows"].append(row)
