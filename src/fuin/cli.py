@@ -35,6 +35,8 @@ def main(argv=None) -> int:
     s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
+        if c == "run":
+            p.add_argument("--parallel", type=int, default=1, help="questions in flight at once (rows are still saved in order)")
     p = sub.add_parser("close"); p.add_argument("--id", required=True)
     p = sub.add_parser("reveal"); p.add_argument("--id", required=True); p.add_argument("--out", default="examples")
     p = sub.add_parser("verify"); p.add_argument("certs", nargs="+"); p.add_argument("--json", action="store_true")
@@ -57,7 +59,7 @@ def main(argv=None) -> int:
         print(tooling.disclosure(res["n"]))
         owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])})
     elif a.cmd == "run":
-        owner.run(a.id, a.model)
+        owner.run(a.id, a.model, a.parallel)
     elif a.cmd == "commit":
         owner.commit(a.id, a.model)
     elif a.cmd == "close":

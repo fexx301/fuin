@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -66,7 +67,7 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict]) -> dict
     return st
 
 
-def run(bid: str, model: str) -> dict:
+def run(bid: str, model: str, parallel: int = 1) -> dict:
     st = load(bid)
     settings = st["policy"]["models"][model]
     rn = st["runs"].get(model)
@@ -82,28 +83,42 @@ def run(bid: str, model: str) -> dict:
         save(st)
     if "commit" in rn:
         raise SystemExit(f"{model} run already committed")
-    for i in range(len(rn["rows"]), len(st["items"])):  # resume after the last saved row
-        r = st["items"][i]
+
+    def answer(i: int) -> tuple[dict | None, list[dict], str | None]:
+        """One item: (row or None, attempt-log entries, error). Runs in a worker thread; touches no shared state."""
+        r, log = st["items"][i], []
         req = inference.build_request(model, r["item"]["question"], r["item"]["request_nonce"], settings)
         for attempt in range(3):
             try:
                 resp, parsed = inference.complete(req)
                 break
             except (requests.RequestException, ValueError) as e:
-                rn["attempt_log"].append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden
-                save(st)
+                log.append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden
         else:
-            raise SystemExit(f"item {i}: inference failed 3 times; rerun `fuin run` to resume")
+            return None, log, f"item {i}: inference failed 3 times; rerun `fuin run` to resume"
         sig = inference.fetch_signature(parsed["id"], model)
         if sig is None:
-            raise SystemExit(f"item {i}: signature unavailable; run incomplete, not certifiable")
+            return None, log, f"item {i}: signature unavailable; run incomplete, not certifiable"
         code = inference.check_signature(sig, model, req, resp, rn["signer"])
         if code:
-            raise SystemExit(f"item {i}: {code}")
+            return None, log, f"item {i}: {code}"
         score = P.scorer_for(st["policy"]).score_response(r["item"], resp)
-        rn["rows"].append({"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score})
-        save(st)
+        row = {"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score}
         print(f"  {i}: score {score}  finish {parsed['choices'][0].get('finish_reason')}", flush=True)
+        return row, log, None
+
+    n, width = len(st["items"]), max(1, parallel)
+    with ThreadPoolExecutor(max_workers=width) as pool:
+        for start in range(len(rn["rows"]), n, width):  # resume after the last saved row; save once per group, in order
+            results = list(pool.map(answer, range(start, min(start + width, n))))
+            for row, log, err in results:
+                rn["attempt_log"].extend(log)
+            for row, log, err in results:
+                if err:
+                    save(st)
+                    raise SystemExit(err)
+                rn["rows"].append(row)
+            save(st)
     return st
 
 
