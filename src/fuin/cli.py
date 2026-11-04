@@ -5,7 +5,7 @@ import base64
 import json
 import sys
 
-from fuin import owner, verify
+from fuin import diagnose, owner, verify
 
 QWEN = "Qwen/Qwen3.8-27B"
 SETTINGS = {"max_tokens": 4096, "temperature": 0}  # user, Nov 3: both models reason, 4096-token cap
@@ -79,6 +79,8 @@ def main(argv=None) -> int:
         cut = sum(f == "length" for _, f, _ in rows)
         right = sum(items[x["i"]]["score"] for x, _, _ in rows)
         print(f"revealed sample: {right}/{len(rows)} correct; {cut}/{len(rows)} cut off at max_tokens (scored 0) — checkable from the revealed bytes")
+        bd = diagnose.breakdown(cert)
+        print(f"revealed misses: {bd['wrong']} wrong, {bd['format']} format (right value, rejected form), {bd['cut off']} cut off — a reading aid, not a score")
         if a.audit:
             for x, fin, content in rows:
                 said = "(cut off before answering)" if fin == "length" and not content else repr(content[:50])

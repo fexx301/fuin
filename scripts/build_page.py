@@ -5,11 +5,15 @@ The page shows recorded results and how to reproduce them; it does not verify an
 Rounds are listed in ROUNDS; each needs examples/cert-<round>-*.json and evidence/*-round-<round>/verify.jsonl.
 """
 import base64
+import sys
 import glob
 import html
 import json
 import subprocess
 from pathlib import Path
+
+sys.path.insert(0, "src")
+from fuin import diagnose  # noqa: E402
 
 ROUNDS = [r for r in ("near-dev-60-r2", "near-dev-60-r1") if glob.glob(f"evidence/*-round-{r}/verify.jsonl")]
 REPO = "https://github.com/fexx301/fuin"
@@ -48,7 +52,7 @@ def round_section(rid: str) -> str:
         served = ", ".join(sorted({s["model_path"] for s in (v.get("trace") or {}).get("services", []) if s.get("model_path")})) or "—"
         summary.append(
             f"<tr><th scope='row'>{e(c['run']['model_id'])}</th><td class='big'>{c['run']['total_score']}<small>/{b['n']}</small></td>"
-            f"<td>{sum(r['score'] for r in rows)}/{len(rows)}</td><td>{sum(r['cut'] for r in rows)}/{len(rows)}</td>"
+            f"<td>{sum(r['score'] for r in rows)}/{len(rows)}</td><td>{(lambda d: f"{d['wrong']} wrong · {d['format']} format · {d['cut off']} cut off")(diagnose.breakdown(c))}</td>"
             f"<td><code>{e(served)}</code></td><td class='verdict {e(v.get('outcome', '?').lower())}'>{e(v.get('outcome', 'not recorded'))}</td></tr>")
 
     checks = []
@@ -77,8 +81,9 @@ def round_section(rid: str) -> str:
 <section class="round" id="{e(rid)}">
   <h2>Round <code>{e(rid)}</code></h2>
   <p class="meta">{b['n']} sealed questions · reasoning on, <code>max_tokens</code> {cap}, temperature 0 · scorer <code>{e(b['policy']['scorer']['name'])}</code> · audit reveals {a['k']} of {b['n']}</p>
-  <table class="summary"><thead><tr><th>Model</th><th>Committed score</th><th>Revealed: correct</th><th>Revealed: cut off at {cap}</th><th>Weights NEAR served</th><th>Verdict</th></tr></thead>
+  <table class="summary"><thead><tr><th>Model</th><th>Committed score</th><th>Revealed: correct</th><th>Revealed misses</th><th>Weights NEAR served</th><th>Verdict</th></tr></thead>
   <tbody>{''.join(summary)}</tbody></table>
+  <p class="meta">Revealed misses are a reading aid from the revealed bytes, not a score: <i>format</i> means the right value in a form the strict scorer rejects (e.g. <code>**10%**</code>); <i>cut off</i> means no answer before the {cap}-token cap.</p>
   <p class="meta">{txs}</p>
   <h3>Verifier output (recorded)</h3>
   {''.join(checks)}

@@ -44,16 +44,34 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Round `near-dev-60-r1`: 60 private questions with exact answers, each cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Both models were run with reasoning on, `max_tokens` 4096 and temperature 0, sealed before the run. The scorer is strict: the answer must be the number or term alone.
+Two independent rounds, each of 60 private questions with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Both models ran with reasoning on and temperature 0. The scorer is strict: the answer must be the number or term alone.
 
-| Model (as served by NEAR AI Cloud) | Committed score | Revealed sample: correct | Revealed sample: cut off at 4096 tokens | Whole run: cut off (owner-reported) |
+| Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed 23: correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
-| z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **25/60** | 10/23 | 7/23 | 21/60 |
-| Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **17/60** | 6/23 | 8/23 | 17/60 |
+| `near-dev-60-r2` (8,192) | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **32/60** | 13 · 4 · 2 · 4 | 6/60 |
+| `near-dev-60-r2` (8,192) | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **17/60** | 7 · 13 · 0 · 3 | 7/60 |
+| `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | 10 · 5 · 1 · 7 | 21/60 |
+| `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | 6 · 9 · 0 · 8 | 17/60 |
 
-Read this as "correct within a 4,096-token budget". The scorer reads only the final answer text and ignores whether generation was cut off. A cut-off response usually has no final answer, so it scores 0; every revealed cut-off in this round had none. Both models often reason past the cap. The weights column comes from the deployment trace taken at each run's preflight (see below): these are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
+On both suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. With the larger budget, few answers are cut off, and Qwen's misses are mostly wrong answers, so the gap reflects knowledge rather than token budget.
 
-**Disclosure:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
+**Reading the columns:**
+- **Revealed breakdown:** a reading aid computed from the revealed bytes (`fuin show`), not a score. *Format* means the right value in a form the strict scorer rejects, such as `**10%**`. *Cut off* means no final answer before the cap.
+- **Scorer and cut-offs:** the scorer reads only the final answer text and ignores whether generation was cut off. A cut-off response usually has no final answer, so it scores 0; every revealed cut-off here had none.
+- **Weights column:** comes from the deployment trace taken at each run's preflight (see below). These are NEAR's deployed quantized builds, not the full-precision checkpoints that public benchmark tables usually describe.
+
+**Disclosure:**
+- **Round 1:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
+- **Round 2:** one question per cited line, so its known disclosure is the 23 revealed; **37 stay hidden.**
+
+**Disclosure at scale.** The audit size depends on the detection target, not on suite size, so larger private suites disclose a far smaller share. From the same `core.audit_size` code, at ≥95% detection power for ≥10% incorrect scores:
+
+| Suite size n | Items revealed k | Share revealed |
+|---|---|---|
+| 60 | 23 | 38.3% |
+| 200 | 27 | 13.5% |
+| 500 | 28 | 5.6% |
+| 1,000 | 29 | 2.9% |
 
 ## Try it (no account, no API key, no test set)
 
@@ -66,7 +84,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json
    ```
 
-   You see `VERIFIED` with nine passing checks (rows, commitments, policy, signatures, attestation, deployment trace, registry, audit sample, reveals), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with `examples/cert-near-dev-60-r1-glm-5.3-flash.json`.
+   You see `VERIFIED` with nine passing checks (rows, commitments, policy, signatures, attestation, deployment trace, registry, audit sample, reveals), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (two models × two rounds).
 
 2. **Watch tampering get refused.**
 
@@ -95,12 +113,12 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 3. **Read the audit.**
 
    ```sh
-   uv run fuin show examples/cert-near-dev-60-r1-glm-5.3-flash.json --audit
+   uv run fuin show examples/cert-near-dev-60-r2-glm-5.3-flash.json --audit
    ```
 
-   You see each of the 23 revealed questions, its expected answer and docs source, what the model said, and its score.
+   You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (54 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
+4. **Run the tests.** `uv run pytest` (55 tests, including hostile-input and outage cases that run offline) and `cd contract && cargo test` (15 tests).
 
 ## How it works
 
