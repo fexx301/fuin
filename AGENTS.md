@@ -4,7 +4,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Reproduce
 
-- Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 6 minutes. It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
+- Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 10 minutes. It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
 - No account, API key or hidden test set is needed. The script unsets `NEARAI_API_KEY`.
 - The default RPC is FastNEAR's archival testnet endpoint (NEAR's archival endpoint as fallback): certificates cite blocks and transactions older than regular nodes keep. If you set `FUIN_TESTNET_RPC`, use an archival endpoint.
 - `fuin verify` exit codes:
@@ -12,6 +12,8 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
   - `1`: at least one REFUSED (invalid evidence);
   - `2`: none REFUSED but at least one CAN'T CERTIFY (unavailable or unsupported evidence).
   With `--json`, each certificate prints one JSON line.
+- Round 3's certificates also carry a TEE score (`run.evidence.tee_score`, checked by `src/fuin/tee.py`): every answer re-scored inside an OutLayer TDX enclave. Its codes are `tee_score_invalid`, `tee_score_mismatch` and `tee_attestation_invalid` (REFUSED) and `tee_unapproved` (CAN'T CERTIFY).
+- `scripts/review.sh` step 4 also runs the TEE scorer's Rust tests and rebuilds it (`tee/build.sh`, expecting the sha256 pinned in `policy/tee-v1.json`) when Rust 1.95.0 with `wasm32-wasip2` is installed; otherwise it says it skipped them.
 
 ## Where each claim is evidenced
 
