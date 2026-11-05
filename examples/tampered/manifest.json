@@ -85,6 +85,30 @@
    }
   },
   {
+   "file": "tee-edited-total.json",
+   "expected": "REFUSED tee_score_invalid",
+   "mutation": "the TEE's reported total raised by one; no longer the output OutLayer attested",
+   "base": "examples/cert-near-dev-300-r3-glm-5.3-flash.json"
+  },
+  {
+   "file": "tee-rehashed-total.json",
+   "expected": "REFUSED tee_score_mismatch",
+   "mutation": "TEE total raised and the record's output hash recomputed to match; it now contradicts the committed total",
+   "base": "examples/cert-near-dev-300-r3-glm-5.3-flash.json"
+  },
+  {
+   "file": "tee-forged-task.json",
+   "expected": "REFUSED tee_attestation_invalid",
+   "mutation": "OutLayer task id changed in the record; the Intel-signed quote binds the original task hash",
+   "base": "examples/cert-near-dev-300-r3-glm-5.3-flash.json"
+  },
+  {
+   "file": "tee-unpinned-scorer.json",
+   "expected": "CANT_CERTIFY tee_unapproved",
+   "mutation": "record claims a scorer build other than the one the verifier pins",
+   "base": "examples/cert-near-dev-300-r3-glm-5.3-flash.json"
+  },
+  {
    "file": "answer-hint.json",
    "expected": "REFUSED request_policy_mismatch",
    "mutation": "real round fixture-answer-hint-2: the owner appended the answer to the prompt; signed by the model and committed on chain"

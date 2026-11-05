@@ -128,6 +128,41 @@ def _(c):
     pass
 
 
+# TEE-score fixtures: from a certificate that carries a TEE score (optional third argument), one change each
+if len(sys.argv) > 3:
+    import hashlib
+    tee_base = json.loads(Path(sys.argv[3]).read_text())
+
+    def tee_fixture(name, expected, why):
+        def wrap(mutate):
+            c = json.loads(json.dumps(tee_base))
+            mutate(c["run"]["evidence"]["tee_score"])
+            (out / f"{name}.json").write_text(json.dumps(c, indent=1, ensure_ascii=False) + "\n")
+            fixtures.append({"file": f"{name}.json", "expected": expected, "mutation": why, "base": sys.argv[3]})
+            return mutate
+        return wrap
+
+    def rehash(ev):
+        ev["record"]["output_hash"] = hashlib.sha256(json.dumps(ev["output"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+    @tee_fixture("tee-edited-total", "REFUSED tee_score_invalid", "the TEE's reported total raised by one; no longer the output OutLayer attested")
+    def _(ev):
+        ev["output"]["total"] += 1
+
+    @tee_fixture("tee-rehashed-total", "REFUSED tee_score_mismatch", "TEE total raised and the record's output hash recomputed to match; it now contradicts the committed total")
+    def _(ev):
+        ev["output"]["total"] += 1
+        rehash(ev)
+
+    @tee_fixture("tee-forged-task", "REFUSED tee_attestation_invalid", "OutLayer task id changed in the record; the Intel-signed quote binds the original task hash")
+    def _(ev):
+        ev["record"]["task_id"] += 1
+
+    @tee_fixture("tee-unpinned-scorer", "CANT_CERTIFY tee_unapproved", "record claims a scorer build other than the one the verifier pins")
+    def _(ev):
+        ev["record"]["wasm_hash"] = "11" * 32
+
+
 made = {f["file"] for f in fixtures}
 prev = out / "manifest.json"
 kept = [f for f in json.loads(prev.read_text())["fixtures"] if f["file"] not in made] if prev.exists() else []  # e.g. answer-hint (a real round)
