@@ -1,0 +1,126 @@
+examples/cert-near-dev-60-r1-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 60 items, scores in {0,1}, total 25/60
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=23
+  [pass] signatures: 60/60 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 23/23 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose 5f7ebd85cf1f… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r2 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+2 more replicas)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276079270 < commit 276088494 < close 276088507; committed runs for this model: [0]
+  [pass] audit sample: seed block 276088509 (first final block ≥ close+2); indices [6, 7, 8, 9, 12, 14, 15, 16, 18, 20, 21, 25, 27, 29, 30, 32, 40, 41, 44, 51, 56, 57, 59]
+  scope: signature evidence verified; commitments and total consistent (25/60); audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 1 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/cert-near-dev-60-r1-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 60 items, scores in {0,1}, total 17/60
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=23
+  [pass] signatures: 60/60 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 23/23 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.539 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276079270 < commit 276088479 < close 276088507; committed runs for this model: [0]
+  [pass] audit sample: seed block 276088509 (first final block ≥ close+2); indices [6, 7, 8, 9, 12, 14, 15, 16, 18, 20, 21, 25, 27, 29, 30, 32, 40, 41, 44, 51, 56, 57, 59]
+  scope: signature evidence verified; commitments and total consistent (17/60); audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 1 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/cert-near-dev-60-r2-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 60 items, scores in {0,1}, total 32/60
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=23
+  [pass] signatures: 60/60 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 23/23 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose 5f7ebd85cf1f… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r2 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+2 more replicas)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276092667 < commit 276156936 < close 276156949; committed runs for this model: [0]
+  [pass] audit sample: seed block 276156951 (first final block ≥ close+2); indices [1, 4, 7, 12, 13, 14, 23, 24, 30, 32, 34, 36, 37, 39, 40, 42, 44, 45, 47, 48, 49, 50, 54]
+  scope: signature evidence verified; commitments and total consistent (32/60); audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/cert-near-dev-60-r2-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 60 items, scores in {0,1}, total 17/60
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=23
+  [pass] signatures: 60/60 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 23/23 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.539 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276092667 < commit 276156923 < close 276156949; committed runs for this model: [0]
+  [pass] audit sample: seed block 276156951 (first final block ≥ close+2); indices [1, 4, 7, 12, 13, 14, 23, 24, 30, 32, 34, 36, 37, 39, 40, 42, 44, 45, 47, 48, 49, 50, 54]
+  scope: signature evidence verified; commitments and total consistent (17/60); audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 10 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/cert-near-dev-300-r3-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 300 items, scores in {0,1}, total 122/300
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=28
+  [pass] signatures: 300/300 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 28/28 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose 5f7ebd85cf1f… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r2 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+2 more replicas)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276216186 < commit 276244725 < close 276244738; committed runs for this model: [0]
+  [pass] audit sample: seed block 276244740 (first final block ≥ close+2); indices [1, 2, 9, 22, 26, 30, 32, 43, 66, 70, 73, 81, 85, 106, 127, 139, 146, 164, 166, 170, 174, 177, 187, 188, 196, 210, 244, 296]
+  scope: signature evidence verified; commitments and total consistent (122/300); audit passed 28/300 with zero mismatches; detection power 95.4943% for ≥30 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 28, unrevealed 272 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+examples/cert-near-dev-300-r3-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 300 items, scores in {0,1}, total 77/300
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=28
+  [pass] signatures: 300/300 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 28/28 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.539 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276216186 < commit 276244711 < close 276244738; committed runs for this model: [0]
+  [pass] audit sample: seed block 276244740 (first final block ≥ close+2); indices [1, 2, 9, 22, 26, 30, 32, 43, 66, 70, 73, 81, 85, 106, 127, 139, 146, 164, 166, 170, 174, 177, 187, 188, 196, 210, 244, 296]
+  scope: signature evidence verified; commitments and total consistent (77/300); audit passed 28/300 with zero mismatches; detection power 95.4943% for ≥30 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 28, unrevealed 272 (indirect disclosure, such as shared sources, is not computed here)
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 92 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
