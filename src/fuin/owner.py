@@ -210,7 +210,8 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                     "model_report": rn["model_report"],
                     "evidence": {"owner_checked_policy_version": rn.get("policy_version", "not recorded"),
                                  # owner-reported, not verifiable: failed inference attempts before each saved row
-                                 "attempt_log": rn.get("attempt_log", [])},
+                                 "attempt_log": rn.get("attempt_log", []),
+                                 **({"tee_score": rn["tee_score"]} if rn.get("tee_score") else {})},
                     "items": [{"i": i, "benchmark_leaf": bl[i].hex(),
                                "req_sha256": hashlib.sha256(base64.b64decode(rows[i]["request_b64"])).hexdigest(),
                                "resp_sha256": hashlib.sha256(base64.b64decode(rows[i]["response_b64"])).hexdigest(),

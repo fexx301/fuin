@@ -44,6 +44,12 @@ def main(argv=None) -> int:
     p.add_argument("--owner"); p.add_argument("--model", action="append", default=None)
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
+    p = sub.add_parser("tee-key", help="make the TEE scorer's in-enclave key for this owner (once per scorer build)")
+    p.add_argument("--owner", required=True)
+    p = sub.add_parser("tee-score", help="re-score a committed run inside OutLayer's TEE and add the evidence to its certificate")
+    p.add_argument("--id", required=True); p.add_argument("--model", required=True); p.add_argument("--out", default="examples")
+    p.add_argument("--host", required=True, choices=["fastfs", "gist"],
+                   help="where the encrypted run is hosted for the scorer: fastfs (permanent, public) or gist (secret, deleted after)")
     a = ap.parse_args(argv)
 
     if a.cmd == "check":
@@ -67,6 +73,23 @@ def main(argv=None) -> int:
     elif a.cmd == "reveal":
         for p in owner.reveal(a.id, a.out):
             print(p)
+    elif a.cmd == "tee-key":
+        from fuin import tee
+        k = tee.keygen(a.owner)
+        print(f"in-TEE key for {a.owner}: pub {k['pub']} (keygen tx {k['transaction_hash']})")
+    elif a.cmd == "tee-score":
+        from fuin import tee
+        st = owner.load(a.id)
+        if "commit" not in st["runs"].get(a.model, {}):
+            raise SystemExit(f"{a.model} run is not committed yet")
+        host = tee.fastfs_host(st["owner"]) if a.host == "fastfs" else tee.gist_host
+        ev = tee.score(st, a.model, st["owner"], host)
+        st["runs"][a.model]["tee_score"] = ev
+        owner.save(st)
+        print(f"TEE score {ev['output']['total']}/{ev['output']['n']} matches the commitment (tx {ev['transaction_hash']})")
+        if st.get("close"):  # a closed round's certificates are regenerated with the evidence; the sample is re-derived, unchanged
+            for p in owner.reveal(a.id, a.out):
+                print(p)
     elif a.cmd == "verify":
         outcomes = set()
         for path in a.certs:

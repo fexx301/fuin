@@ -158,16 +158,39 @@ def keygen(owner: str) -> dict:
     return key
 
 
-def score(st: dict, model: str, owner: str, host=None) -> dict:
+def fastfs_host(owner: str):
+    """Permanent and public: the ciphertext stays on testnet; its privacy then rests on OutLayer's key service."""
+    return lambda blob: (fastfs_upload(owner, blob, "bin", "application/octet-stream"), "raw", None)
+
+
+def gist_host(blob: bytes):
+    """A secret gist under the gh-authenticated account, deleted as soon as the scorer has fetched it. The attestation binds
+    only the ciphertext's hash, so deleting it doesn't affect verification."""
+    with tempfile.NamedTemporaryFile("w", suffix=".b64", delete=False) as f:
+        f.write(base64.b64encode(blob).decode())
+    url = subprocess.run(["gh", "gist", "create", f.name, "--desc", "fuin TEE round ciphertext (deleted after scoring)"],
+                         capture_output=True, text=True, check=True).stdout.strip().splitlines()[-1]
+    gid = url.rstrip("/").rsplit("/", 1)[-1]
+    raw = json.loads(subprocess.run(["gh", "api", f"gists/{gid}"], capture_output=True, text=True, check=True).stdout)
+    raw_url = next(iter(raw["files"].values()))["raw_url"]
+    Path(f.name).unlink()
+    return raw_url, "base64", lambda: subprocess.run(["gh", "gist", "delete", gid, "--yes"], capture_output=True, text=True)
+
+
+def score(st: dict, model: str, owner: str, host) -> dict:
     """Encrypt one run to the scorer's in-TEE key, host the ciphertext, have OutLayer re-score it, and return the
-    evidence for the certificate. `host(bytes) -> (url, encoding)` defaults to FastFS (permanent, public)."""
+    evidence for the certificate. `host(bytes) -> (url, encoding, cleanup)`: fastfs_host (permanent) or gist_host (deleted)."""
     key = keygen(owner)
     plain = jdump(plaintext(st, model)).encode()
     blob, eph_pub, nonce = encrypt(plain, key["pub"])
-    url, encoding = host(blob) if host else (fastfs_upload(owner, blob, "bin", "application/octet-stream"), "raw")
-    served = requests.get(url, timeout=120).content
-    tx, input_data, out = execute(owner, {"mode": "score", "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
-                                          "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce})
+    url, encoding, cleanup = host(blob)
+    try:
+        served = requests.get(url, timeout=120).content
+        tx, input_data, out = execute(owner, {"mode": "score", "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
+                                              "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce})
+    finally:
+        if cleanup:
+            cleanup()
     want = expected(st, model)
     diff = {k: (out.get(k), v) for k, v in want.items() if out.get(k) != v}
     if diff:
