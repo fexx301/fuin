@@ -18,7 +18,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 23 cases (18 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
-- Run `scripts/review.sh`. It needs uv and network, takes about 5 minutes (allow 15, or run it in the background: it waits on Intel, NVIDIA, NEAR and OutLayer), and exits 0 with `ALL CHECKS PASSED`.
+- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:

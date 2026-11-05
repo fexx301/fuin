@@ -2,7 +2,7 @@
 # One-command review: every check a judge can run without an account, API key or the hidden test set.
 # Exit 0 only if all pass. Needs uv and network (Intel PCS, NVIDIA NRAS, an archival NEAR testnet RPC, NEAR AI catalog, GitHub raw,
 # Docker Hub for image build provenance). Optional: Docker, for the TEE scorer rebuild; Node 20+, for the browser verifier.
-# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 5 minutes; allow 15.
+# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 16 minutes; allow 30.
 set -u
 cd "$(dirname "$0")/.."
 unset NEARAI_API_KEY
