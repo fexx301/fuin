@@ -39,6 +39,16 @@ mod tee {
                 if blob_sha256 != s("blob_sha256")? {
                     return Err("blob hash differs from the request".into());
                 }
+                // a gist serves text, so the owner may host the ciphertext base64-encoded; the hash above covers the served bytes
+                let blob = match input["encoding"].as_str() {
+                    None | Some("raw") => blob,
+                    Some("base64") => {
+                        use base64::Engine;
+                        let text: String = String::from_utf8_lossy(&blob).chars().filter(|c| !c.is_whitespace()).collect();
+                        base64::engine::general_purpose::STANDARD.decode(text).map_err(|_| "blob is not base64")?
+                    }
+                    Some(_) => return Err("encoding must be raw or base64".into()),
+                };
                 let secret = outlayer::encryption_keys::decrypt(KEY_PATH, None, &hex::decode(s("sealed")?).map_err(|e| e.to_string())?, AAD)
                     .map_err(|e| format!("unseal: {e}"))?;
                 let secret: [u8; 32] = secret.try_into().map_err(|_| "secret length")?;
