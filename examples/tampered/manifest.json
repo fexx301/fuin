@@ -109,6 +109,18 @@
    "base": "examples/cert-near-dev-300-r3-glm-5.3-flash.json"
   },
   {
+   "file": "zero-reveal-unscored.json",
+   "expected": "CANT_CERTIFY tee_score_missing",
+   "mutation": "a zero-reveal round's certificate with its TEE score removed, so nothing checks its scores",
+   "base": "examples/cert-near-dev-155-r4-glm-5.3-flash.json"
+  },
+  {
+   "file": "zero-reveal-scorer-swapped.json",
+   "expected": "REFUSED tee_score_mismatch",
+   "mutation": "the TEE record names a scorer build other than the one sealed in the round's policy",
+   "base": "examples/cert-near-dev-155-r4-glm-5.3-flash.json"
+  },
+  {
    "file": "answer-hint.json",
    "expected": "REFUSED request_policy_mismatch",
    "mutation": "real round fixture-answer-hint-2: the owner appended the answer to the prompt; signed by the model and committed on chain"

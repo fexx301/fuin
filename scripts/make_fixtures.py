@@ -162,6 +162,27 @@ if len(sys.argv) > 3:
     def _(ev):
         ev["record"]["wasm_hash"] = "11" * 32
 
+# Zero-reveal fixtures: from a TEE-scored round's certificate, which reveals nothing (optional fourth argument)
+if len(sys.argv) > 4:
+    zr_base = json.loads(Path(sys.argv[4]).read_text())
+
+    def zr_fixture(name, expected, why):
+        def wrap(mutate):
+            c = json.loads(json.dumps(zr_base))
+            mutate(c)
+            (out / f"{name}.json").write_text(json.dumps(c, indent=1, ensure_ascii=False) + "\n")
+            fixtures.append({"file": f"{name}.json", "expected": expected, "mutation": why, "base": sys.argv[4]})
+            return mutate
+        return wrap
+
+    @zr_fixture("zero-reveal-unscored", "CANT_CERTIFY tee_score_missing", "a zero-reveal round's certificate with its TEE score removed, so nothing checks its scores")
+    def _(c):
+        del c["run"]["evidence"]["tee_score"]
+
+    @zr_fixture("zero-reveal-scorer-swapped", "REFUSED tee_score_mismatch", "the TEE record names a scorer build other than the one sealed in the round's policy")
+    def _(c):
+        c["run"]["evidence"]["tee_score"]["record"]["wasm_hash"] = "11" * 32
+
 
 made = {f["file"] for f in fixtures}
 prev = out / "manifest.json"
