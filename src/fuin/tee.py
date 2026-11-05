@@ -236,8 +236,8 @@ def score(st: dict, model: str, owner: str, host) -> dict:
 
 V1_CUTOFF = 1_769_784_939  # OutLayer attestations from 2026-01-30 commit to the extended (V1) task-hash fields
 TEE_LIMIT = ("A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the "
-             "execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with "
-             "tee/build-docker.sh on any host with Docker.")
+             "execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with "
+             "tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.")
 
 
 class TeeRefused(Exception):

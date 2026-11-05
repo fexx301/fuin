@@ -79,3 +79,18 @@ def test_input_not_the_one_attested_is_refused():
 def test_task_hash_is_outlayers_v1_preimage():
     rec = FX["evidence"]["record"]
     assert len(tee.task_hash_v1(rec)) == 64 and rec["timestamp"] >= tee.V1_CUTOFF
+
+
+def test_a_real_v3_record_passes_the_local_checks():
+    """Scorer v3 inside OutLayer on the synthetic end-to-end-encrypted round (scripts/score_tee_fixture.py, task 21122)."""
+    fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v3.json").read_text())
+    e = fx["expected"]
+    c = {"registry": {"owner": "fuin.testnet"},
+         "benchmark": {"n": e["n"], "root": e["benchmark_root"], "policy_hash": e["policy_hash"], "seal_block_hash": e["seal_block_hash"],
+                       "policy": {"request": {"template": "fuin-request-v3"}, "audit": {"k": 3}}},
+         "run": {"model_id": e["model"], "total_score": e["total"], "run_root": e["run_root"],
+                 "items": [{"signature": {"signing_address": e["signer"]}}] * e["n"]}}
+    assert tee.check_local(copy.deepcopy(fx["evidence"]), c)["pin"] == tee.tee_policy()["current"]
+    c["benchmark"]["seal_block_hash"] = "1" * 32  # the scorer rebuilt every nonce and ciphertext for the real seal block
+    with pytest.raises(tee.TeeRefused, match="tee_score_mismatch"):
+        tee.check_local(copy.deepcopy(fx["evidence"]), c)

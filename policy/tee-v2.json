@@ -1,13 +1,19 @@
 {
   "version": "tee-v2",
-  "note": "The verifier's pins for TEE scores. The only accepted build is scorer v2, the canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on macOS through Docker and on Linux. It supports request templates v1 and v2 (seal-bound nonces) and never echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
-  "current": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
+  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3, current, adds request template v3. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
+  "current": "2614ddaad420b1ede003d90b3e59c7338a94a46ffeca39f7a41b73efc27e332e",
   "scorers": [
     {
       "wasm_sha256": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
       "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973.wasm",
       "bytes": 690954,
-      "build": "scorer v2: tee/build-docker.sh (canonical; reproduced natively on Linux x86_64 with the container's paths)"
+      "build": "scorer v2: tee/build-docker.sh at commit 6381ee9 (canonical; also reproduced natively on Linux x86_64 with the container's paths)"
+    },
+    {
+      "wasm_sha256": "2614ddaad420b1ede003d90b3e59c7338a94a46ffeca39f7a41b73efc27e332e",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/2614ddaad420b1ede003d90b3e59c7338a94a46ffeca39f7a41b73efc27e332e.wasm",
+      "bytes": 734829,
+      "build": "scorer v3: tee/build-docker.sh at commit 907aec0; adds request template v3 (questions and answers end-to-end encrypted to the model's TEE key)"
     }
   ],
   "outlayer": {
