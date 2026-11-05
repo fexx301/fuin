@@ -84,7 +84,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Three independent rounds of private NEAR-developer questions (60, 60 and 300), each answer cited to a line of the NEAR docs. Each round was sealed before its run. At 300 questions the audit reveals 28 and 272 stay private. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Three independent rounds of private NEAR-developer questions (60, 60 and 300), each answer cited to a line of the NEAR docs. Each round was sealed before its run. At 300 questions the audit reveals 28 and 272 stay private, and round 3's totals were also re-scored over all 300 answers inside a TEE on OutLayer, so its hidden scores are checked exactly, not by sample. The scorer is strict: the number or name alone.</p>
   <div class="rounds" id="rounds"></div>
   <div class="callout">GLM leads on all three suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show a consistent lead, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
@@ -121,7 +121,7 @@ html,body{background:#161616;margin:0}
 
 <section class="band" id="refusals"><div class="wrap">
   <p class="eyebrow">05 · Refusals</p>
-  <h2>17 tests of tampering, unsupported models and missing evidence.</h2>
+  <h2>21 tests of tampering, unsupported models and missing evidence.</h2>
   <p class="lead">Each fixture makes one change to a real certificate, or withholds a service the verifier needs. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
   <div class="refusals" id="refList"></div>
 </div></section>
@@ -130,7 +130,7 @@ html,body{background:#161616;margin:0}
   <p class="eyebrow">06 · Reproduce</p>
   <h2>Check everything on your own machine.</h2>
   <p class="lead">No account, no API key, no test set. About five minutes.</p>
-  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 17 fixtures and the tests</span>
+  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 21 fixtures and the tests</span>
 git clone https://github.com/fexx301/fuin &amp;&amp; cd fuin
 ./scripts/review.sh
 

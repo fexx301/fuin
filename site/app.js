@@ -191,7 +191,7 @@
   function recordedLine(entry, tampered) {
     if (!entry || !entry.recorded || tampered) return null;
     const ch = Object.fromEntries((entry.recorded.checks || []).map(([n, , d]) => [n, d]));
-    return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced` : null;
+    return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced${ch['tee score'] ? '; every answer re-scored in a TEE' : ''}` : null;
   }
   async function run(entry, mutate) {
     const id = ++running;
@@ -252,7 +252,8 @@
           h('div', { class: 'top' }, h('div', {}, h('div', { class: 'name' }, c.run.model_id), h('div', { class: 'served' }, 'served as ' + (served(e) || '—'))), h('div', { class: 'score' }, c.run.total_score, h('small', {}, '/' + c.benchmark.n))),
           h('div', { class: 'bar' }, bar),
           h('div', { class: 'pills' }, h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
-            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)),
+            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`),
+            ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE re-scored all ${c.benchmark.n}`)] : [])),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
