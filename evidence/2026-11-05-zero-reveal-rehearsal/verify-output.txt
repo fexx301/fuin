@@ -1,0 +1,21 @@
+evidence/2026-11-05-zero-reveal-rehearsal/cert-tee-rehearsal-1-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 3 items, scores in {0,1}, total 3/3
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; TEE-scored by scorer dabae968e802…, nothing revealed; fuin-request-v2
+  [pass] signatures: 3/3 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose 5f7ebd85cf1f… under attestation-v5
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-l4 @v0.0.547 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8-gpu04-3B1L.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+2 more replicas)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276340922 < commit 276340950 < close 276340964; committed runs for this model: [0]
+  [pass] round closed: closed at 276340964; no sample: a TEE-scored round reveals nothing
+  [pass] tee score: all 3 items rebuilt and re-scored inside an OutLayer TDX enclave by scorer dabae968e802… (task 21069): total 3/3 and both roots match; quote UpToDate, task hash bound, worker approved at block 276341012, request and result on chain
+  scope: signature evidence verified; commitments and total consistent (3/3); every item rebuilt and re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE trust assumptions; nothing revealed: all 3 items stay private
+  warning: container image build provenance (cosign/SLSA) not verified
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
+   - A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with tee/build.sh.
