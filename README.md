@@ -34,7 +34,7 @@ Every claim below maps to a command:
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
 | Questions and answers can stay end-to-end encrypted, so NEAR's gateway never sees them | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r5-glm-5.3-flash.json` | `VERIFIED`; the policy line ends `fuin-request-v3 (end-to-end encrypted)`, and the limits print the end-to-end-encryption line; probe: `evidence/2026-11-05-e2ee-probe/` |
-| The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `cd36c486…`, the current pin in `policy/tee-v2.json` (scorer v4). Scorers v2 (`dabae968…`, rounds 1–4) and v3 (`2614ddaa…`, round 5) rebuild the same way from commits `6381ee9` and `907aec0` |
+| The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `86db8213…`, the current pin in `policy/tee-v2.json` (scorer v5). The earlier accepted builds rebuild the same way from their recorded commits: v2 `dabae968…` (rounds 1–4, `6381ee9`), v3 `2614ddaa…` (round 5, `907aec0`), v4 `cd36c486…` (the v4 rehearsal, `54a5b6e`) |
 | The registry can't be changed | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
 ## The problem
@@ -144,7 +144,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (103 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
+4. **Run the tests.** `uv run pytest` (104 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
 
 ## How it works
 

@@ -1,7 +1,7 @@
 {
   "version": "tee-v2",
-  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4, current, also counts unreadable answers in end-to-end-encrypted rounds. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
-  "current": "cd36c4868612a295a1230bf9aa8d8a93250282910b2776d9e7ac6f8098bea46a",
+  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4 also counts unreadable answers in end-to-end-encrypted rounds; v5, current, rounds a numeric difference to 28 significant digits exactly as the sealed Python scorer's Decimal arithmetic does. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
+  "current": "86db82137a8da1c6095a95339848572cdd1e08e4962eb2296a072af7d3f7e35b",
   "scorers": [
     {
       "wasm_sha256": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
@@ -20,6 +20,12 @@
       "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/cd36c4868612a295a1230bf9aa8d8a93250282910b2776d9e7ac6f8098bea46a.wasm",
       "bytes": 735258,
       "build": "scorer v4: tee/build-docker.sh at commit 54a5b6e; counts unreadable answers in end-to-end-encrypted rounds"
+    },
+    {
+      "wasm_sha256": "86db82137a8da1c6095a95339848572cdd1e08e4962eb2296a072af7d3f7e35b",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/86db82137a8da1c6095a95339848572cdd1e08e4962eb2296a072af7d3f7e35b.wasm",
+      "bytes": 742076,
+      "build": "scorer v5: tee/build-docker.sh at commit 170c488; numeric scoring rounds the difference to 28 significant digits as Python's Decimal does"
     }
   ],
   "outlayer": {
