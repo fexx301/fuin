@@ -261,7 +261,9 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             svc = tr["services"]
             ok("deployment trace", f"compose-manager log (quote {tr['cm_quote_status']}) → {tr['repo']}: "
                + "; ".join(f"{x['service']} @{x['tag']} {x['file']} image …{x['image'][-12:]} weights {x['model_path'].split('/')[-1] if x['model_path'] else '?'}"
-                           + (f" rev {x['model_revision'][:10]}" if x['model_revision'] else "") for x in svc[:2])
+                           + (f" rev {x['model_revision'][:10]}" if x['model_revision'] else "")
+                           + (f" (same instance also serves LoRA adapters under other names: {', '.join(x['lora_modules'])})"
+                              if x.get("lora_modules") else "") for x in svc[:2])
                + (f" (+{len(svc) - 2} more replicas)" if len(svc) > 2 else ""))
 
         rec = None

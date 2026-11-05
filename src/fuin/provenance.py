@@ -97,12 +97,15 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
         img = str(svc.get("image", ""))
         m = re.search(r"([a-z0-9][\w./-]*@sha256:[0-9a-f]{64})", img)
         path = re.search(r"--model-path\s+(\S+)", cmd)
-        hub = re.search(r"models--([\w.-]+)--([\w.-]+)/snapshots/([0-9a-f]+)", path.group(1)) if path else None
+        # vLLM takes the weights as a positional Hugging Face cache path; LoRA adapters (other served names) follow
+        base_cmd, _, lora_cmd = cmd.partition("--lora-modules")
+        hub = re.search(r"models--([\w.-]+)--([\w.-]+)/snapshots/([0-9a-f]+)", path.group(1) if path else base_cmd)
+        loras = re.findall(r'"name"\s*:\s*"([^"]+)"', lora_cmd)
         rev = re.search(r"model_revision:([0-9a-f]{7,40})", json.dumps(svc.get("labels", {})))
         serving.append({"service": name, "tag": a["tag"], "commit": a["commit"], "file": a["file"],
                         "file_sha256_checked": f["sha_checked"], "image": m.group(1) if m else img,
                         "model_path": f"{hub.group(1)}/{hub.group(2)}" if hub else (path.group(1) if path else None),
-                        "model_revision": hub.group(3) if hub else (rev.group(1) if rev else None)})
+                        "model_revision": hub.group(3) if hub else (rev.group(1) if rev else None), "lora_modules": loras})
     if not serving:
         raise TraceUnavailable(f"no deployed service declares --served-model-name {model}")
     return {"repo": repo, "cm_quote_status": status, "services": sorted(serving, key=lambda s: s["service"])}
