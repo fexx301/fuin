@@ -11,7 +11,15 @@ step() { printf '\n== %s\n' "$1"; }
 step "1/5 verify the real certificates (expect VERIFIED for each)"
 tmp=$(mktemp -d)
 for c in examples/cert-*.json; do  # independent network-bound checks: run them together, print in order
-  ( uv run fuin verify "$c" > "$tmp/$(basename "$c").out"; echo $? > "$tmp/$(basename "$c").rc" ) &
+  # a public service's rate limit is an outage, not a verdict: CAN'T CERTIFY evidence_unavailable is retried after a pause
+  ( out="$tmp/$(basename "$c").out"
+    for try in 1 2 3; do
+      uv run fuin verify "$c" > "$out"; rc=$?
+      if [ $rc -eq 2 ] && grep -q "evidence_unavailable" "$out" && [ $try -lt 3 ]; then sleep 60; continue; fi
+      break
+    done
+    echo $rc > "$tmp/$(basename "$c").rc" ) &
+  sleep 2  # stagger the starts: public RPCs throttle bursts
 done
 wait
 for c in examples/cert-*.json; do
