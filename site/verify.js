@@ -363,7 +363,7 @@
         if (tr) {  // zero-reveal: no sample at all; every item is re-scored in the TEE instead
           k = 0;
           req(a.mode === S.tee_audit && a.k === 0 && a.indices.length === 0 && a.reveals.length === 0, 'audit_sample_mismatch');
-          return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); TEE-scored by scorer ${tw.slice(0, 12)}…, nothing revealed; ${S.template_v2}`;
+          return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); TEE-scored by scorer ${tw.slice(0, 12)}…, nothing revealed; ${b.policy.request.template}${e3 ? ' (end-to-end encrypted)' : ''}`;
         }
         const au = auditSize(n); k = au.k;
         req(a.D === au.d && a.k === au.k && a.target && a.target.numerator === 95 && a.target.denominator === 100, 'audit_sample_mismatch');

@@ -84,9 +84,9 @@ html,body{background:#161616;margin:0}
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Four independent rounds of private NEAR-developer questions (60, 60, 300 and 155), each answer cited to a line of the NEAR docs. Each round was sealed before its run, and every run's total was re-scored over every answer inside a TEE on OutLayer, so hidden scores are checked exactly, not by sample. Rounds 1–3 also reveal an audited sample (28 of 300 in round 3). Round 4 reveals nothing at all. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Five independent rounds of private NEAR-developer questions (60, 60, 300, 155 and 96), each answer cited to a line of the NEAR docs. Each round was sealed before its run, and every run's total was scored over every answer inside a TEE on OutLayer, so hidden scores are checked exactly, not by sample. Rounds 1–3 also reveal an audited sample (28 of 300 in round 3). Rounds 4 and 5 reveal nothing at all, and round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict: the number or name alone.</p>
   <div class="rounds" id="rounds"></div>
-  <div class="callout">Round 4 adds DeepSeek-V4.1-Flash, which leads with 84 of 155, ahead of GLM (64) and Qwen (39). GLM leads Qwen on all four suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads both rounds it ran: 84 of 155 and 48 of 96. GLM leads Qwen on all five suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
 
 <section class="band" id="explore"><div class="wrap">
@@ -108,14 +108,15 @@ html,body{background:#161616;margin:0}
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
+      <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
     <div class="panel"><p class="eyebrow">What it doesn't prove</p><ul>
       <li>Without a TEE score, hidden scores would be checked statistically, not item by item. Every published run carries one, which trusts Intel TDX and OutLayer.</li>
       <li>Instances of a model can share a key; the trace is taken at preflight. Approved measurements are recorded from NEAR's reports, not rebuilt from source.</li>
       <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
-      <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155.</li>
-      <li>Exactly when inference happened (round 4's answers can't predate its seal). Testnet only.</li></ul></div>
+      <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155 or round 5's 96.</li>
+      <li>Exactly when inference happened (rounds 4 and 5's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
   </div>
 </div></section>
 

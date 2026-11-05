@@ -170,6 +170,7 @@
       const rec = c.run.evidence.tee_score.record, was = rec.task_id; rec.task_id++; return `run.evidence.tee_score.record.task_id: ${was} → ${rec.task_id}`; }, 'tee'],
   ];
   const zeroReveal = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.audit && c.benchmark.policy.audit.mode === F.supported.tee_audit);
+  const encrypted = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.request && c.benchmark.policy.request.template === F.supported.template_v3);
   const canCheat = (c, need) => !need || (need === 'reveals' ? !!(c.audit && c.audit.reveals && c.audit.reveals.length) : !!(c.run && c.run.evidence && c.run.evidence.tee_score));
   function renderChecks() {
     const ul = $('#checks'); ul.innerHTML = '';
@@ -198,7 +199,7 @@
   function recordedLine(entry, tampered) {
     if (!entry || !entry.recorded || tampered) return null;
     const ch = Object.fromEntries((entry.recorded.checks || []).map(([n, , d]) => [n, d]));
-    return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced${ch['tee score'] ? '; every answer re-scored in a TEE' : ''}` : null;
+    return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced${ch['build provenance'] ? ((entry.recorded.warnings || []).some((w) => /build provenance/.test(w)) ? '; build provenance verified for some serving images (SLSA)' : '; serving image build provenance verified (SLSA)') : ''}${ch['tee score'] ? '; every answer scored in a TEE' : ''}` : null;
   }
   async function run(entry, mutate) {
     const id = ++running;
@@ -223,7 +224,7 @@
     const all = [];
     for (const rd of F.rounds) for (const e of rd.certs) {
       const btn = h('button', { class: 'cert-btn', 'aria-pressed': 'false' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/${e.cert.benchmark.n}`),
-        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${zeroReveal(e.cert) ? 'nothing revealed' : rd.cap.toLocaleString('en') + ' tokens'}`));
+        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${zeroReveal(e.cert) ? 'nothing revealed' + (encrypted(e.cert) ? ', encrypted' : '') : rd.cap.toLocaleString('en') + ' tokens'}`));
       btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
     }
     const hb = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, 'Answer slipped into the prompt'), h('span', { class: 's' }, '1/1'),
@@ -256,7 +257,7 @@
       const n = rd.certs[0].cert.benchmark.n, dis = DISCLOSURE[rd.id] || { revealed: rd.certs[0].cert.audit.reveals.length, indirect: 0 }, known = dis.revealed + dis.indirect;
       const zr = zeroReveal(rd.certs[0].cert);
       const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, zr
-        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, every answer scored inside a TEE`
+        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, every answer scored inside a TEE` + (encrypted(rd.certs[0].cert) ? '; questions and answers end-to-end encrypted, never seen by NEAR\'s gateway' : '')
         : `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;
