@@ -191,7 +191,7 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 
 ## Limits (printed with every VERIFIED)
 
-- Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample only.
+- Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
 - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
 - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
 - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
