@@ -80,7 +80,10 @@ def check_suite(path: str) -> dict:
     return {"n": len(items), "errors": errors, "warnings": warnings, "items": items}
 
 
-def disclosure(n: int) -> str:
+def disclosure(n: int, tee: bool = False) -> str:
+    if tee:
+        return (f"{n} items → a TEE-scored round reveals nothing: every item is re-scored inside OutLayer's TEE by the sealed "
+                f"scorer build, and all {n} stay private.")
     d, k = core.audit_size(n)
     p = float(core.p_detect(n, d, k)) * 100
     return (f"{n} items → the audit reveals k={k} ({100 * k / n:.1f}%) per round and keeps {n - k} hidden; "
@@ -149,7 +152,7 @@ def status(bid: str, examples: str = "examples") -> list[str]:
     return lines
 
 
-def print_check(path: str, owner_account: str | None, models: list[str]) -> int:
+def print_check(path: str, owner_account: str | None, models: list[str], tee: bool = False) -> int:
     res = check_suite(path)
     print(f"Suite {path}: {res['n']} items")
     for e in res["errors"]:
@@ -158,7 +161,7 @@ def print_check(path: str, owner_account: str | None, models: list[str]) -> int:
         print(f"  ! {w}")
     if not res["errors"]:
         print(f"  ✓ every item is well formed")
-        print(f"  disclosure: {disclosure(res['n'])}")
+        print(f"  disclosure: {disclosure(res['n'], tee)}")
         print("  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed")
     print("Prerequisites:")
     pre = prerequisites(owner_account, models)

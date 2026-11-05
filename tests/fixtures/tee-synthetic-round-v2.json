@@ -1,0 +1,67 @@
+{
+ "round": {
+  "v": "fuin-tee-round-v1",
+  "model": "z-ai/glm-5.3-flash",
+  "policy_jcs": "{\"audit\":{\"k\":0,\"mode\":\"tee-scored-v1\",\"scorer_wasm_sha256\":\"abababababababababababababababababababababababababababababababab\"},\"models\":{\"z-ai/glm-5.3-flash\":{\"max_tokens\":64,\"temperature\":0}},\"protocol\":\"fuin-v1\",\"request\":{\"privacy_profile\":\"nonce-in-user-field-v1\",\"template\":\"fuin-request-v2\"},\"score\":{\"aggregate\":\"sum\",\"denominator\":3,\"values\":[0,1]},\"scorer\":{\"name\":\"fuin-scorer-v2\",\"sha256\":\"1061f6714e11d2e2b3b1936fe4e92dd5efb57e073519e94261ab89807578f38a\"}}",
+  "seal_block_hash": "4Kp2YgCwZCU6nM8ZpCq3Y8qD3iJb8DqJ5tR7vV9xW2aB",
+  "items": [
+   {
+    "salt": "0101010101010101010101010101010101010101010101010101010101010101",
+    "item_jcs": "{\"answer\":\"42\",\"answer_type\":\"numeric\",\"question\":\"Synthetic: what is 6 x 7? Answer with the number only.\",\"request_nonce\":\"1111111111111111111111111111111111111111111111111111111111111111\"}"
+   },
+   {
+    "salt": "0202020202020202020202020202020202020202020202020202020202020202",
+    "item_jcs": "{\"accept\":[\"light blue\"],\"answer\":\"blue\",\"answer_type\":\"exact\",\"question\":\"Synthetic: name the colour of a clear daytime sky. One word.\",\"request_nonce\":\"2222222222222222222222222222222222222222222222222222222222222222\"}"
+   },
+   {
+    "salt": "0303030303030303030303030303030303030303030303030303030303030303",
+    "item_jcs": "{\"answer\":\"3500\",\"answer_type\":\"numeric\",\"question\":\"Synthetic: 1,000 plus 2,500? Number only.\",\"request_nonce\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"tolerance\":\"0\"}"
+   }
+  ],
+  "rows": [
+   {
+    "request_b64": "eyJtb2RlbCI6InotYWkvZ2xtLTUuMy1mbGFzaCIsIm1lc3NhZ2VzIjpbeyJyb2xlIjoidXNlciIsImNvbnRlbnQiOiJTeW50aGV0aWM6IHdoYXQgaXMgNiB4IDc/IEFuc3dlciB3aXRoIHRoZSBudW1iZXIgb25seS4ifV0sInN0cmVhbSI6ZmFsc2UsInVzZXIiOiJjNzc3YmJhZWNlMTRkOTBlY2FlYTFhNTBjZDZmODg5OGFmOTg2NGQ3YTVhMGFhNGMxNGRmYmE1YmQ2ZmM3YWEwIiwibWF4X3Rva2VucyI6NjQsInRlbXBlcmF0dXJlIjowfQ==",
+    "response_b64": "eyJpZCI6ICJjaGF0Y21wbC0wIiwgImNob2ljZXMiOiBbeyJpbmRleCI6IDAsICJtZXNzYWdlIjogeyJyb2xlIjogImFzc2lzdGFudCIsICJjb250ZW50IjogIioqNDIqKiJ9LCAiZmluaXNoX3JlYXNvbiI6ICJzdG9wIn1dfQ==",
+    "signature": {
+     "text": "z-ai/glm-5.3-flash:9d58985096b326b89c7af2ef85c6180f974882271d7d4f8e6f1dbf45cfe68af1:91bbffb41643aa63be41568b81e0ee64be8fdcf2e85957ca2410657e051f93d6",
+     "signature": "0x611566877a2fc986d98a88b5c2abe17c569f008bbbba960752f0634664d7f7f85e16a2cf4fffbe6819534e15abf2432af0411a17fa45a32d522e8f441b6aabde1b",
+     "signing_address": "0x4a62316623ad457f02cdc5d997ded67a383ec569",
+     "signature_kind": "provider_tee",
+     "signing_algo": "ecdsa"
+    }
+   },
+   {
+    "request_b64": "eyJtb2RlbCI6InotYWkvZ2xtLTUuMy1mbGFzaCIsIm1lc3NhZ2VzIjpbeyJyb2xlIjoidXNlciIsImNvbnRlbnQiOiJTeW50aGV0aWM6IG5hbWUgdGhlIGNvbG91ciBvZiBhIGNsZWFyIGRheXRpbWUgc2t5LiBPbmUgd29yZC4ifV0sInN0cmVhbSI6ZmFsc2UsInVzZXIiOiJlYzliYjVhYzZkZGZjMzgxNmJiOGFhMTEzYjk3ZWQyYTdmZmE0NWQyZjkyNzczZmI1ZjM1ZTMyMmYxMzJjOGVkIiwibWF4X3Rva2VucyI6NjQsInRlbXBlcmF0dXJlIjowfQ==",
+    "response_b64": "eyJpZCI6ICJjaGF0Y21wbC0xIiwgImNob2ljZXMiOiBbeyJpbmRleCI6IDAsICJtZXNzYWdlIjogeyJyb2xlIjogImFzc2lzdGFudCIsICJjb250ZW50IjogIkJsdWUuIn0sICJmaW5pc2hfcmVhc29uIjogInN0b3AifV19",
+    "signature": {
+     "text": "z-ai/glm-5.3-flash:7c9b8d2487cbf08f24c69e6e015eca4166ce86a86b52a29de0367490777cc7d5:ba36195818c62b49215a0afa3b86031785b1d4e827801bcc4979c5ce32b8bdd2",
+     "signature": "0x5905678b3df320bbc01bf59ea79f920dcc9c74e407d5dc74bc3ce6bf23901a401191d678499d4051572da2fb8b859dda697824c3f77081f157ae4c9759ee735c1c",
+     "signing_address": "0x4a62316623ad457f02cdc5d997ded67a383ec569",
+     "signature_kind": "provider_tee",
+     "signing_algo": "ecdsa"
+    }
+   },
+   {
+    "request_b64": "eyJtb2RlbCI6InotYWkvZ2xtLTUuMy1mbGFzaCIsIm1lc3NhZ2VzIjpbeyJyb2xlIjoidXNlciIsImNvbnRlbnQiOiJTeW50aGV0aWM6IDEsMDAwIHBsdXMgMiw1MDA/IE51bWJlciBvbmx5LiJ9XSwic3RyZWFtIjpmYWxzZSwidXNlciI6ImM0ZDM5YTEyMjM2ZmNkMGQxZmE1M2Y0MjNkOTY3NjRkYjljYTRlOWI3YTY0YjgyYWMwZWMyOGM4YWM1MmNiYWEiLCJtYXhfdG9rZW5zIjo2NCwidGVtcGVyYXR1cmUiOjB9",
+    "response_b64": "eyJpZCI6ICJjaGF0Y21wbC0yIiwgImNob2ljZXMiOiBbeyJpbmRleCI6IDAsICJtZXNzYWdlIjogeyJyb2xlIjogImFzc2lzdGFudCIsICJjb250ZW50IjogIjMsNTAwIn0sICJmaW5pc2hfcmVhc29uIjogInN0b3AifV19",
+    "signature": {
+     "text": "z-ai/glm-5.3-flash:14f5c24e8b0f00666a2ab6b37c8636bd828db3d897e6d468aff1a6faa3e1ba29:afa379e7729114a4f3eb9fb18424c88de032527e7eb6be55e253dfc5ccaa0bae",
+     "signature": "0x2b6452889eee69109ab81ab13114a9f4f3428034368dcf555d3278362eac38f61cc1eb4c825a20b6476cb1f1d7c587f5c0a8452a49d57a2add8880a5ad0cad8b1b",
+     "signing_address": "0x4a62316623ad457f02cdc5d997ded67a383ec569",
+     "signature_kind": "provider_tee",
+     "signing_algo": "ecdsa"
+    }
+   }
+  ]
+ },
+ "expected": {
+  "model": "z-ai/glm-5.3-flash",
+  "n": 3,
+  "total": 3,
+  "benchmark_root": "6e77a8be760f8c50bef4aff42c6f9d02b81a0e2c92704b316441d63bf8e3bf1a",
+  "policy_hash": "998d124e332c08e230cf9994a68700b928d205f4fd711e398a8d1f6f2c48c268",
+  "run_root": "fc08f93f98fc03fe72b1febf3ad16e6ceddff85b16c7d5d7f98664adf0679b25",
+  "signer": "0x4a62316623ad457f02cdc5d997ded67a383ec569",
+  "seal_block_hash": "4Kp2YgCwZCU6nM8ZpCq3Y8qD3iJb8DqJ5tR7vV9xW2aB"
+ }
+}

@@ -33,6 +33,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("seal"); s.add_argument("suite"); s.add_argument("--id", required=True)
     s.add_argument("--owner", required=True); s.add_argument("--model", action="append", default=None)
     s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
+    s.add_argument("--tee", action="store_true", help="zero-reveal round: every item scored inside OutLayer's TEE by the current "
+                   "pinned scorer build (sealed in the policy), requests bound to the seal block, nothing revealed")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
         if c == "run":
@@ -42,6 +44,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("verify"); p.add_argument("certs", nargs="+"); p.add_argument("--json", action="store_true")
     p = sub.add_parser("check", help="validate a suite and the prerequisites before sealing"); p.add_argument("suite")
     p.add_argument("--owner"); p.add_argument("--model", action="append", default=None)
+    p.add_argument("--tee", action="store_true", help="state the disclosure for a zero-reveal (TEE-scored) round")
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
     p = sub.add_parser("tee-key", help="make the TEE scorer's in-enclave key for this owner (once per scorer build)")
@@ -53,7 +56,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     if a.cmd == "check":
-        return tooling.print_check(a.suite, a.owner, a.model or [QWEN])
+        return tooling.print_check(a.suite, a.owner, a.model or [QWEN], tee=a.tee)
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id)))
         return 0
@@ -62,8 +65,12 @@ def main(argv=None) -> int:
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
             print("Not sealing: the suite has errors. Run `fuin check` for details.\n" + "\n".join("  ✗ " + e for e in res["errors"][:10]))
             return 1
-        print(tooling.disclosure(res["n"]))
-        owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])})
+        print(tooling.disclosure(res["n"], tee=a.tee))
+        tee_wasm = None
+        if a.tee:
+            from fuin import tee
+            tee_wasm = tee.tee_policy()["current"]
+        owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])}, tee_wasm=tee_wasm)
     elif a.cmd == "run":
         owner.run(a.id, a.model, a.parallel)
     elif a.cmd == "commit":
@@ -87,7 +94,11 @@ def main(argv=None) -> int:
         st["runs"][a.model]["tee_score"] = ev
         owner.save(st)
         print(f"TEE score {ev['output']['total']}/{ev['output']['n']} matches the commitment (tx {ev['transaction_hash']})")
-        if st.get("close"):  # a closed round's certificates are regenerated with the evidence; the sample is re-derived, unchanged
+        from fuin import policy as P
+        waiting = [m for m, rn in st["runs"].items() if "commit" in rn and not rn.get("tee_score")]
+        if P.is_tee_round(st["policy"]) and waiting:  # a zero-reveal round's certificates need every run's TEE score
+            print(f"certificates are written once every run has its TEE score; still to score: {', '.join(waiting)}")
+        elif st.get("close"):  # a closed round's certificates are regenerated with the evidence; the sample is re-derived, unchanged
             for p in owner.reveal(a.id, a.out):
                 print(p)
     elif a.cmd == "verify":

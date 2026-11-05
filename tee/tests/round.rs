@@ -63,3 +63,33 @@ fn float_setting_is_refused() {
 
 fn base64_decode(s: &str) -> Vec<u8> { use base64::Engine; base64::engine::general_purpose::STANDARD.decode(s).unwrap() }
 fn base64_encode(b: &[u8]) -> String { use base64::Engine; base64::engine::general_purpose::STANDARD.encode(b) }
+
+fn fixture_v2() -> (Value, Value) {
+    let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/tee-synthetic-round-v2.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    (v["round"].clone(), v["expected"].clone())
+}
+
+#[test]
+fn template_v2_reproduces_python_and_reports_the_seal_block() {
+    let (round, exp) = fixture_v2();
+    let got = score(&round).unwrap();
+    for k in ["model", "n", "total", "benchmark_root", "policy_hash", "run_root", "signer", "seal_block_hash"] {
+        assert_eq!(got[k], exp[k], "{k}");
+    }
+}
+
+#[test]
+fn template_v2_with_another_seal_block_is_refused() {
+    let (mut round, _) = fixture_v2();
+    round["seal_block_hash"] = "11111111111111111111111111111112".into(); // a different 32-byte hash
+    let err = score(&round).expect_err("requests were built for the real seal block");
+    assert!(err.contains("request_policy_mismatch"), "{err}");
+}
+
+#[test]
+fn template_v2_without_the_seal_block_is_refused() {
+    let (mut round, _) = fixture_v2();
+    round.as_object_mut().unwrap().remove("seal_block_hash");
+    assert!(score(&round).unwrap_err().contains("seal block hash"));
+}
