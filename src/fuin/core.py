@@ -157,3 +157,20 @@ def sample_indices(seed: bytes, n: int, k: int, max_counter: int = 1 << 20) -> l
             if len(chosen) == k:
                 return sorted(chosen)
     raise ValueError("sampler counter exhausted")
+
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def b58decode(s: str) -> bytes:
+    n = 0
+    for c in s:
+        n = n * 58 + B58.index(c)
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+
+def seal_bound_nonce(item_nonce_hex: str, seal_block_hash_b58: str) -> str:
+    """Request template v2: sha256("fuin-nonce-v2" ‖ sealed item nonce ‖ seal block hash). The seal block's hash doesn't
+    exist until the seal lands, so no request with this nonce, and no answer signed over it, can predate the seal."""
+    return sha256(b"fuin-nonce-v2", bytes.fromhex(item_nonce_hex), b58decode(seal_block_hash_b58)).hex()

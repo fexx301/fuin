@@ -44,7 +44,7 @@ def benchmark_leaves(st: dict) -> list[bytes]:
     return [core.benchmark_leaf(i, bytes.fromhex(r["salt"]), r["item"]) for i, r in enumerate(st["items"])]
 
 
-def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict]) -> dict:
+def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None) -> dict:
     if _path(bid).exists():
         raise SystemExit(f"{bid} already exists in private/; seal is once per benchmark id")
     items = []
@@ -54,10 +54,12 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict]) -> dict
             q["request_nonce"] = os.urandom(32).hex()
             items.append({"item": q, "salt": os.urandom(32).hex()})
     n = len(items)
-    pol = P.make_policy(n, models)
+    pol = P.make_policy(n, models, tee_wasm=tee_wasm)
     st = {"benchmark_id": bid, "owner": owner, "registry": near.REGISTRY, "items": items, "policy": pol, "runs": {}}
     root = core.merkle_root(benchmark_leaves(st)).hex()
-    print(f"Sealing {bid}: n={n}, audit reveals k={pol['audit']['k']} of {n} items per round (D={pol['audit']['D']}).")
+    disclosure = (f"TEE-scored by scorer {tee_wasm[:12]}…, nothing revealed." if tee_wasm
+                  else f"audit reveals k={pol['audit']['k']} of {n} items per round (D={pol['audit']['D']}).")
+    print(f"Sealing {bid}: n={n}, {disclosure}")
     save(st)  # keep salts/nonces before the chain sees the root
     tx = near.call(owner, near.REGISTRY["account"], "seal",
                    {"benchmark_id": bid, "root": root, "n": n, "policy_hash": P.policy_hash(pol), "models": list(models)})
@@ -87,7 +89,7 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
     def answer(i: int) -> tuple[dict | None, list[dict], str | None]:
         """One item: (row or None, attempt-log entries, error). Runs in a worker thread; touches no shared state."""
         r, log = st["items"][i], []
-        req = inference.build_request(model, r["item"]["question"], r["item"]["request_nonce"], settings)
+        req = inference.build_request(model, r["item"]["question"], inference.request_nonce(st["policy"], r["item"], st.get("seal", {}).get("block_hash")), settings)
         for attempt in range(3):
             try:
                 resp, parsed = inference.complete(req)
@@ -188,11 +190,18 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
     record = near.view(near.REGISTRY["account"], "get_benchmark", {"owner": st["owner"], "benchmark_id": bid})
     if record is None or record["close_height"] is None:
         raise SystemExit("round not closed on chain")
-    seed_hdr = near.select_seed_block(record["close_height"] + 2)
-    ctx = audit_context(st, record, st["close"]["block_hash"])
-    seed = core.audit_seed(near_b58decode(seed_hdr["hash"]), core.context_hash(ctx))
+    tee_round = P.is_tee_round(st["policy"])
     n, k = len(st["items"]), st["policy"]["audit"]["k"]
-    indices = core.sample_indices(seed, n, k)
+    if tee_round:  # no sample: every committed run must carry its TEE score
+        missing = [m for m, rn in st["runs"].items() if "commit" in rn and not rn.get("tee_score")]
+        if missing:
+            raise SystemExit(f"TEE-scored round: run `fuin tee-score` for {', '.join(missing)} first")
+        seed_hdr, seed, indices = None, None, []
+    else:
+        seed_hdr = near.select_seed_block(record["close_height"] + 2)
+        ctx = audit_context(st, record, st["close"]["block_hash"])
+        seed = core.audit_seed(near_b58decode(seed_hdr["hash"]), core.context_hash(ctx))
+        indices = core.sample_indices(seed, n, k)
     bl = benchmark_leaves(st)
     paths = []
     for model, rn in st["runs"].items():
@@ -218,14 +227,16 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                                "score": rows[i]["score"], "signature": rows[i]["signature"]} for i in range(n)],
                     "run_root": rn["commit"]["run_root"], "total_score": rn["commit"]["total_score"],
                     "commit_tx": rn["commit"]["tx"], "commit_height": rn["commit"]["height"], "commit_block_hash": rn["commit"]["block_hash"]},
-            "audit": {"D": st["policy"]["audit"]["D"], "target": st["policy"]["audit"]["target"], "k": k,
-                      "close_tx": st["close"]["tx"], "close_height": st["close"]["height"], "close_block_hash": st["close"]["block_hash"],
-                      "round_runs": round_runs(record), "seed_height": seed_hdr["height"], "seed_block_hash": seed_hdr["hash"],
-                      "seed": seed.hex(), "indices": indices,
-                      "reveals": [{"i": i, "item": st["items"][i]["item"], "salt": st["items"][i]["salt"],
-                                   "request_b64": rows[i]["request_b64"], "response_b64": rows[i]["response_b64"],
-                                   "proof_benchmark": [h.hex() for h in core.merkle_proof(bl, i)],
-                                   "proof_run": [h.hex() for h in core.merkle_proof(rl, i)]} for i in indices]},
+            "audit": (({"mode": P.TEE_AUDIT, "k": 0} if tee_round else
+                        {"D": st["policy"]["audit"]["D"], "target": st["policy"]["audit"]["target"], "k": k})
+                      | {"close_tx": st["close"]["tx"], "close_height": st["close"]["height"], "close_block_hash": st["close"]["block_hash"],
+                         "round_runs": round_runs(record)}
+                      | ({} if tee_round else {"seed_height": seed_hdr["height"], "seed_block_hash": seed_hdr["hash"], "seed": seed.hex()})
+                      | {"indices": indices,
+                         "reveals": [{"i": i, "item": st["items"][i]["item"], "salt": st["items"][i]["salt"],
+                                      "request_b64": rows[i]["request_b64"], "response_b64": rows[i]["response_b64"],
+                                      "proof_benchmark": [h.hex() for h in core.merkle_proof(bl, i)],
+                                      "proof_run": [h.hex() for h in core.merkle_proof(rl, i)]} for i in indices]}),
         }
         p = Path(out_dir) / f"cert-{bid}-{model.split('/')[-1].lower()}.json"
         p.parent.mkdir(parents=True, exist_ok=True)

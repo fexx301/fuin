@@ -23,6 +23,14 @@ def _auth() -> dict:
     return {"Authorization": f"Bearer {key}"}
 
 
+def request_nonce(policy: dict, item: dict, seal_block_hash: str | None) -> str:
+    """The nonce the sealed template puts in `user`: the item's own (v1) or one bound to the seal block (v2)."""
+    from fuin import core
+    if policy["request"]["template"] == "fuin-request-v2":
+        return core.seal_bound_nonce(item["request_nonce"], seal_block_hash)
+    return item["request_nonce"]
+
+
 def build_request(model: str, question: str, nonce_hex: str, settings: dict) -> bytes:
     """Sealed request template v1: one user message holding only the question; the nonce rides in `user`."""
     body = {"model": model, "messages": [{"role": "user", "content": question}], "stream": False,

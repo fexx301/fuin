@@ -22,6 +22,9 @@ LIMITS = [
     "Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.",
     "The seal precedes the result commitment; this does not prove when inference happened.",
 ]
+LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
+SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the "
+                    "seal and the commitment are not individually timestamped.")
 
 
 class Refused(Exception):
@@ -92,12 +95,15 @@ def _validate(c) -> None:
         need(isinstance(sig, dict), f"{w}.signature")
         for k in ("text", "signature", "signing_address", "signature_kind"):
             txt(sig.get(k), f"{w}.signature.{k}")
-    for k in ("D", "k", "close_height", "seed_height"):
+    txt(b.get("seal_block_hash"), "benchmark.seal_block_hash")
+    tee_round = P.is_tee_round(b["policy"])  # a zero-reveal round has no sample, so no seed fields
+    for k in ("k", "close_height") + (() if tee_round else ("D", "seed_height")):
         num(a.get(k), f"audit.{k}")
-    need(isinstance(a.get("target"), dict), "audit.target")
-    for k in ("close_tx", "close_block_hash", "seed_block_hash"):
+    for k in ("close_tx", "close_block_hash") + (() if tee_round else ("seed_block_hash",)):
         txt(a.get(k), f"audit.{k}")
-    h32(a.get("seed"), "audit.seed")
+    if not tee_round:
+        need(isinstance(a.get("target"), dict), "audit.target")
+        h32(a.get("seed"), "audit.seed")
     need(isinstance(a.get("round_runs"), list), "audit.round_runs")
     need(isinstance(a.get("indices"), list) and all(type(x) is int for x in a["indices"]), "audit.indices")
     need(isinstance(a.get("reveals"), list), "audit.reveals")
@@ -170,9 +176,17 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         _req(P.policy_hash(b["policy"]) == b["policy_hash"], "policy_mismatch")
         _req(P.unsupported_reason(b["policy"], n, b["models"]) is None, "policy_mismatch")
         _req(r["model_id"] in b["policy"]["models"], "policy_mismatch")
-        d, k = core.audit_size(n)
-        _req((a["D"], a["k"], a["target"]) == (d, k, {"numerator": 95, "denominator": 100}), "audit_sample_mismatch")
-        ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; k={b['policy']['audit']['k']}")
+        tee_round = P.is_tee_round(b["policy"])
+        if tee_round:  # zero-reveal: no sample at all; every item is re-scored in the TEE instead
+            d, k = 0, 0
+            _req(a.get("mode") == P.TEE_AUDIT and a["k"] == 0 and a["indices"] == [] and a["reveals"] == [], "audit_sample_mismatch")
+            ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; "
+                         f"TEE-scored by scorer {b['policy']['audit']['scorer_wasm_sha256'][:12]}…, nothing revealed; "
+                         f"{b['policy']['request']['template']}")
+        else:
+            d, k = core.audit_size(n)
+            _req((a["D"], a["k"], a["target"]) == (d, k, {"numerator": 95, "denominator": 100}), "audit_sample_mismatch")
+            ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; k={b['policy']['audit']['k']}")
 
         reports = r["model_report"]["model_attestations"]
         signers = {c["signing_address"].lower() for c in reports}
@@ -197,12 +211,16 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             req, resp = base64.b64decode(x["request_b64"]), base64.b64decode(x["response_b64"])
             _req(hashlib.sha256(req).hexdigest() == it["req_sha256"], "signature_text_mismatch")
             _req(hashlib.sha256(resp).hexdigest() == it["resp_sha256"], "signature_text_mismatch")
-            expected = inference.build_request(r["model_id"], x["item"]["question"], x["item"]["request_nonce"], b["policy"]["models"][r["model_id"]])
+            expected = inference.build_request(r["model_id"], x["item"]["question"],
+                                               inference.request_nonce(b["policy"], x["item"], b["seal_block_hash"]), b["policy"]["models"][r["model_id"]])
             _req(req == expected, "request_policy_mismatch")
             _req(scorer.score_response(x["item"], resp) == it["score"], "score_mismatch")
-        ok("reveals", f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
+        ok("reveals", "none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)" if tee_round
+           else f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
 
         tee_ev, tee_info = (r.get("evidence") or {}).get("tee_score"), None
+        if tee_round and tee_ev is None:
+            deferred.append(("tee_score_missing", "the sealed policy promises a TEE score and the certificate carries none"))
         if tee_ev is not None:  # optional: every item re-scored inside a TEE (fuin/tee.py); local half first
             try:
                 tee_info = tee.check_local(tee_ev, cert)
@@ -265,6 +283,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                                   (a["close_tx"], "close_round", a["close_height"])):
                 _req(near.tx_receipt(tx, reg["owner"], reg["account"], method)["block_height"] == h, "record_mismatch")
             _req(got["seal_height"] < r["commit_height"] < got["close_height"], "commit_order_invalid")
+            seal_hdr = near.block(b["seal_height"])
+            _req(seal_hdr is not None and seal_hdr["hash"] == b["seal_block_hash"], "record_mismatch")
             if near.access_key_count(reg["account"]):
                 warnings.append(f"{reg['account']} still has an access key: its code can be replaced, so records are not guaranteed append-only")
             history = sorted(x["run_index"] for x in got["runs"] if x["model_id"] == r["model_id"])
@@ -276,6 +296,11 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 return
             close_hdr = near.block(a["close_height"])
             _req(close_hdr is not None and close_hdr["hash"] == a["close_block_hash"], "audit_sample_mismatch")
+            if tee_round:
+                ctx = owner.audit_context(cert, rec, close_hdr["hash"])
+                _req(ctx["runs"] == a["round_runs"], "audit_sample_mismatch")
+                ok("round closed", f"closed at {a['close_height']}; no sample: a TEE-scored round reveals nothing")
+                return
             threshold = a["close_height"] + 2
             seed_hdr = near.select_seed_block(threshold, wait_s=0)
             _req(seed_hdr["height"] == a["seed_height"] and seed_hdr["hash"] == a["seed_block_hash"], "audit_sample_mismatch")
@@ -316,15 +341,23 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     log = r.get("evidence", {}).get("attempt_log")
     warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
                     + " (not verifiable; an owner could omit them)")
-    p = core.p_detect(n, d, k)
-    scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); "
-             f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
-             f"scores under the stated sampling assumptions (not the probability that the total is correct); "
-             f"directly revealed {k}, unrevealed {n - k} (indirect disclosure, such as shared sources, is not computed here)")
-    if any(c[0] == "tee score" for c in checks):
-        scope += (f"; every item re-scored inside an OutLayer TDX enclave from the sealed bytes: the total {r['total_score']}/{n} is "
-                  "exact, not statistical, under the TEE trust assumptions")
-    limits = LIMITS + ([tee.TEE_LIMIT] if any(c[0] == "tee score" for c in checks) else [])
+    tee_scored = any(c[0] == "tee score" for c in checks)
+    if tee_round:
+        scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item rebuilt and "
+                 f"re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE "
+                 f"trust assumptions; nothing revealed: all {n} items stay private")
+    else:
+        p = core.p_detect(n, d, k)
+        scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); "
+                 f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
+                 f"scores under the stated sampling assumptions (not the probability that the total is correct); "
+                 f"directly revealed {k}, unrevealed {n - k} (indirect disclosure, such as shared sources, is not computed here)")
+        if tee_scored:
+            scope += (f"; every item re-scored inside an OutLayer TDX enclave from the sealed bytes: the total {r['total_score']}/{n} is "
+                      "exact, not statistical, under the TEE trust assumptions")
+    v2 = b["policy"]["request"]["template"] == P.TEMPLATE_V2
+    limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
+    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

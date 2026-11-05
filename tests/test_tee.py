@@ -15,7 +15,8 @@ EXP = FX["expected"]
 
 def cert():
     return {"registry": {"owner": "fuin.testnet"},
-            "benchmark": {"n": EXP["n"], "root": EXP["benchmark_root"], "policy_hash": EXP["policy_hash"]},
+            "benchmark": {"n": EXP["n"], "root": EXP["benchmark_root"], "policy_hash": EXP["policy_hash"], "seal_block_hash": "11" * 22,
+                          "policy": {"request": {"template": "fuin-request-v1"}, "audit": {"k": 3}}},
             "run": {"model_id": EXP["model"], "total_score": EXP["total"], "run_root": EXP["run_root"],
                     "items": [{"signature": {"signing_address": EXP["signer"]}}] * EXP["n"]}}
 

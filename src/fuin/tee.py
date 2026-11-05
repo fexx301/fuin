@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fuin import core, near
 from fuin import policy as P
 
-TEE_POLICY = Path(__file__).resolve().parents[2] / "policy" / "tee-v1.json"
+TEE_POLICY = Path(__file__).resolve().parents[2] / "policy" / "tee-v2.json"
 
 
 def plaintext(st: dict, model: str) -> dict:
@@ -35,6 +35,7 @@ def plaintext(st: dict, model: str) -> dict:
         "v": "fuin-tee-round-v1",
         "model": model,
         "policy_jcs": core.jcs(st["policy"]).decode(),
+        **({"seal_block_hash": st["seal"]["block_hash"]} if st["policy"]["request"]["template"] == P.TEMPLATE_V2 else {}),
         "items": [{"salt": r["salt"], "item_jcs": core.jcs(r["item"]).decode()} for r in st["items"]],
         "rows": [{"request_b64": x["request_b64"], "response_b64": x["response_b64"], "signature": x["signature"]}
                  for x in sorted(rn["rows"], key=lambda x: x["i"])],
@@ -44,8 +45,11 @@ def plaintext(st: dict, model: str) -> dict:
 def expected(st: dict, model: str) -> dict:
     """What a faithful TEE scorer must output for this run, from the owner's own records."""
     rn = st["runs"][model]
-    return {"model": model, "n": len(st["items"]), "total": rn["commit"]["total_score"], "benchmark_root": st["seal"]["root"],
-            "policy_hash": P.policy_hash(st["policy"]), "run_root": rn["commit"]["run_root"], "signer": rn["signer"]}
+    out = {"model": model, "n": len(st["items"]), "total": rn["commit"]["total_score"], "benchmark_root": st["seal"]["root"],
+           "policy_hash": P.policy_hash(st["policy"]), "run_root": rn["commit"]["run_root"], "signer": rn["signer"]}
+    if st["policy"]["request"]["template"] == P.TEMPLATE_V2:
+        out["seal_block_hash"] = st["seal"]["block_hash"]
+    return out
 
 
 def b64(b: bytes) -> str:
@@ -60,6 +64,17 @@ def jdump(obj) -> str:
 
 def tee_policy() -> dict:
     return json.loads(TEE_POLICY.read_text())
+
+
+def current_scorer() -> dict:
+    """The build new TEE scores run on."""
+    tp = tee_policy()
+    return next(x for x in tp["scorers"] if x["wasm_sha256"] == tp["current"])
+
+
+def pinned() -> set[str]:
+    """Every scorer build this verifier accepts evidence from."""
+    return {x["wasm_sha256"] for x in tee_policy()["scorers"]}
 
 
 def encrypt(plain: bytes, tee_pub_hex: str) -> tuple[bytes, str, str]:
@@ -119,9 +134,9 @@ def _output_from_chain(tx: str, signer: str) -> dict:
 
 def execute(signer: str, input_obj: dict) -> tuple[str, str, dict]:
     """request_execution on OutLayer with the pinned scorer build. Returns (tx hash, exact input string, output)."""
-    tp = tee_policy()
+    tp, sc = tee_policy(), current_scorer()
     input_data = jdump(input_obj)
-    args = {"source": {"WasmUrl": {"url": tp["scorer"]["url"], "hash": tp["scorer"]["wasm_sha256"], "build_target": "wasm32-wasip2"}},
+    args = {"source": {"WasmUrl": {"url": sc["url"], "hash": sc["wasm_sha256"], "build_target": "wasm32-wasip2"}},
             "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
             "input_data": input_data, "response_format": "Json"}
     out = _near_file(signer, tp["outlayer"]["contract"], "request_execution", json.dumps(args).encode(), "300 Tgas", "0.1 NEAR")
@@ -147,12 +162,12 @@ def fetch_record(tx: str) -> dict:
 
 def keygen(owner: str) -> dict:
     """One in-TEE keypair per scorer build and owner; the sealed secret only that build, called by `owner`, can open."""
-    tp = tee_policy()
-    path = Path("private") / f"tee-key-{owner}-{tp['scorer']['wasm_sha256'][:12]}.json"
+    sc = current_scorer()
+    path = Path("private") / f"tee-key-{owner}-{sc['wasm_sha256'][:12]}.json"
     if path.exists():
         return json.loads(path.read_text())
     tx, input_data, out = execute(owner, {"mode": "keygen"})
-    key = {"owner": owner, "wasm_sha256": tp["scorer"]["wasm_sha256"], "pub": out["pub"], "sealed": out["sealed"],
+    key = {"owner": owner, "wasm_sha256": sc["wasm_sha256"], "pub": out["pub"], "sealed": out["sealed"],
            "transaction_hash": tx, "input_data": input_data, "output": out, "record": fetch_record(tx)}
     path.write_text(json.dumps(key, indent=1))
     return key
@@ -196,7 +211,7 @@ def score(st: dict, model: str, owner: str, host) -> dict:
     if diff:
         raise RuntimeError(f"TEE outcome differs from the run's commitments: {diff}")
     return {"v": "fuin-tee-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
-            "record": fetch_record(tx), "scorer_url": tee_policy()["scorer"]["url"]}
+            "record": fetch_record(tx), "scorer_url": current_scorer()["url"]}
 
 
 # ---------------- verifier side ----------------
@@ -252,8 +267,11 @@ def check_local(ev, cert: dict) -> dict:
     _need(isinstance(rec, dict) and isinstance(out, dict))
     _need(isinstance(rec.get("tdx_quote"), str) and isinstance(rec.get("task_id"), int) and isinstance(rec.get("timestamp"), int)
           and all(isinstance(rec.get(k), str) for k in ("task_type", "output_hash", "input_hash", "wasm_hash")))
-    pin = tee_policy()["scorer"]["wasm_sha256"]
-    if rec["wasm_hash"] != pin or rec.get("executed_wasm_sha256", pin) != pin:
+    pin = rec["wasm_hash"]
+    sealed_pin = cert["benchmark"]["policy"]["audit"].get("scorer_wasm_sha256") if P.is_tee_round(cert["benchmark"]["policy"]) else None
+    if sealed_pin is not None and pin != sealed_pin:  # a zero-reveal round sealed which scorer build scores it
+        raise TeeRefused("tee_score_mismatch")
+    if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:
         raise TeeUnapproved("tee_unapproved")
     _need(rec["input_hash"] == hashlib.sha256(ev["input_data"].encode()).hexdigest())
     _need(rec["output_hash"] == hashlib.sha256(_sorted_compact(out).encode()).hexdigest())
@@ -270,6 +288,8 @@ def check_local(ev, cert: dict) -> dict:
     _need((out.get("model"), out.get("n"), out.get("total"), out.get("benchmark_root"), out.get("policy_hash"), out.get("run_root"))
           == (r["model_id"], b["n"], r["total_score"], b["root"], b["policy_hash"], r["run_root"]) and {out.get("signer")} == signers,
           "tee_score_mismatch")
+    v2 = b["policy"]["request"]["template"] == P.TEMPLATE_V2  # the scorer rebuilt each nonce from this block hash
+    _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), "tee_score_mismatch")
     return {"task": rec["task_id"], "pin": pin}
 
 
@@ -304,7 +324,7 @@ def check_remote(ev, cert: dict) -> str:
     call = tx["actions"][0].get("FunctionCall", {}) if tx["actions"] else {}
     _need(call.get("method_name") == "request_execution")
     args = json.loads(base64.b64decode(call["args"]))
-    _need(args.get("input_data") == ev["input_data"] and args.get("source", {}).get("WasmUrl", {}).get("hash") == tp["scorer"]["wasm_sha256"])
+    _need(args.get("input_data") == ev["input_data"] and args.get("source", {}).get("WasmUrl", {}).get("hash") == rec["wasm_hash"])
     outs = []
     for x in st["receipts_outcome"]:
         val = x["outcome"]["status"].get("SuccessValue")
