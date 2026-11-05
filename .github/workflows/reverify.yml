@@ -18,6 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: The TEE scorer's pinned Rust toolchain, so its tests against Python run too
+        run: rustup toolchain install 1.95.0 --profile minimal --target wasm32-wasip2
       - name: scripts/review.sh (retries a public service's rate limit; never retries a verdict)
         run: |
           set -o pipefail
