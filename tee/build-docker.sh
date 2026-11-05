@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The canonical TEE scorer build: Linux x86_64 inside a digest-pinned Rust image, so a Mac (under emulation) and a Linux
 # machine produce the same bytes. Copies only the sources into the container (no host target/), runs build.sh there,
-# and writes dist/fuin-tee.wasm. Prints the sha256 that policy/tee-v1.json pins for scorer v2 onwards.
+# and writes dist/fuin-tee.wasm. Prints the sha256 that policy/tee-v2.json pins as "current".
 set -euo pipefail
 cd "$(dirname "$0")"
 IMAGE="rust@sha256:e14e87345b4d5964ddcc3491d27ee046a0f23820f340c3c1e24da6880141f7c0"  # rust:1.95.0-slim, linux/amd64

@@ -30,19 +30,27 @@ uv run pytest -q 2>&1 | tail -1
 step "4/5 contract tests and the TEE scorer (Rust)"
 if command -v cargo >/dev/null; then
   (cd contract && cargo test -q 2>&1 | grep "test result" | head -1; exit "${PIPESTATUS[0]}") || fail=1
-  # The TEE scorer pins Rust 1.95.0 for a reproducible build; skipped rather than downloading a toolchain for you.
+  # The TEE scorer pins Rust 1.95.0; skipped rather than downloading a toolchain for you.
   if rustup toolchain list 2>/dev/null | grep -q '^1\.95\.0'; then
     (cd tee && cargo test -q --release 2>&1 | grep "test result" | grep -v " 0 passed" ; exit "${PIPESTATUS[0]}") || fail=1
-    pin=$(python3 -c 'import json;print(json.load(open("policy/tee-v1.json"))["scorer"]["wasm_sha256"])')
-    built=$(tee/build.sh 2>/dev/null | tail -1 | cut -d' ' -f1)
-    if [ "$built" = "$pin" ]; then echo "TEE scorer rebuilt: sha256 $built = the pin in policy/tee-v1.json"
-    elif [ "$(uname -sm)" = "Darwin arm64" ]; then echo "TEE scorer rebuilt as $built, pin is $pin"; fail=1
-    else echo "TEE scorer rebuilt as $built on $(uname -sm); the pin was built on macOS arm64, and builds aren't yet identical across platforms (not counted as a failure)"; fi
   else
     echo "TEE scorer tests skipped: needs the pinned toolchain (rustup toolchain install 1.95.0 --target wasm32-wasip2)"
   fi
 else
   echo "cargo not found: skipped (install Rust to run them)"
+fi
+# The canonical scorer build runs in a digest-pinned Linux image, so any host with Docker gets the same bytes.
+pin=$(python3 -c 'import json;print(json.load(open("policy/tee-v2.json"))["current"])')
+if docker info >/dev/null 2>&1; then
+  # A build that can't complete (image pull, crate download, disk) is skipped; only a completed build with another hash fails.
+  if out=$(tee/build-docker.sh 2>/dev/null) && built=$(printf '%s\n' "$out" | tail -1 | cut -d' ' -f1) && [ ${#built} -eq 64 ]; then
+    if [ "$built" = "$pin" ]; then echo "TEE scorer rebuilt with tee/build-docker.sh: sha256 $built = the current pin in policy/tee-v2.json"
+    else echo "TEE scorer rebuilt as $built, pin is $pin"; fail=1; fi
+  else
+    echo "TEE scorer rebuild skipped: tee/build-docker.sh could not complete (image pull, network or disk), not counted as a failure"
+  fi
+else
+  echo "TEE scorer rebuild skipped: needs Docker (tee/build-docker.sh)"
 fi
 
 step "5/5 in-browser verifier, run in Node (expect every line 'ok')"
