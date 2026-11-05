@@ -114,12 +114,15 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
         return row, log, None
 
     n, width = len(st["items"]), max(1, parallel)
-    nxt, done, failed = len(rn["rows"]), {}, None  # rolling window: a new question starts as soon as any finishes
+    # answers that completed after an earlier failure are signed and checked: kept as pending and used on resume, not re-asked
+    done = {int(i): row for i, row in rn.get("pending", {}).items()}
+    nxt, failed = len(rn["rows"]), None  # rolling window: a new question starts as soon as any finishes
     with ThreadPoolExecutor(max_workers=width) as pool:
         inflight = {}
         while inflight or (failed is None and nxt < n):
             while failed is None and nxt < n and len(inflight) < width:
-                inflight[pool.submit(answer, nxt)] = nxt
+                if nxt not in done:
+                    inflight[pool.submit(answer, nxt)] = nxt
                 nxt += 1
             finished, _ = wait(inflight, return_when=FIRST_COMPLETED)
             for f in finished:
@@ -132,15 +135,12 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
                     done[i] = row
             while len(rn["rows"]) in done and (failed is None or len(rn["rows"]) < failed[0]):
                 rn["rows"].append(done.pop(len(rn["rows"])))  # save strictly in index order
+            rn["pending"] = {str(i): row for i, row in sorted(done.items())}
             save(st)
     if failed:
-        for i in sorted(done):  # finished after the failing item: thrown away and re-asked on resume, so disclosed with its score
-            row = done[i]
-            rn["attempt_log"].append({"i": i, "attempt": "discarded", "score": row["score"],
-                                      "response_sha256": hashlib.sha256(base64.b64decode(row["response_b64"])).hexdigest(),
-                                      "error": "completed but discarded because an earlier item failed"})
-        save(st)
-        raise SystemExit(failed[1])
+        raise SystemExit(failed[1] + (f" ({len(done)} later answers kept for the resume)" if done else ""))
+    rn.pop("pending", None)
+    save(st)
     return st
 
 

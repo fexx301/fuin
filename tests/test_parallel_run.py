@@ -54,11 +54,15 @@ def test_failure_keeps_earlier_groups_logs_retries_and_resumes(fake, tmp_path):
     rn = owner.load("t")["runs"]["m"]
     assert [r["i"] for r in rn["rows"]] == [0, 1, 2, 3, 4, 5]  # every row before the failing item is kept, in order
     assert any(e["i"] == 1 for e in rn["attempt_log"]) and sum(e["i"] == 6 for e in rn["attempt_log"]) == 3
-    assert any(e["i"] == 7 and e["attempt"] == "discarded" and e["score"] == 1 and len(e["response_sha256"]) == 64
-               for e in rn["attempt_log"])  # item 7 finished but is re-asked: disclosed with the dropped answer's score
+    assert "7" in rn["pending"] and not any(e["attempt"] == "discarded" for e in rn["attempt_log"])  # item 7 finished: kept
     fake["fail_at"] = None
+    asked = []
+    base = inference.complete
+    inference.complete = lambda req, extra=None: (asked.append(json.loads(req)["messages"][0]["content"][:3]), base(req))[1]
     owner.run("t", "m", parallel=4)                            # resume
-    assert [r["i"] for r in owner.load("t")["runs"]["m"]["rows"]] == list(range(10))
+    rn = owner.load("t")["runs"]["m"]
+    assert [r["i"] for r in rn["rows"]] == list(range(10)) and "pending" not in rn
+    assert "q7?" not in asked and "q6?" in asked  # the kept answer is used as is; only unanswered items are asked
 
 
 def test_one_slow_item_does_not_stall_the_window(fake, monkeypatch, tmp_path):
