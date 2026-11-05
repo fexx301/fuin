@@ -26,9 +26,21 @@ def _auth() -> dict:
 def request_nonce(policy: dict, item: dict, seal_block_hash: str | None) -> str:
     """The nonce the sealed template puts in `user`: the item's own (v1) or one bound to the seal block (v2)."""
     from fuin import core
-    if policy["request"]["template"] == "fuin-request-v2":
+    if policy["request"]["template"] in ("fuin-request-v2", "fuin-request-v3"):
         return core.seal_bound_nonce(item["request_nonce"], seal_block_hash)
     return item["request_nonce"]
+
+
+def sealed_request(policy: dict, model: str, row: dict, seal_block_hash: str | None, pub64: bytes | None = None) -> tuple[bytes, dict]:
+    """The exact request bytes the sealed template prescribes for one item ({"item", "salt"}), and its extra headers.
+    Template v3 encrypts the question to the model's attested key (pub64) with randomness derived from the salt."""
+    from fuin import e2ee
+    item, settings = row["item"], policy["models"][model]
+    nonce = request_nonce(policy, item, seal_block_hash)
+    if policy["request"]["template"] == "fuin-request-v3":
+        salt = bytes.fromhex(row["salt"])
+        return build_request(model, e2ee.encrypt_question(item["question"], salt, model, pub64), nonce, settings), e2ee.headers(salt, model, pub64)
+    return build_request(model, item["question"], nonce, settings), {}
 
 
 def build_request(model: str, question: str, nonce_hex: str, settings: dict) -> bytes:
@@ -38,11 +50,11 @@ def build_request(model: str, question: str, nonce_hex: str, settings: dict) -> 
     return json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
 
 
-def complete(request: bytes) -> tuple[bytes, dict]:
+def complete(request: bytes, extra_headers: dict | None = None) -> tuple[bytes, dict]:
     # long reasoning (up to max_tokens) under parallel load can take many minutes; a short read timeout
     # abandons answers NEAR keeps generating (and bills), so wait long enough for the cap to be reached
     r = requests.post(f"{GATEWAY}/v1/chat/completions", data=request, timeout=(30, 1200), headers={
-        **_auth(), "Content-Type": "application/json", "x-no-aliasing": "true", "Accept-Encoding": "identity"})
+        **_auth(), "Content-Type": "application/json", "x-no-aliasing": "true", "Accept-Encoding": "identity", **(extra_headers or {})})
     r.raise_for_status()
     return r.content, r.json()
 

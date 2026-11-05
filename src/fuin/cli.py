@@ -36,6 +36,8 @@ def main(argv=None) -> int:
     s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
     s.add_argument("--tee", action="store_true", help="zero-reveal round: every item scored inside OutLayer's TEE by the current "
                    "pinned scorer build (sealed in the policy), requests bound to the seal block, nothing revealed")
+    s.add_argument("--e2ee", action="store_true", help="request template v3: each question and answer end-to-end encrypted "
+                   "between you and the model's attested TEE key, so NEAR's gateway never sees them; requests bound to the seal block")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
         if c == "run":
@@ -71,7 +73,8 @@ def main(argv=None) -> int:
         if a.tee:
             from fuin import tee
             tee_wasm = tee.tee_policy()["current"]
-        owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])}, tee_wasm=tee_wasm)
+        owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])}, tee_wasm=tee_wasm,
+                   encrypt=a.e2ee)
     elif a.cmd == "run":
         owner.run(a.id, a.model, a.parallel)
     elif a.cmd == "commit":

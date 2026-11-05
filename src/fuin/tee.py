@@ -35,7 +35,8 @@ def plaintext(st: dict, model: str) -> dict:
         "v": "fuin-tee-round-v1",
         "model": model,
         "policy_jcs": core.jcs(st["policy"]).decode(),
-        **({"seal_block_hash": st["seal"]["block_hash"]} if st["policy"]["request"]["template"] == P.TEMPLATE_V2 else {}),
+        **({"seal_block_hash": st["seal"]["block_hash"]} if P.is_seal_bound(st["policy"]) else {}),
+        **({"model_pub": _signer_pub(rn).hex()} if P.is_e2ee(st["policy"]) else {}),  # v3: the key each question was encrypted to
         "items": [{"salt": r["salt"], "item_jcs": core.jcs(r["item"]).decode()} for r in st["items"]],
         "rows": [{"request_b64": x["request_b64"], "response_b64": x["response_b64"], "signature": x["signature"]}
                  for x in sorted(rn["rows"], key=lambda x: x["i"])],
@@ -47,9 +48,14 @@ def expected(st: dict, model: str) -> dict:
     rn = st["runs"][model]
     out = {"model": model, "n": len(st["items"]), "total": rn["commit"]["total_score"], "benchmark_root": st["seal"]["root"],
            "policy_hash": P.policy_hash(st["policy"]), "run_root": rn["commit"]["run_root"], "signer": rn["signer"]}
-    if st["policy"]["request"]["template"] == P.TEMPLATE_V2:
+    if P.is_seal_bound(st["policy"]):
         out["seal_block_hash"] = st["seal"]["block_hash"]
     return out
+
+
+def _signer_pub(rn: dict) -> bytes:
+    from fuin import e2ee
+    return e2ee.model_pub(next(c for c in rn["model_report"]["model_attestations"] if c["signing_address"].lower() == rn["signer"]))
 
 
 def b64(b: bytes) -> str:
@@ -70,6 +76,17 @@ def current_scorer() -> dict:
     """The build new TEE scores run on."""
     tp = tee_policy()
     return next(x for x in tp["scorers"] if x["wasm_sha256"] == tp["current"])
+
+
+def scorer_for_round(policy: dict) -> dict:
+    """A zero-reveal round is scored by the build its policy sealed; any other round by the current build."""
+    if not P.is_tee_round(policy):
+        return current_scorer()
+    sealed = policy["audit"]["scorer_wasm_sha256"]
+    found = [x for x in tee_policy()["scorers"] if x["wasm_sha256"] == sealed]
+    if not found:
+        raise SystemExit(f"the round sealed scorer {sealed[:12]}…, which policy/tee-v2.json no longer lists")
+    return found[0]
 
 
 def pinned() -> set[str]:
@@ -132,9 +149,9 @@ def _output_from_chain(tx: str, signer: str) -> dict:
     raise RuntimeError(f"no OutLayer output in {tx}")
 
 
-def execute(signer: str, input_obj: dict) -> tuple[str, str, dict]:
+def execute(signer: str, input_obj: dict, sc: dict | None = None) -> tuple[str, str, dict]:
     """request_execution on OutLayer with the pinned scorer build. Returns (tx hash, exact input string, output)."""
-    tp, sc = tee_policy(), current_scorer()
+    tp, sc = tee_policy(), sc or current_scorer()
     input_data = jdump(input_obj)
     args = {"source": {"WasmUrl": {"url": sc["url"], "hash": sc["wasm_sha256"], "build_target": "wasm32-wasip2"}},
             "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
@@ -160,13 +177,13 @@ def fetch_record(tx: str) -> dict:
     raise RuntimeError(f"no attestation record at {url}: HTTP {r.status_code}")
 
 
-def keygen(owner: str) -> dict:
+def keygen(owner: str, sc: dict | None = None) -> dict:
     """One in-TEE keypair per scorer build and owner; the sealed secret only that build, called by `owner`, can open."""
-    sc = current_scorer()
+    sc = sc or current_scorer()
     path = Path("private") / f"tee-key-{owner}-{sc['wasm_sha256'][:12]}.json"
     if path.exists():
         return json.loads(path.read_text())
-    tx, input_data, out = execute(owner, {"mode": "keygen"})
+    tx, input_data, out = execute(owner, {"mode": "keygen"}, sc)
     key = {"owner": owner, "wasm_sha256": sc["wasm_sha256"], "pub": out["pub"], "sealed": out["sealed"],
            "transaction_hash": tx, "input_data": input_data, "output": out, "record": fetch_record(tx)}
     path.write_text(json.dumps(key, indent=1))
@@ -195,14 +212,15 @@ def gist_host(blob: bytes):
 def score(st: dict, model: str, owner: str, host) -> dict:
     """Encrypt one run to the scorer's in-TEE key, host the ciphertext, have OutLayer re-score it, and return the
     evidence for the certificate. `host(bytes) -> (url, encoding, cleanup)`: fastfs_host (permanent) or gist_host (deleted)."""
-    key = keygen(owner)
+    sc = scorer_for_round(st["policy"])
+    key = keygen(owner, sc)
     plain = jdump(plaintext(st, model)).encode()
     blob, eph_pub, nonce = encrypt(plain, key["pub"])
     url, encoding, cleanup = host(blob)
     try:
         served = requests.get(url, timeout=120).content
         tx, input_data, out = execute(owner, {"mode": "score", "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
-                                              "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce})
+                                              "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce}, sc)
     finally:
         if cleanup:
             cleanup()
@@ -211,7 +229,7 @@ def score(st: dict, model: str, owner: str, host) -> dict:
     if diff:
         raise RuntimeError(f"TEE outcome differs from the run's commitments: {diff}")
     return {"v": "fuin-tee-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
-            "record": fetch_record(tx), "scorer_url": current_scorer()["url"]}
+            "record": fetch_record(tx), "scorer_url": sc["url"]}
 
 
 # ---------------- verifier side ----------------
@@ -287,7 +305,7 @@ def check_local(ev, cert: dict) -> dict:
     _need((out.get("model"), out.get("n"), out.get("total"), out.get("benchmark_root"), out.get("policy_hash"), out.get("run_root"))
           == (r["model_id"], b["n"], r["total_score"], b["root"], b["policy_hash"], r["run_root"]) and {out.get("signer")} == signers,
           "tee_score_mismatch")
-    v2 = b["policy"]["request"]["template"] == P.TEMPLATE_V2  # the scorer rebuilt each nonce from this block hash
+    v2 = P.is_seal_bound(b["policy"])  # the scorer rebuilt each nonce from this block hash
     _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), "tee_score_mismatch")
     # last, so tampered evidence is refused even when it also names an unpinned build
     if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:

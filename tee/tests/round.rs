@@ -93,3 +93,35 @@ fn template_v2_without_the_seal_block_is_refused() {
     round.as_object_mut().unwrap().remove("seal_block_hash");
     assert!(score(&round).unwrap_err().contains("seal block hash"));
 }
+
+fn fixture_v3() -> (Value, Value) {
+    let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/tee-synthetic-round-v3.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    (v["round"].clone(), v["expected"].clone())
+}
+
+#[test]
+fn template_v3_re_encrypts_every_question_and_scores_the_decrypted_answers_like_python() {
+    let (round, exp) = fixture_v3();
+    let got = score(&round).unwrap();
+    for k in ["model", "n", "total", "benchmark_root", "policy_hash", "run_root", "signer", "seal_block_hash"] {
+        assert_eq!(got[k], exp[k], "{k}");
+    }
+    assert_eq!(got["total"], 2); // item 2's answer is encrypted to another key: unreadable, so 0
+}
+
+#[test]
+fn template_v3_with_a_key_other_than_the_signers_is_refused() {
+    let (mut round, _) = fixture_v3();
+    // a valid secp256k1 key (the generator point), but not the one the questions went to or the one that signed
+    round["model_pub"] = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179848\
+3ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8".into();
+    assert!(score(&round).unwrap_err().contains("request_policy_mismatch"));
+}
+
+#[test]
+fn template_v3_without_the_model_key_is_refused() {
+    let (mut round, _) = fixture_v3();
+    round.as_object_mut().unwrap().remove("model_pub");
+    assert!(score(&round).unwrap_err().contains("model's key"));
+}

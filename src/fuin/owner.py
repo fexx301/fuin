@@ -9,7 +9,7 @@ from pathlib import Path
 
 import requests
 
-from fuin import attestation, core, inference, near
+from fuin import attestation, core, e2ee, inference, near
 from fuin import policy as P
 
 PRIVATE = Path("private")
@@ -44,7 +44,7 @@ def benchmark_leaves(st: dict) -> list[bytes]:
     return [core.benchmark_leaf(i, bytes.fromhex(r["salt"]), r["item"]) for i, r in enumerate(st["items"])]
 
 
-def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None) -> dict:
+def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None, encrypt: bool = False) -> dict:
     if _path(bid).exists():
         raise SystemExit(f"{bid} already exists in private/; seal is once per benchmark id")
     items = []
@@ -54,12 +54,12 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_was
             q["request_nonce"] = os.urandom(32).hex()
             items.append({"item": q, "salt": os.urandom(32).hex()})
     n = len(items)
-    pol = P.make_policy(n, models, tee_wasm=tee_wasm)
+    pol = P.make_policy(n, models, tee_wasm=tee_wasm, e2ee=encrypt)
     st = {"benchmark_id": bid, "owner": owner, "registry": near.REGISTRY, "items": items, "policy": pol, "runs": {}}
     root = core.merkle_root(benchmark_leaves(st)).hex()
     disclosure = (f"TEE-scored by scorer {tee_wasm[:12]}…, nothing revealed." if tee_wasm
                   else f"audit reveals k={pol['audit']['k']} of {n} items per round (D={pol['audit']['D']}).")
-    print(f"Sealing {bid}: n={n}, {disclosure}")
+    print(f"Sealing {bid}: n={n}, {disclosure}" + (" Questions and answers end-to-end encrypted (template v3)." if encrypt else ""))
     save(st)  # keep salts/nonces before the chain sees the root
     tx = near.call(owner, near.REGISTRY["account"], "seal",
                    {"benchmark_id": bid, "root": root, "n": n, "policy_hash": P.policy_hash(pol), "models": list(models)})
@@ -86,13 +86,16 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
     if "commit" in rn:
         raise SystemExit(f"{model} run already committed")
 
+    e2ee_on = P.is_e2ee(st["policy"])  # template v3: questions and answers encrypted to the attested signer's key
+    pub64 = e2ee.model_pub(next(c for c in rn["model_report"]["model_attestations"] if c["signing_address"].lower() == rn["signer"])) if e2ee_on else None
+
     def answer(i: int) -> tuple[dict | None, list[dict], str | None]:
         """One item: (row or None, attempt-log entries, error). Runs in a worker thread; touches no shared state."""
         r, log = st["items"][i], []
-        req = inference.build_request(model, r["item"]["question"], inference.request_nonce(st["policy"], r["item"], st.get("seal", {}).get("block_hash")), settings)
+        req, extra = inference.sealed_request(st["policy"], model, r, st.get("seal", {}).get("block_hash"), pub64)
         for attempt in range(3):
             try:
-                resp, parsed = inference.complete(req)
+                resp, parsed = inference.complete(req, extra)
                 break
             except (requests.RequestException, ValueError) as e:
                 log.append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden
@@ -104,7 +107,8 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
         code = inference.check_signature(sig, model, req, resp, rn["signer"])
         if code:
             return None, log, f"item {i}: {code}"
-        score = P.scorer_for(st["policy"]).score_response(r["item"], resp)
+        readable = e2ee.decrypted_response(resp, bytes.fromhex(r["salt"]), model) if e2ee_on else resp
+        score = P.scorer_for(st["policy"]).score_response(r["item"], readable)
         row = {"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score}
         print(f"  {i}: score {score}  finish {parsed['choices'][0].get('finish_reason')}", flush=True)
         return row, log, None

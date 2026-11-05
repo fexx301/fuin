@@ -22,7 +22,7 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     state = {"fail_at": None, "flaky": set()}
 
-    def complete(req):
+    def complete(req, extra=None):
         q = json.loads(req)["messages"][0]["content"]; i = int(q[1:q.index("?")])
         time.sleep(random.random() * 0.02)  # finish out of order
         if i in state["flaky"]:
@@ -65,7 +65,7 @@ def test_one_slow_item_does_not_stall_the_window(fake, monkeypatch, tmp_path):
     make_state(tmp_path, 12)
     base = inference.complete
 
-    def slow_first(req):
+    def slow_first(req, extra=None):
         if json.loads(req)["messages"][0]["content"].startswith("q0?"):
             time.sleep(0.6)  # item 0 reasons for a long time
         return base(req)

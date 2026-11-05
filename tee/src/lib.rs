@@ -24,7 +24,8 @@ pub struct Row {
 pub struct Round {
     pub model: String,
     pub policy_jcs: String,
-    pub seal_block_hash: Option<String>, // base58, for request template v2 (nonces bound to the seal block)
+    pub seal_block_hash: Option<String>, // base58, for request templates v2 and v3 (nonces bound to the seal block)
+    pub model_pub: Option<[u8; 64]>,     // template v3: the model's secp256k1 key each question was encrypted to
     pub items: Vec<Item>,
     pub rows: Vec<Row>,
 }
@@ -92,7 +93,11 @@ pub fn round_from_json(v: &Value) -> Result<Round, String> {
                  response: b64.decode(s(x, "response_b64")?).map_err(|_| "response_b64")?, sig: x["signature"].clone() })
     }).collect::<Result<Vec<_>, String>>()?;
     let seal_block_hash = v["seal_block_hash"].as_str().map(str::to_string);
-    Ok(Round { model: s(v, "model")?, policy_jcs: s(v, "policy_jcs")?, seal_block_hash, items, rows })
+    let model_pub = match v["model_pub"].as_str() {
+        None => None,
+        Some(h) => Some(hex::decode(h).map_err(|_| "model_pub not hex")?.try_into().map_err(|_| "model_pub must be 64 bytes")?),
+    };
+    Ok(Round { model: s(v, "model")?, policy_jcs: s(v, "policy_jcs")?, seal_block_hash, model_pub, items, rows })
 }
 
 /// inference.build_request: json.dumps(ensure_ascii=False, separators=(",", ":")) of model, messages, stream, user, then
@@ -136,6 +141,73 @@ fn recover_eip191(text: &str, sig_hex: &str) -> Result<String, String> {
     let key = VerifyingKey::recover_from_prehash(&digest, &signature, recid).map_err(|_| "signature does not recover")?;
     let point = key.to_encoded_point(false);
     Ok(format!("0x{}", hex::encode(&Keccak256::digest(&point.as_bytes()[1..])[12..])))
+}
+
+// ---- request template v3 (src/fuin/e2ee.py): NEAR AI Cloud's E2EE on the model's secp256k1 key, with every random value
+// derived from the item's salt, so the question re-encrypts byte for byte and the answer decrypts ----
+mod e2ee {
+    use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+    use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey, SecretKey};
+    use num_bigint::BigUint;
+
+    const ORDER: &str = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+    const MIN_BLOB: usize = 65 + 12 + 16;
+
+    fn seed(salt: &[u8; 32], model: &str) -> [u8; 32] { super::sha256(&[b"fuin-e2ee-v1", salt, model.as_bytes()]) }
+
+    fn secret(tag: &[u8], salt: &[u8; 32], model: &str) -> SecretKey {
+        let n = BigUint::parse_bytes(ORDER.as_bytes(), 16).unwrap();
+        let x = BigUint::from_bytes_be(&super::sha256(&[tag, &seed(salt, model)])) % (&n - 1u32) + 1u32;  // in [1, N-1]
+        let mut b = [0u8; 32];
+        let xb = x.to_bytes_be();
+        b[32 - xb.len()..].copy_from_slice(&xb);
+        SecretKey::from_slice(&b).unwrap()
+    }
+
+    fn key(secret: &SecretKey, public: &PublicKey) -> [u8; 32] {  // ECDH x-coordinate, HKDF-SHA256 (no salt, "ecdsa_encryption")
+        let shared = k256::ecdh::diffie_hellman(secret.to_nonzero_scalar(), public.as_affine());
+        let mut k = [0u8; 32];
+        hkdf::Hkdf::<sha2::Sha256>::new(None, shared.raw_secret_bytes()).expand(b"ecdsa_encryption", &mut k).unwrap();
+        k
+    }
+
+    pub fn pub_from(raw64: &[u8; 64]) -> Option<PublicKey> {
+        let mut sec1 = [4u8; 65];
+        sec1[1..].copy_from_slice(raw64);
+        PublicKey::from_sec1_bytes(&sec1).ok()
+    }
+
+    /// e2ee.encrypt_question: hex(ephemeral public key ‖ nonce ‖ AES-256-GCM ciphertext and tag)
+    pub fn encrypt_question(question: &str, salt: &[u8; 32], model: &str, model_pub: &PublicKey) -> String {
+        let eph = secret(b"fuin-e2ee-eph-v1", salt, model);
+        let nonce = &super::sha256(&[b"fuin-e2ee-nonce-v1", &seed(salt, model)])[..12];
+        let ct = Aes256Gcm::new(&key(&eph, model_pub).into()).encrypt(Nonce::from_slice(nonce), question.as_bytes()).unwrap();
+        let mut out = eph.public_key().to_encoded_point(false).as_bytes().to_vec();
+        out.extend_from_slice(nonce);
+        out.extend_from_slice(&ct);
+        hex::encode(out)
+    }
+
+    /// e2ee.decrypt: a field the model encrypted to this item's client key; None if it isn't such a ciphertext
+    pub fn decrypt(blob_hex: &str, salt: &[u8; 32], model: &str) -> Option<String> {
+        if blob_hex.len() % 2 != 0 || !blob_hex.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        let b = hex::decode(blob_hex).ok()?;
+        if b.len() < MIN_BLOB || b[0] != 4 {
+            return None;
+        }
+        let model_eph = PublicKey::from_sec1_bytes(&b[..65]).ok()?;
+        let k = key(&secret(b"fuin-e2ee-client-v1", salt, model), &model_eph);
+        let plain = Aes256Gcm::new(&k.into()).decrypt(Nonce::from_slice(&b[65..77]), &b[77..]).ok()?;
+        String::from_utf8(plain).ok()
+    }
+
+    pub fn address(public: &PublicKey) -> String {
+        use sha3::Digest;
+        let point = public.to_encoded_point(false);
+        format!("0x{}", hex::encode(&sha3::Keccak256::digest(&point.as_bytes()[1..])[12..]))
+    }
 }
 
 // ---- scorer: Python's str.strip(), \d with Decimal, and str.casefold(), from generated tables ----
@@ -262,9 +334,18 @@ pub fn score_text(item: &Value, content: &str, v2: bool) -> Result<u8, String> {
 
 /// scorer.score_response: the first choice's message content; a malformed or empty response scores 0.
 pub fn score_response(item: &Value, response: &[u8], v2: bool) -> Result<u8, String> {
+    score_response_e2ee(item, response, v2, None)
+}
+
+/// With `e2ee` (the item's salt and the model), the answer is decrypted first (e2ee.decrypted_response): a non-empty
+/// content string that doesn't decrypt reads as "", so an unreadable answer scores 0.
+fn score_response_e2ee(item: &Value, response: &[u8], v2: bool, e2ee: Option<(&[u8; 32], &str)>) -> Result<u8, String> {
     let Ok(v) = serde_json::from_slice::<Value>(response) else { return Ok(0) };
     match v.get("choices").and_then(|c| c.get(0)).and_then(|c| c.get("message")).and_then(|m| m.get("content")).and_then(Value::as_str) {
-        Some(content) => score_text(item, content, v2),
+        Some(content) => match e2ee {
+            Some((salt, model)) if !content.is_empty() => score_text(item, &e2ee::decrypt(content, salt, model).unwrap_or_default(), v2),
+            _ => score_text(item, content, v2),
+        },
         None => Ok(0),
     }
 }
@@ -283,15 +364,22 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
     }
     // v1: the sealed item nonce rides in `user`; v2: sha256("fuin-nonce-v2" ‖ item nonce ‖ seal block hash), so no request
     // (and no signed answer) can predate the seal
-    let v2_nonce = match (s("/request/template"), s("/request/privacy_profile")) {
-        (Some("fuin-request-v1"), Some("nonce-in-user-field-v1")) => false,
-        (Some("fuin-request-v2"), Some("nonce-in-user-field-v1")) => true,
+    // v3: v2's nonce, with the question and the answer end-to-end encrypted to the model's key (mod e2ee)
+    let (v2_nonce, v3) = match (s("/request/template"), s("/request/privacy_profile")) {
+        (Some("fuin-request-v1"), Some("nonce-in-user-field-v1")) => (false, false),
+        (Some("fuin-request-v2"), Some("nonce-in-user-field-v1")) => (true, false),
+        (Some("fuin-request-v3"), Some("nonce-in-user-field-v1")) => (true, true),
         _ => return Err("unsupported request template".into()),
+    };
+    let model_pub = match (v3, &r.model_pub) {
+        (false, _) => None,
+        (true, Some(k)) => Some(e2ee::pub_from(k).ok_or("model_pub is not a secp256k1 key")?),
+        (true, None) => return Err("request template v3 needs the model's key".into()),
     };
     let seal_hash = match (v2_nonce, &r.seal_block_hash) {
         (false, _) => None,
         (true, Some(h)) => Some(bs58::decode(h).into_vec().map_err(|_| "seal_block_hash is not base58")?),
-        (true, None) => return Err("request template v2 needs the seal block hash".into()),
+        (true, None) => return Err("a seal-bound request template needs the seal block hash".into()),
     };
     if seal_hash.as_ref().is_some_and(|h| h.len() != 32) {
         return Err("seal block hash must be 32 bytes".into());
@@ -320,7 +408,11 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
                 hex::encode(sha256(&[b"fuin-nonce-v2", &item_nonce, h]))
             }
         };
-        let expected = build_request(&r.model, q("question")?, &nonce, settings).map_err(at)?;
+        let question = match &model_pub {
+            None => q("question")?.to_string(),
+            Some(k) => e2ee::encrypt_question(q("question")?, &it.salt, &r.model, k),
+        };
+        let expected = build_request(&r.model, &question, &nonce, settings).map_err(at)?;
         if expected.as_bytes() != row.request.as_slice() {
             return Err(at("request_policy_mismatch".into()));
         }
@@ -340,10 +432,15 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         if signer.get_or_insert_with(|| who.clone()) != &who {
             return Err(at("more than one signer".into()));
         }
-        let score = score_response(&item, &row.response, v2).map_err(at)?;
+        let score = score_response_e2ee(&item, &row.response, v2, v3.then_some((&it.salt, r.model.as_str()))).map_err(at)?;
         total += u64::from(score);
         rleaves.push(sha256(&[&[2u8], &idx, &bleaf, &req_sha, &resp_sha, &[score]]));
         bleaves.push(bleaf);
+    }
+    if let (Some(k), Some(who)) = (&model_pub, &signer) {
+        if &e2ee::address(k) != who {  // the questions went to the key that signed every answer, nobody else's
+            return Err("model_pub is not the signer's key".into());
+        }
     }
     Ok(Outcome {
         model: r.model.clone(),

@@ -9,7 +9,7 @@ import hashlib
 import requests
 import yaml
 
-from fuin import attestation, tee, core, inference, near, owner, provenance
+from fuin import attestation, tee, core, e2ee, inference, near, owner, provenance
 from fuin import policy as P
 
 TOP = {"version", "registry", "benchmark", "run", "audit"}
@@ -25,6 +25,8 @@ LIMITS = [
 LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
 SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the "
                     "seal and the commitment are not individually timestamped.")
+E2EE_LIMIT = ("Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, "
+              "the generation settings, the nonce, the timing and the sizes.")
 
 
 class Refused(Exception):
@@ -211,10 +213,18 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             req, resp = base64.b64decode(x["request_b64"]), base64.b64decode(x["response_b64"])
             _req(hashlib.sha256(req).hexdigest() == it["req_sha256"], "signature_text_mismatch")
             _req(hashlib.sha256(resp).hexdigest() == it["resp_sha256"], "signature_text_mismatch")
-            expected = inference.build_request(r["model_id"], x["item"]["question"],
-                                               inference.request_nonce(b["policy"], x["item"], b["seal_block_hash"]), b["policy"]["models"][r["model_id"]])
+            pub64 = None
+            if P.is_e2ee(b["policy"]):  # v3: the question was encrypted to the signer's attested key; re-encrypt it from the salt
+                att = next((c for c in r["model_report"]["model_attestations"]
+                            if c["signing_address"].lower() == it["signature"]["signing_address"].lower()), None)
+                try:
+                    pub64 = e2ee.model_pub(att)
+                except (ValueError, KeyError, TypeError) as e:
+                    raise Refused("attestation_invalid") from e
+            expected, _ = inference.sealed_request(b["policy"], r["model_id"], x, b["seal_block_hash"], pub64)
             _req(req == expected, "request_policy_mismatch")
-            _req(scorer.score_response(x["item"], resp) == it["score"], "score_mismatch")
+            readable = e2ee.decrypted_response(resp, bytes.fromhex(x["salt"]), r["model_id"]) if pub64 else resp
+            _req(scorer.score_response(x["item"], readable) == it["score"], "score_mismatch")
         ok("reveals", "none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)" if tee_round
            else f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
 
@@ -357,9 +367,9 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         if tee_scored:
             scope += (f"; every item re-scored inside an OutLayer TDX enclave from the sealed bytes: the total {r['total_score']}/{n} is "
                       "exact, not statistical, under the TEE trust assumptions")
-    v2 = b["policy"]["request"]["template"] == P.TEMPLATE_V2
+    v2 = P.is_seal_bound(b["policy"])
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
-    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([tee.TEE_LIMIT] if tee_scored else [])
+    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 
