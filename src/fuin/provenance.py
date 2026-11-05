@@ -6,12 +6,17 @@ attests its own action log with a second TDX quote (report data = sha256(canonic
 services are up, fetch their compose files at the logged commits from the public repo, check the sha256, and read
 the services that declare `--served-model-name <model>`: image digest, model path and revision.
 
-Not covered: the container image's build provenance (cosign/SLSA). Credential-free (raw.githubusercontent.com).
+Build provenance (build_provenance): where NEAR publishes SLSA v1 provenance for a serving image (a sigstore bundle
+attached to the image digest as an OCI referrer), it is verified against sigstore's public-good trust root and must come
+from a GitHub Actions workflow in NEAR AI's organisation. Credential-free (raw.githubusercontent.com, Docker Hub,
+sigstore's TUF repository).
 """
 
 import hashlib
 import json
 import re
+import time
+from pathlib import Path
 
 import requests
 import yaml
@@ -109,3 +114,84 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
     if not serving:
         raise TraceUnavailable(f"no deployed service declares --served-model-name {model}")
     return {"repo": repo, "cm_quote_status": status, "services": sorted(serving, key=lambda s: s["service"])}
+
+# ---------------- build provenance: SLSA v1 that NEAR publishes for its images ----------------
+
+SLSA_V1 = "https://slsa.dev/provenance/v1"
+GITHUB_OIDC = "https://token.actions.githubusercontent.com"
+NEAR_BUILDERS = "https://github.com/nearai/"  # NEAR AI's GitHub organisation
+BUNDLE_CACHE = Path.home() / ".cache" / "fuin" / "slsa"  # raw sigstore bundles by image digest; re-verified on every use
+
+
+_VERIFIER = None  # sigstore's trust root, fetched once per process
+
+
+class ProvenanceInvalid(Exception):
+    """A provenance bundle exists for the image but fails verification (signature, identity or subject)."""
+
+
+def _registry(repo: str):
+    tok = requests.get("https://auth.docker.io/token", params={"service": "registry.docker.io", "scope": f"repository:{repo}:pull"},
+                       timeout=30).json()["token"]
+    return {"Authorization": f"Bearer {tok}"}, f"https://registry-1.docker.io/v2/{repo}"
+
+
+def _slsa_bundle(repo: str, digest: str) -> bytes | None:
+    """The newest SLSA v1 sigstore bundle attached to the image as an OCI referrer, or None. The bytes are cached by
+    digest (they never change and anonymous registry reads are rate-limited); they are verified again on every use."""
+    cached = BUNDLE_CACHE / f"{digest.replace(':', '-')}.json"
+    if cached.exists() and (cached.stat().st_size or time.time() - cached.stat().st_mtime < 86400):  # "none" expires daily
+        return cached.read_bytes() or None
+    auth, base = _registry(repo)
+    accept = {"Accept": "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json"}
+    r = requests.get(f"{base}/referrers/{digest}", headers={**auth, **accept}, timeout=30)
+    found = [m for m in r.json().get("manifests", []) if (m.get("annotations") or {}).get("dev.sigstore.bundle.predicateType") == SLSA_V1] \
+        if r.status_code == 200 else []
+    if r.status_code not in (200, 404):
+        r.raise_for_status()
+    blob = b""
+    if found:
+        newest = max(found, key=lambda m: m["annotations"].get("org.opencontainers.image.created", ""))
+        man = requests.get(f"{base}/manifests/{newest['digest']}", headers={**auth, **accept}, timeout=30)
+        man.raise_for_status()
+        b = requests.get(f"{base}/blobs/{man.json()['layers'][0]['digest']}", headers=auth, timeout=60)
+        b.raise_for_status()
+        blob = b.content
+    BUNDLE_CACHE.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(blob)  # an empty file records "no provenance published" for this digest
+    return blob or None
+
+
+def build_provenance(image: str) -> dict | None:
+    """Verify the SLSA v1 provenance NEAR publishes for a Docker Hub image digest against sigstore's public-good trust
+    root: signed by a GitHub Actions workflow in NEAR AI's organisation, logged in Rekor, and about exactly this digest.
+    Returns the builder workflow and source commit; None if the image has none; raises ProvenanceInvalid if a bundle
+    fails; registry or sigstore outages raise requests errors."""
+    m = re.fullmatch(r"(?:docker\.io/)?([a-z0-9][\w.-]*(?:/[\w.-]+)?)@(sha256:[0-9a-f]{64})", image)
+    if not m:
+        return None
+    repo, digest = (m.group(1) if "/" in m.group(1) else "library/" + m.group(1)), m.group(2)
+    blob = _slsa_bundle(repo, digest)
+    if blob is None:
+        return None
+    from cryptography import x509
+    from sigstore.models import Bundle
+    from sigstore.verify import Verifier, policy
+    try:
+        bundle = Bundle.from_json(blob)
+        global _VERIFIER
+        _VERIFIER = _VERIFIER or Verifier.production()
+        _, payload = _VERIFIER.verify_dsse(bundle, policy.OIDCIssuerV2(GITHUB_OIDC))
+        san = bundle.signing_certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        builder = (san.get_values_for_type(x509.UniformResourceIdentifier) or [""])[0]
+        st = json.loads(payload)
+    except Exception as e:  # noqa: BLE001 — any failure of a present bundle is invalid evidence, never "fine"
+        raise ProvenanceInvalid(f"{type(e).__name__}: {str(e)[:160]}") from e
+    if not builder.startswith(NEAR_BUILDERS):
+        raise ProvenanceInvalid(f"built by {builder}, outside NEAR AI's GitHub organisation")
+    if st.get("predicateType") != SLSA_V1 or digest.split(":")[1] not in [s.get("digest", {}).get("sha256") for s in st.get("subject", [])]:
+        raise ProvenanceInvalid("the provenance is about another image")
+    bd = st["predicate"]["buildDefinition"]
+    wf = (bd.get("externalParameters") or {}).get("workflow") or {}
+    commit = next((d["digest"]["gitCommit"] for d in bd.get("resolvedDependencies", []) if "gitCommit" in d.get("digest", {})), None)
+    return {"builder": builder, "repository": wf.get("repository"), "workflow": wf.get("path"), "ref": wf.get("ref"), "commit": commit}

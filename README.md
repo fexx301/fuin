@@ -33,6 +33,7 @@ Every claim below maps to a command:
 | Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 23 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
+| Questions and answers can stay end-to-end encrypted, so NEAR's gateway never sees them | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r5-glm-5.3-flash.json` | `VERIFIED`; the policy line ends `fuin-request-v3 (end-to-end encrypted)`, and the limits print the end-to-end-encryption line; probe: `evidence/2026-11-05-e2ee-probe/` |
 | The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `2614ddaa…`, the current pin in `policy/tee-v2.json` (scorer v3). Scorer v2 (`dabae968…`, the build behind rounds 1–4's scores) rebuilds the same way from commit `6381ee9` |
 | The registry can't be changed | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
@@ -47,10 +48,13 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Four independent rounds of private questions (60, 60, 300 and 155), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Round 4 reveals nothing; its scores are checked only inside the TEE. The scorer is strict: the answer must be the number or term alone.
+Five independent rounds of private questions (60, 60, 300, 155 and 96), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Rounds 4 and 5 reveal nothing; their scores are checked only inside the TEE. Round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict: the answer must be the number or term alone.
 
 | Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
+| `near-dev-96-r5` (8,192), zero-reveal, end-to-end encrypted | deepseek-ai/DeepSeek-V4.1-Flash-1017 | **48/96** (50.0%) | nothing revealed | 2/96 |
+| `near-dev-96-r5` (8,192), zero-reveal, end-to-end encrypted | z-ai/glm-5.3-flash | **42/96** (43.8%) | nothing revealed | 26/96 |
+| `near-dev-96-r5` (8,192), zero-reveal, end-to-end encrypted | Qwen/Qwen3.8-27B | **27/96** (28.1%) | nothing revealed | 9/96 |
 | `near-dev-155-r4` (8,192), zero-reveal | deepseek-ai/DeepSeek-V4.1-Flash-1017 | **84/155** (54.2%) | nothing revealed | 1/155 |
 | `near-dev-155-r4` (8,192), zero-reveal | z-ai/glm-5.3-flash | **64/155** (41.3%) | nothing revealed | 36/155 |
 | `near-dev-155-r4` (8,192), zero-reveal | Qwen/Qwen3.8-27B | **39/155** (25.2%) | nothing revealed | 26/155 |
@@ -61,7 +65,7 @@ Four independent rounds of private questions (60, 60, 300 and 155), each with ex
 | `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | (23) 10 · 5 · 1 · 7 | 21/60 |
 | `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | (23) 6 · 9 · 0 · 8 | 17/60 |
 
-Round 4 adds DeepSeek-V4.1-Flash, which leads with 84 of 155, ahead of GLM (64) and Qwen (39). On all four suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly than Qwen. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs. At the same 8,192 cap, round 3 cut off GLM 72 times and Qwen 54 times. Even if every cut-off had ended in a correct answer, GLM would still lead (194 against 131), but that is an upper bound, not a measurement: what either model would answer with a larger cap is unknown without a higher-cap rerun. The rounds use different questions, so compare models within a round, not percentages across rounds.
+DeepSeek-V4.1-Flash, added in round 4, leads both rounds it ran: 84 of 155 and 48 of 96. On all five suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly than Qwen. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs. At the same 8,192 cap, round 3 cut off GLM 72 times and Qwen 54 times. Even if every cut-off had ended in a correct answer, GLM would still lead (194 against 131), but that is an upper bound, not a measurement: what either model would answer with a larger cap is unknown without a higher-cap rerun. The rounds use different questions, so compare models within a round, not percentages across rounds.
 
 **Reading the columns:**
 - **Revealed breakdown:** a reading aid computed from the revealed bytes (`fuin show`), not a score. *Format* means the right value in a form the strict scorer rejects, such as `**10%**`. *Cut off* means no final answer before the cap.
@@ -73,7 +77,8 @@ Round 4 adds DeepSeek-V4.1-Flash, which leads with 84 of 155, ahead of GLM (64) 
 - **Round 2:** one question per cited line, so its known disclosure is the 23 revealed; **37 stay hidden.**
 - **Round 3:** one question per cited line, and none shares a line with rounds 1–2. The audit reveals 28; **272 of 300 (91%) stay hidden**, at the same 95% detection power as the 60-question rounds.
 - **Round 4:** reveals nothing. All 155 stay hidden, one question per cited line, none shared with rounds 1–3.
-- **Every round, scored inside a TEE:** all nine totals were computed over every signed answer (1,305 in all) inside an Intel TDX enclave on OutLayer and match the commitments, so the unrevealed scores (37, 37, 272 and 155 per run) are checked exactly, not by sample ([TEE score](#tee-score)).
+- **Round 5:** reveals nothing, and its questions and answers were end-to-end encrypted. All 96 stay hidden, one question per cited line, none shared with rounds 1–4.
+- **Every round, scored inside a TEE:** all twelve totals were computed over every signed answer (1,593 in all) inside an Intel TDX enclave on OutLayer and match the commitments, so the unrevealed scores (37, 37, 272, 155 and 96 per run) are checked exactly, not by sample ([TEE score](#tee-score)).
 
 **Disclosure at scale.** For a fixed detection target the audit size grows only slowly with suite size and levels off (23 items at 60, 29 at 1,000), so larger private suites disclose a far smaller share. From the same `core.audit_size` code, at ≥95% detection power for ≥10% incorrect scores:
 
@@ -159,7 +164,7 @@ Flow: **seal → run → commit → close → sample → reveal → verify.**
 
 The audit checks a sample; a TEE score checks every answer. The owner encrypts one run (each item's sealed bytes and salt, the sealed policy, the signed requests and responses) to a key that exists only inside Fūin's TEE scorer, which runs in an Intel TDX enclave on OutLayer. The scorer (`tee/`) rebuilds every benchmark leaf from the sealed bytes, rebuilds every request from the sealed template and requires it to equal the signed bytes, recovers every signature, scores every answer with the sealed scorer's exact rules, and returns only the two roots, the total and the signer. `fuin verify` then checks the OutLayer attestation (the Intel quote, OutLayer's task hash, the worker's approval at the execution's block, and the request and result on chain) and that the output equals the certificate's own roots, total, model and signer.
 
-Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21078–21084; round 4 scored only this way, tasks 21125–21127), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make rounds 1–3's audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. The scores were first computed on a build that reproduced only on macOS, then re-done on the canonical build, which reproduces on any host; the first build is no longer accepted. Details: `evidence/2026-11-05-reverify-tee-score/` and `evidence/2026-11-05-reverify-tee-v2/`.
+Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21078–21084; rounds 4 and 5 scored only this way, tasks 21125–21127 and 21373–21375), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make rounds 1–3's audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. The scores were first computed on a build that reproduced only on macOS, then re-done on the canonical build, which reproduces on any host; the first build is no longer accepted. Details: `evidence/2026-11-05-reverify-tee-score/` and `evidence/2026-11-05-reverify-tee-v2/`.
 
 ### Zero-reveal rounds
 
@@ -170,9 +175,17 @@ Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21
 
 The trade-off: a sampled round's score check needs only public bytes, while a zero-reveal round's relies on the TEE (Intel TDX, OutLayer's worker governance and key service). In exchange, no question is ever published. Round 4 (`near-dev-155-r4`) is a zero-reveal round: 155 questions, three models, nothing revealed. Details: `evidence/2026-11-05-round-near-dev-155-r4/`.
 
+### End-to-end encryption
+
+`fuin seal --e2ee` (request template v3) encrypts every question to the model's attested TEE key, with NEAR AI Cloud's end-to-end encryption on the model's secp256k1 signing key (`X-Signing-Algo: ecdsa`): ECDH, HKDF-SHA256, AES-256-GCM. The answer comes back encrypted to a key only the owner holds. NEAR's gateway carries ciphertext for both; it still sees the model, the settings, the nonce, the timing and the sizes.
+
+The evidence is unchanged, because the model signs the exact encrypted bytes it received and returned (`provider_tee`, probe: `evidence/2026-11-05-e2ee-probe/`). To stay checkable, every random value derives from the item's secret salt: whoever holds the salt (a verifier of a revealed item, or the TEE scorer) re-encrypts the question byte for byte, which pins exactly what the model decrypted, and decrypts the answer. An answer that doesn't decrypt scores 0. The TEE scorer also requires that the key the questions went to is the key that signed every answer.
+
+Round 5 (`near-dev-96-r5`) is zero-reveal and end-to-end encrypted: 96 questions, three models; nothing was revealed, and no question or answer crossed NEAR's gateway in the clear. Details: `evidence/2026-11-05-round-near-dev-96-r5/`.
+
 ## NEAR tools used
 
-- **NEAR AI Cloud:** TEE-hosted open models through the gateway (`/v1/chat/completions` with `x-no-aliasing`); `provider_tee` response signatures (`/v1/signature`); model attestation reports (Intel TDX quote, NVIDIA GPU evidence, event log, compose-manager attestation); the public model catalog (`verifiable`, `attestationSupported`).
+- **NEAR AI Cloud:** TEE-hosted open models through the gateway (`/v1/chat/completions` with `x-no-aliasing`); end-to-end encryption to the model's attested key (`X-Signing-Algo: ecdsa`, `X-Client-Pub-Key`, `X-Model-Pub-Key`); `provider_tee` response signatures (`/v1/signature`); model attestation reports (Intel TDX quote, NVIDIA GPU evidence, event log, compose-manager attestation); the public model catalog (`verifiable`, `attestationSupported`).
 - **NEAR testnet contract** [`registry.fuin.testnet`](https://testnet.nearblocks.io/address/registry.fuin.testnet) (Rust, near-sdk 5.30, built with cargo-near): `seal`, `commit_run`, `close_round`, `get_benchmark`, `get_run`. Records can't be overwritten, runs are numbered per model, and callers pay for their own storage. **The account has no access keys**, so its code (hash `HvqaWNNceCX7AMtsanPobAt5mkAE2MsZdP2BURA2cgef`) can't be replaced. The verifier checks this.
 - **OutLayer** (FastNEAR's verifiable off-chain compute on NEAR): `request_execution` on `outlayer.testnet` runs the TEE scorer in an Intel TDX enclave; an encryption key bound to the scorer's sha256 seals its private key; worker measurements are approved on `worker.outlayer.testnet`.
 - **FastFS** serves the TEE scorer binary from a NEAR testnet transaction.
@@ -211,7 +224,7 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 
 - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
 - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
-- Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.
+- Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
 - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.

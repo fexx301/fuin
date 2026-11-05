@@ -16,7 +16,7 @@ TOP = {"version", "registry", "benchmark", "run", "audit"}
 LIMITS = [
     "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
     "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
-    "Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show, and the image's build provenance is not verified.",
+    "Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.",
     "Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.",
     "Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.",
     "Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.",
@@ -275,6 +275,24 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                            + (f" (same instance also serves LoRA adapters under other names: {', '.join(x['lora_modules'])})"
                               if x.get("lora_modules") else "") for x in svc[:2])
                + (f" (+{len(svc) - 2} more replicas)" if len(svc) > 2 else ""))
+            built = []  # SLSA v1 provenance where NEAR publishes it; its absence or an outage is a warning, never a verdict
+            for img in sorted({x["image"] for x in svc}):
+                short = f"{img.split('@')[0].removeprefix('docker.io/')}@…{img[-8:]}"  # e.g. lmsysorg/sglang@…d85856b1
+                try:
+                    bp = provenance.build_provenance(img)
+                except provenance.ProvenanceInvalid as e:
+                    warnings.append(f"image {short}: build provenance present but INVALID ({e})")
+                    continue
+                except Exception as e:  # noqa: BLE001 — registry, TUF or network trouble: not checked, said so
+                    warnings.append(f"image {short}: build provenance not checked ({type(e).__name__})")
+                    continue
+                if bp is None:
+                    warnings.append(f"image {short}: no published build provenance (SLSA)")
+                else:
+                    built.append(f"{short} built by {bp['repository'].removeprefix('https://')} {bp['workflow']} "
+                                 f"@{(bp['commit'] or '?')[:8]} (SLSA v1, sigstore)")
+            if built:
+                ok("build provenance", "; ".join(built))
 
         rec = None
 
@@ -349,7 +367,6 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         return out("CANT_CERTIFY", "verifier_error", f"{type(e).__name__}: {str(e)[:200]}")
     if deferred:
         return out("CANT_CERTIFY", deferred[0][0], deferred[0][1] or None)
-    warnings.append("container image build provenance (cosign/SLSA) not verified")
     log = r.get("evidence", {}).get("attempt_log")
     warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
                     + " (not verifiable; an owner could omit them)")
