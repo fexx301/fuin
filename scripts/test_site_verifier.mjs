@@ -10,7 +10,11 @@ const ctx = globalThis;
 const F = ctx.FUIN, V = ctx.FuinVerify;
 const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: rec });
 const clone = (x) => JSON.parse(JSON.stringify(x));
-let fails = 0;
+// the page must carry the verifier's current pins: rebuild site/data.js (scripts/build_page.py) whenever policy/ changes
+const pinsNow = JSON.parse(fs.readFileSync('policy/tee-v2.json', 'utf8')).scorers.map((s) => s.wasm_sha256).sort();
+const pinsOk = JSON.stringify(pinsNow) === JSON.stringify([...F.tee.pins].sort());
+console.log(`${pinsOk ? 'ok  ' : 'FAIL'} page data carries policy/tee-v2.json's scorer pins${pinsOk ? '' : ' (stale site/data.js: run scripts/build_page.py)'}`);
+let fails = pinsOk ? 0 : 1;
 const check = async (name, cert, want, net = true, over = {}) => {
   const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   // a certificate carrying a TEE score must have had it checked here whenever the verdict is VERIFIED
@@ -69,6 +73,8 @@ if (zr) {
   await check('zero-reveal: a sample smuggled in', zmut((c) => { c.audit.indices = [0]; }), 'REFUSED audit_sample_mismatch');
   await check('zero-reveal: uploaded, no recorded GPU result', zb, 'PARTIAL GPU not checked in a browser', true, { recorded: null });
 } else { console.log('FAIL no zero-reveal round in site/data.js'); fails++; }
+// scorer v4 on an end-to-end-encrypted rehearsal: the TEE attests how many answers didn't decrypt
+await check('scorer v4 rehearsal (unreadable count attested)', JSON.parse(fs.readFileSync('evidence/2026-11-05-scorer-v4-unreadable-count/cert-e2ee-rehearsal-2-glm-5.3-flash.json', 'utf8')), 'VERIFIED');
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);
 // scorer parity with Python on every revealed answer

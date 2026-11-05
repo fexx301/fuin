@@ -90,7 +90,28 @@ def test_a_real_v3_record_passes_the_local_checks():
                        "policy": {"request": {"template": "fuin-request-v3"}, "audit": {"k": 3}}},
          "run": {"model_id": e["model"], "total_score": e["total"], "run_root": e["run_root"],
                  "items": [{"signature": {"signing_address": e["signer"]}}] * e["n"]}}
-    assert tee.check_local(copy.deepcopy(fx["evidence"]), c)["pin"] == tee.tee_policy()["current"]
+    assert tee.check_local(copy.deepcopy(fx["evidence"]), c)["pin"] in tee.pinned()  # v3 stays accepted for round 5
     c["benchmark"]["seal_block_hash"] = "1" * 32  # the scorer rebuilt every nonce and ciphertext for the real seal block
     with pytest.raises(tee.TeeRefused, match="tee_score_mismatch"):
         tee.check_local(copy.deepcopy(fx["evidence"]), c)
+
+
+def _v3_cert(fx, template="fuin-request-v3"):
+    e = fx["expected"]
+    return {"registry": {"owner": "fuin.testnet"},
+            "benchmark": {"n": e["n"], "root": e["benchmark_root"], "policy_hash": e["policy_hash"], "seal_block_hash": e["seal_block_hash"],
+                          "policy": {"request": {"template": template}, "audit": {"k": 3}}},
+            "run": {"model_id": e["model"], "total_score": e["total"], "run_root": e["run_root"],
+                    "items": [{"signature": {"signing_address": e["signer"]}}] * e["n"]}}
+
+
+def test_scorer_v4_attests_the_unreadable_count():
+    """Scorer v4 inside OutLayer on the synthetic encrypted round (task 22259): one answer is encrypted to another key."""
+    fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v4.json").read_text())
+    assert tee.check_local(copy.deepcopy(fx["evidence"]), _v3_cert(fx))["unreadable"] == 1
+
+
+def test_an_unreadable_count_on_a_round_without_encryption_is_refused():
+    fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v4.json").read_text())
+    with pytest.raises(tee.TeeRefused, match="tee_score_mismatch"):
+        tee.check_local(copy.deepcopy(fx["evidence"]), _v3_cert(fx, template="fuin-request-v2"))
