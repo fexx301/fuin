@@ -68,7 +68,7 @@ On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer
 - **Round 1:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
 - **Round 2:** one question per cited line, so its known disclosure is the 23 revealed; **37 stay hidden.**
 - **Round 3:** one question per cited line, and none shares a line with rounds 1–2. The audit reveals 28; **272 of 300 (91%) stay hidden**, at the same 95% detection power as the 60-question rounds.
-- **Round 3, re-scored inside a TEE:** both totals were also recomputed over all 300 signed answers inside an Intel TDX enclave on OutLayer and match the commitments, so the 272 unrevealed scores are checked exactly, not by sample ([TEE score](#tee-score)).
+- **Every round, re-scored inside a TEE:** all six totals were also recomputed over every signed answer (840 in all) inside an Intel TDX enclave on OutLayer and match the commitments, so the unrevealed scores (37, 37 and 272 per run) are checked exactly, not by sample ([TEE score](#tee-score)).
 
 **Disclosure at scale.** For a fixed detection target the audit size grows only slowly with suite size and levels off (23 items at 60, 29 at 1,000), so larger private suites disclose a far smaller share. From the same `core.audit_size` code, at ≥95% detection power for ≥10% incorrect scores:
 
@@ -152,7 +152,7 @@ Flow: **seal → run → commit → close → sample → reveal → verify.**
 
 The audit checks a sample; a TEE score checks every answer. The owner encrypts one run (each item's sealed bytes and salt, the sealed policy, the signed requests and responses) to a key that exists only inside Fūin's TEE scorer, which runs in an Intel TDX enclave on OutLayer. The scorer (`tee/`) rebuilds every benchmark leaf from the sealed bytes, rebuilds every request from the sealed template and requires it to equal the signed bytes, recovers every signature, scores every answer with the sealed scorer's exact rules, and returns only the two roots, the total and the signer. `fuin verify` then checks the OutLayer attestation (the Intel quote, OutLayer's task hash, the worker's approval at the execution's block, and the request and result on chain) and that the output equals the certificate's own roots, total, model and signer.
 
-Round 3 carries TEE scores for both models (122/300 and 77/300, OutLayer tasks 20867 and 20868), so its 272 hidden scores are checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make the 28 audited items private again. The encrypted round was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. Details: `evidence/2026-11-05-reverify-tee-score/`.
+All six certificates carry TEE scores (rounds 1–3, both models; OutLayer tasks 20867–20868 and 20950–20953), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make the audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. Details: `evidence/2026-11-05-reverify-tee-score/`.
 
 ## NEAR tools used
 

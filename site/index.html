@@ -84,7 +84,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Three independent rounds of private NEAR-developer questions (60, 60 and 300), each answer cited to a line of the NEAR docs. Each round was sealed before its run. At 300 questions the audit reveals 28 and 272 stay private, and round 3's totals were also re-scored over all 300 answers inside a TEE on OutLayer, so its hidden scores are checked exactly, not by sample. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Three independent rounds of private NEAR-developer questions (60, 60 and 300), each answer cited to a line of the NEAR docs. Each round was sealed before its run. At 300 questions the audit reveals 28 and 272 stay private, and every round's totals were also re-scored over every answer inside a TEE on OutLayer, so the hidden scores are checked exactly, not by sample. The scorer is strict: the number or name alone.</p>
   <div class="rounds" id="rounds"></div>
   <div class="callout">GLM leads on all three suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show a consistent lead, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
@@ -111,7 +111,7 @@ html,body{background:#161616;margin:0}
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
     <div class="panel"><p class="eyebrow">What it doesn't prove</p><ul>
-      <li>Hidden scores are checked statistically, not item by item, unless the run carries a TEE score (round 3's do).</li>
+      <li>Hidden scores are checked statistically, not item by item, unless the run carries a TEE score (all six published runs do).</li>
       <li>Instances of a model can share a key; the trace is taken at preflight. Approved measurements are recorded from NEAR's reports, not rebuilt from source.</li>
       <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
       <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300.</li>

@@ -1,4 +1,4 @@
-# Round 3 re-scored inside a TEE, 2026-11-05
+# Every round re-scored inside a TEE, 2026-11-05
 
 The random audit checks a sample. A TEE score checks every answer. Round 3's two runs were re-scored, all 300 answers each, inside an Intel TDX enclave on OutLayer (NEAR's verifiable off-chain compute, built by FastNEAR). Both certificates now carry the evidence, and `fuin verify` checks it (`verify-output.txt`, `verify.jsonl`: VERIFIED, exit 0, with a `tee score` check).
 
@@ -6,6 +6,15 @@ The random audit checks a sample. A TEE score checks every answer. Round 3's two
 |---|---|---|---|---|
 | glm-5.3-flash | 122/300 | 122/300 | 20867 | `Hb86GaLmQPw5vFJghpxYoiULc3rnX7EWeyZXECuf5SP` |
 | Qwen3.8-27B | 77/300 | 77/300 | 20868 | `CNgQqWtpFTPGRvYpbQNdTobGCqXK3cWyS46b8J7x83Tf` |
+
+Rounds 1 and 2 were then re-scored the same way (secret gist per run, deleted after; 26–33 s each), so every published certificate carries a TEE score:
+
+| Run | TEE total | Committed total | OutLayer task | Transaction |
+|---|---|---|---|---|
+| r1 glm-5.3-flash | 25/60 | 25/60 | 20950 | `HDjo97TKbRjLymzRBLtY8Fhr1wpegt92jky4kXBtkL7N` |
+| r1 Qwen3.8-27B | 17/60 | 17/60 | 20951 | `5CMxRvFMwYaVmwftQsqEfhBTLUzfmars3EnSgJZtqqzG` |
+| r2 glm-5.3-flash | 32/60 | 32/60 | 20952 | `2XjgC5Ap1vRr4tnDJ86uZYW7hnNBJNVbjMBKcM6EgLso` |
+| r2 Qwen3.8-27B | 17/60 | 17/60 | 20953 | `BMxCttUjqbCBUq36rDHxiVVBKLcLYnGdeeeN6qnKgrzj` |
 
 **What ran.** `tee/` is the scorer: Rust compiled to WASI P2. For one run it:
 - rebuilds every benchmark leaf from the item's sealed bytes and salt, and the benchmark root from those leaves;
