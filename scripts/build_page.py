@@ -7,6 +7,7 @@ quote, event log, app_compose and nonce; NVIDIA's GPU verdict service blocks bro
 and the hero's dot map. Loaded with a <script> tag so the page also works from file://.
 """
 import glob
+import hashlib
 import json
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, "src")
-from fuin import near, owner  # noqa: E402
+from fuin import near, owner, tee  # noqa: E402
 from fuin import policy as P  # noqa: E402
 
 
@@ -28,14 +29,19 @@ def slim(cert: dict) -> dict:
     return c
 
 
-def recorded(rid: str) -> dict:
-    out = {}
+def recorded(rid: str, path: str) -> dict:
+    """The latest `fuin verify --json` result for these exact certificate bytes (matched by cert_sha256); a result
+    recorded for an earlier version of the file never counts."""
+    sha, found = hashlib.sha256(Path(path).read_bytes()).hexdigest(), None
     # the round's own record first, then any later re-verification (e.g. under a newer attestation policy) overrides it
     for f in sorted(glob.glob(f"evidence/*-round-{rid}/verify.jsonl")) + sorted(glob.glob("evidence/*-reverify-*/verify.jsonl")):
         for line in open(f):
             r = json.loads(line)
-            out[Path(r["cert"]).name] = {k: r.get(k) for k in ("outcome", "code", "checks", "warnings", "scope", "trace")}
-    return out
+            if Path(r["cert"]).name == Path(path).name and r.get("cert_sha256") == sha:
+                found = {k: r.get(k) for k in ("outcome", "code", "checks", "warnings", "scope", "trace")}
+    if found is None:
+        raise SystemExit(f"no recorded fuin verify result for the current bytes of {path}: record one with fuin verify --json")
+    return found
 
 
 def hands() -> dict:
@@ -49,12 +55,11 @@ def hands() -> dict:
 
 def main() -> None:
     rounds = []
-    for rid in ("near-dev-300-r3", "near-dev-60-r2", "near-dev-60-r1"):
-        rec = recorded(rid)
+    for rid in ("near-dev-155-r4", "near-dev-300-r3", "near-dev-60-r2", "near-dev-60-r1"):
         certs = []
         for p in sorted(glob.glob(f"examples/cert-{rid}-*.json")):
             c = json.loads(Path(p).read_text())
-            certs.append({"file": p, "cert": slim(c), "recorded": rec.get(Path(p).name)})
+            certs.append({"file": p, "cert": slim(c), "recorded": recorded(rid, p)})
         certs.sort(key=lambda x: -x["cert"]["run"]["total_score"])
         cap = certs[0]["cert"]["benchmark"]["policy"]["models"][certs[0]["cert"]["run"]["model_id"]]["max_tokens"]
         rounds.append({"id": rid, "cap": cap, "certs": certs})
@@ -66,7 +71,9 @@ def main() -> None:
         "rpc_fallback": [u for u in near.ARCHIVAL if u != near.NETWORKS["testnet"]],
         "supported": {"protocol": P.PROTOCOL, "template": P.TEMPLATE, "privacy": P.PRIVACY, "sampler": P.SAMPLER,
                       "allowed_settings": sorted(P.ALLOWED_SETTINGS),
-                      "scorers": {name: sha for (name, sha) in P.SCORERS}},
+                      "scorers": {name: sha for (name, sha) in P.SCORERS},
+                      "template_v2": P.TEMPLATE_V2, "template_v3": P.TEMPLATE_V3, "tee_audit": P.TEE_AUDIT},
+        "tee": {"pins": sorted(tee.pinned()), "outlayer": tee.tee_policy()["outlayer"], "v1_cutoff": tee.V1_CUTOFF},
         "attested_models": sorted(owner.attestation_policy()["models"]),
         "attestation_policy": {"version": owner.attestation_policy()["version"],
                                "models": {m: {ch: {"os_image_hash": e["os_image_hash"], "os_measurements": e["os_measurements"]}

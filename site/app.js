@@ -143,7 +143,8 @@
     ['schema', 'Certificate shape', 'local'], ['model', 'Model is attested', 'local'], ['rows', 'Rows and total', 'local'],
     ['commitments', 'Merkle commitments', 'local'], ['policy', 'Sealed policy', 'local'], ['signatures', 'Every model signature', 'local'],
     ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU and trace, recorded)', 'Intel via PCCS'],
-    ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Audit sample from a NEAR block', 'NEAR RPC'],
+    ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Round close and audit sample', 'NEAR RPC'],
+    ['tee', 'Every answer re-scored in a TEE', 'OutLayer quote via PCCS · NEAR RPC'],
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const utf8b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
@@ -152,18 +153,24 @@
     ['Edit an answer', 'Rewrites a revealed answer after the model signed it.', (c) => {
       const x = c.audit.reveals[0], j = JSON.parse(new TextDecoder().decode(V.b64(x.response_b64)));
       const was = j.choices[0].message.content; j.choices[0].message.content = was === c.audit.reveals[0].item.answer ? 'unknown' : x.item.answer;
-      x.response_b64 = utf8b64(JSON.stringify(j)); return `audit.reveals[0] answer: ${JSON.stringify(String(was).slice(0, 30))} → ${JSON.stringify(j.choices[0].message.content)}`; }],
+      x.response_b64 = utf8b64(JSON.stringify(j)); return `audit.reveals[0] answer: ${JSON.stringify(String(was).slice(0, 30))} → ${JSON.stringify(j.choices[0].message.content)}`; }, 'reveals'],
     ['Inflate the score', 'Adds one point to the published total.', (c) => { const was = c.run.total_score; c.run.total_score++; return `run.total_score: ${was} → ${c.run.total_score}`; }],
-    ['Change a sealed question', 'Edits a question after the seal.', (c) => { c.audit.reveals[0].item.question = c.audit.reveals[0].item.question.replace(/\?/, '? (edited)'); return `audit.reveals[0].item.question: "…? (edited)"`; }],
+    ['Change a sealed question', 'Edits a question after the seal.', (c) => { c.audit.reveals[0].item.question = c.audit.reveals[0].item.question.replace(/\?/, '? (edited)'); return `audit.reveals[0].item.question: "…? (edited)"`; }, 'reveals'],
     ['Sign with another key', 'Re-signs an answer, validly, with a key that is not the model\'s attested key.', (c) => {
       const it = c.run.items[0], s = window.Noble.signText(it.signature.text), was = it.signature.signing_address;
       it.signature.signature = s.signature; it.signature.signing_address = s.address; return `run.items[0] signer: ${was.slice(0, 10)}… → ${s.address.slice(0, 10)}… (fresh key)`; }],
-    ['Cherry-pick the audit', 'Replaces the sample with items the owner prefers.', (c) => { const was = c.audit.indices.slice(0, 4); c.audit.indices = [...Array(c.audit.k).keys()]; return `audit.indices: [${was}, …] → [${c.audit.indices.slice(0, 4)}, …]`; }],
+    ['Cherry-pick the audit', 'Replaces the sample with items the owner prefers.', (c) => { const was = c.audit.indices.slice(0, 4); c.audit.indices = [...Array(c.audit.k).keys()]; return `audit.indices: [${was}, …] → [${c.audit.indices.slice(0, 4)}, …]`; }, 'reveals'],
     ['Forge the TDX quote', 'Flips one byte of the Intel TDX quote that attests the model\'s signing key.', (c) => {
       const r0 = c.run.model_report.model_attestations[0], q = r0.intel_quote, k = q.length - 200;
       r0.intel_quote = q.slice(0, k) + (q[k] === '0' ? '1' : '0') + q.slice(k + 1); return `run.model_report…intel_quote: one byte flipped at offset ${k / 2}`; }],
     ['Relabel as GPT', 'Claims a non-TEE gateway model produced the answers.', (c) => { const was = c.run.model_id; c.run.model_id = 'openai/gpt-5.5'; return `run.model_id: ${was} → openai/gpt-5.5`; }],
+    ['Edit the TEE total', 'Raises the total the TEE reported, so it is no longer the output OutLayer attested.', (c) => {
+      const o = c.run.evidence.tee_score.output, was = o.total; o.total++; return `run.evidence.tee_score.output.total: ${was} → ${o.total}`; }, 'tee'],
+    ['Forge the TEE task', 'Changes the OutLayer task id; the Intel-signed quote binds the original task hash.', (c) => {
+      const rec = c.run.evidence.tee_score.record, was = rec.task_id; rec.task_id++; return `run.evidence.tee_score.record.task_id: ${was} → ${rec.task_id}`; }, 'tee'],
   ];
+  const zeroReveal = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.audit && c.benchmark.policy.audit.mode === F.supported.tee_audit);
+  const canCheat = (c, need) => !need || (need === 'reveals' ? !!(c.audit && c.audit.reveals && c.audit.reveals.length) : !!(c.run && c.run.evidence && c.run.evidence.tee_score));
   function renderChecks() {
     const ul = $('#checks'); ul.innerHTML = '';
     for (const [id, name, where] of STEPS) ul.append(h('li', { id: 'ck-' + id }, h('span', { class: 'ic', 'aria-hidden': 'true' }), h('div', { class: 'nm' }, name, h('small', {}, where), h('span', { class: 'st' }, '')), h('div', { class: 'dt' }, '')));
@@ -183,7 +190,7 @@
     const live = res.outcome === 'VERIFIED' && res.attestation === 'live';
     const cls = live ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
     const title = res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome === 'PARTIAL' ? 'PARTLY CHECKED' : res.outcome;
-    const sub = res.outcome === 'VERIFIED' ? (live ? 'TDX checked now · GPU and trace recorded' : 'attestation recorded, not checked here') : res.code;
+    const sub = res.outcome === 'VERIFIED' ? (live ? `TDX${res.tee === 'live' ? ' and TEE score' : ''} checked now · GPU and trace recorded` : 'attestation recorded, not checked here') : res.code;
     s.innerHTML = ''; s.append(title, h('small', {}, sub));
     s.classList.add('show', cls);
     $('#announce').textContent = `${title}: ${sub}`;
@@ -206,8 +213,9 @@
     const meta = $('#certMeta'); meta.innerHTML = '';
     meta.append(`committed ${r.total_score}/${b.n} · run ${r.run_index} · `, ...evidenceLinks(entry, cert));
     renderChecks(); $('#stamp').className = 'stamp';
-    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: recordedLine(entry, !!mutate) },
+    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
+    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', 'this certificate carries no TEE score');
     if (id === running) stamp(res);
   }
   function picker() {
@@ -215,26 +223,28 @@
     const all = [];
     for (const rd of F.rounds) for (const e of rd.certs) {
       const btn = h('button', { class: 'cert-btn', 'aria-pressed': 'false' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/${e.cert.benchmark.n}`),
-        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`));
+        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${zeroReveal(e.cert) ? 'nothing revealed' : rd.cap.toLocaleString('en') + ' tokens'}`));
       btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
     }
     const hb = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, 'Answer slipped into the prompt'), h('span', { class: 's' }, '1/1'),
       h('span', { class: 'r' }, 'real round, signed and committed'));
     hb.addEventListener('click', () => select(hb, { cert: F.hint.cert, recorded: null, file: F.hint.file })); $('#hintList').append(hb);
     const cheat = $('#cheat');
-    CHEATS.forEach(([label, tip, fn]) => { const c = h('button', { class: 'chip', title: tip, 'aria-pressed': 'false' }, label); c.addEventListener('click', () => { press(cheat, c); run(current, fn); }); cheat.append(c); });
+    CHEATS.forEach(([label, tip, fn, need]) => { const c = h('button', { class: 'chip', title: tip, 'aria-pressed': 'false' }, label); if (need) { c.dataset.need = need; c.dataset.tip = tip; } c.addEventListener('click', () => { press(cheat, c); run(current, fn); }); cheat.append(c); });
+    // a cheat that edits reveals or TEE evidence needs a certificate that has them
+    const fit = (e) => cheat.querySelectorAll('[data-need]').forEach((b) => { b.disabled = !canCheat(e.cert, b.dataset.need); b.title = b.disabled ? 'not applicable: this certificate has none' : b.dataset.tip; });
     const reset = h('button', { class: 'chip reset' }, 'Reset'); reset.addEventListener('click', () => { press(cheat, null); run(current); }); cheat.append(reset);
     const again = h('button', { class: 'chip reset' }, 'Run again'); again.addEventListener('click', () => run(current)); cheat.append(again);
-    function select(btn, e) { document.querySelectorAll('.cert-btn').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); }); btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true'); press(cheat, null); run(e); }
+    function select(btn, e) { document.querySelectorAll('.cert-btn').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); }); btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true'); press(cheat, null); fit(e); run(e); }
     const file = $('#file'), drop = $('#drop');
     drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
-    const load = async (f) => { try { const c = JSON.parse(await f.text()); document.querySelectorAll('.cert-btn').forEach((x) => x.classList.remove('on')); run({ cert: c, recorded: null }); } catch { $('#diff').classList.add('show'); $('#diff').textContent = 'That file is not JSON.'; } };
+    const load = async (f) => { try { const c = JSON.parse(await f.text()); document.querySelectorAll('.cert-btn').forEach((x) => x.classList.remove('on')); fit({ cert: c }); run({ cert: c, recorded: null }); } catch { $('#diff').classList.add('show'); $('#diff').textContent = 'That file is not JSON.'; } };
     file.addEventListener('change', () => file.files[0] && load(file.files[0]));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); });
     // start verifying the headline certificate when the console scrolls into view
-    current = all[0][1]; all[0][0].classList.add('on'); renderChecks();
+    current = all[0][1]; all[0][0].classList.add('on'); fit(current); renderChecks();
     $('#certTitle').textContent = `${short(current.cert.run.model_id)} · ${current.cert.benchmark.id}`;
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); run(current); } }, ONSCREEN).observe($('.stage'));
   }
@@ -244,16 +254,19 @@
     const box = $('#rounds');
     for (const rd of F.rounds) {
       const n = rd.certs[0].cert.benchmark.n, dis = DISCLOSURE[rd.id] || { revealed: rd.certs[0].cert.audit.reveals.length, indirect: 0 }, known = dis.revealed + dis.indirect;
-      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
+      const zr = zeroReveal(rd.certs[0].cert);
+      const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, zr
+        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, every answer scored inside a TEE`
+        : `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;
         const bar = h('i'); bar.dataset.w = pct + '%';
         card.append(h('div', { class: 'bar-row' },
           h('div', { class: 'top' }, h('div', {}, h('div', { class: 'name' }, c.run.model_id), h('div', { class: 'served' }, 'served as ' + (served(e) || '—'))), h('div', { class: 'score' }, c.run.total_score, h('small', {}, '/' + c.benchmark.n))),
           h('div', { class: 'bar' }, bar),
-          h('div', { class: 'pills' }, h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
-            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`),
-            ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE re-scored all ${c.benchmark.n}`)] : [])),
+          h('div', { class: 'pills' }, ...(zr ? [h('span', { class: 'pill' }, 'nothing revealed')] : [h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
+            h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)]),
+            ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE ${zr ? 'scored' : 're-scored'} all ${c.benchmark.n}`)] : [])),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
@@ -261,10 +274,11 @@
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); box.querySelectorAll('.bar i').forEach((b) => (b.style.width = b.dataset.w)); } }, ONSCREEN).observe(box);
   }
   function explorer() {
+    const RR = F.rounds.filter((rd) => rd.certs[0].cert.audit.reveals.length);  // a zero-reveal round has nothing to explore
     let ri = 0, filt = 'all';
     const tabs = $('#exRound'), fl = $('#exFilter');
     const draw = () => {
-      const rd = F.rounds[ri], qa = $('#qa'); qa.innerHTML = '';
+      const rd = RR[ri], qa = $('#qa'); qa.innerHTML = '';
       const per = rd.certs.map((e) => ({ m: short(e.cert.run.model_id), sc: Object.fromEntries(e.cert.run.items.map((i) => [i.i, i.score])), rv: Object.fromEntries(e.cert.audit.reveals.map((x) => [x.i, x])) }));
       for (const x of rd.certs[0].cert.audit.reveals) {
         const lines = per.map((p) => {
@@ -278,10 +292,10 @@
           h('div', { class: 'a' }, h('span', { class: 'exp' }, 'expected ' + x.item.answer), ...lines.map((l) => l.el))));
       }
     };
-    F.rounds.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; press(tabs, c); draw(); lead(); }); tabs.append(c); });
+    RR.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; press(tabs, c); draw(); lead(); }); tabs.append(c); });
     [['all', 'All revealed'], ['correct', 'Correct'], ['wrong', 'Wrong'], ['format', 'Format'], ['cut', 'Cut off']].forEach(([k, label], i) => {
       const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, label); c.addEventListener('click', () => { filt = k; press(fl, c); draw(); }); fl.append(c); });
-    const lead = () => { const c0 = F.rounds[ri].certs[0].cert, n = c0.benchmark.n, d = DISCLOSURE[F.rounds[ri].id] || { revealed: c0.audit.reveals.length, indirect: 0 };
+    const lead = () => { const c0 = RR[ri].certs[0].cert, n = c0.benchmark.n, d = DISCLOSURE[RR[ri].id] || { revealed: c0.audit.reveals.length, indirect: 0 };
       $('#exLead').textContent = `A NEAR block that didn't exist when the results were committed chose these ${d.revealed} of ${n}.` + (d.indirect ? ` ${d.indirect} more is disclosed indirectly (it shares a cited docs line with revealed items), so ${n - d.revealed - d.indirect} stay private.` : ` The other ${n - d.revealed} stay private.`) + ' Miss types are a reading aid computed from the revealed bytes, not a score.'; };
     draw(); lead();
   }
@@ -292,7 +306,7 @@
       ['Close', 'The round closes. No more runs can join it.'],
       ['Sample', 'A finalized NEAR block after the close picks the audited items. Nobody knew it in advance.'],
       ['Reveal', 'The sampled questions, salts and exact bytes are published with Merkle proofs.'],
-      ['Verify', 'Anyone checks every signature and commitment, re-derives the sample, and re-scores the reveals.']];
+      ['Verify', 'Anyone checks every signature and commitment, re-derives the sample, re-scores the reveals, and checks the TEE\'s re-score of every answer.']];
     S.forEach(([t, d], i) => $('#steps').append(h('div', { class: 'panel step' }, h('b', {}, String(i + 1).padStart(2, '0')), h('h4', {}, t), h('p', {}, d))));
   }
   function refusals() {

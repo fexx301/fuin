@@ -2,7 +2,9 @@
  * Local: schema, rows, Merkle roots (RFC 8785 + domain-tagged SHA-256), sealed policy, every EIP-191 signature,
  * revealed proofs, exact request bytes, re-score. Network (NEAR RPC, CORS-enabled): registry record, transaction
  * receipts, seed block, audit sample; the Intel TDX quote (Phala's WebAssembly build of dcap-qvl, collateral from a public
- * PCCS mirror) against the approved application and OS measurements. Not in a browser: NVIDIA's GPU verdict (NRAS blocks
+ * PCCS mirror) against the approved application and OS measurements; a TEE score's OutLayer record (its TDX quote, task
+ * hash, the worker's approval at the execution's block, the request and result on chain), which is a zero-reveal round's
+ * only score check. Not in a browser: NVIDIA's GPU verdict (NRAS blocks
  * browsers) and the deployment trace. VERIFIED therefore needs fuin verify's recorded result for those two on this exact,
  * unmodified certificate; otherwise the result is PARTIAL (run `fuin verify`). Needs globals: Noble, Dcap, crypto.subtle, fetch.
  */
@@ -138,29 +140,36 @@
 
   // ---- NEAR RPC ----
   // Finalized transactions and blocks fetched by height or hash never change, so one page visit asks for each once
-  // (re-verifying under each cheat would otherwise trip public RPC rate limits). Keyed by the configured endpoint.
-  const RPC_CACHE = new Map();
+  // (re-verifying under each cheat would otherwise trip public RPC rate limits). Answers at `final` finality (the registry
+  // record, the account's keys, the chain head) are reused for a minute: a closed round's record can't change, and a
+  // minute-old head only bounds the seed-block search. Keyed by the configured endpoint.
+  const RPC_CACHE = new Map(), FINAL_TTL_MS = 60000;
   let RPC_FALLBACK = [];  // other archival endpoints, tried alternately on retries (set per verify from cfg.rpcFallback)
   async function rpc(url, method, params) {
-    const immutable = method === 'EXPERIMENTAL_tx_status' || (method === 'block' && params.block_id != null);
-    const key = immutable ? url + ' ' + method + ' ' + JSON.stringify(params) : null;
-    if (key && RPC_CACHE.has(key)) return RPC_CACHE.get(key);
+    const immutable = method === 'EXPERIMENTAL_tx_status' || ((method === 'block' || method === 'query') && params.block_id != null);
+    const key = immutable || params.finality === 'final' ? url + ' ' + method + ' ' + JSON.stringify(params) : null;
+    const hit = key && RPC_CACHE.get(key);
+    if (hit && (immutable || Date.now() - hit.at < FINAL_TTL_MS)) return hit.value;
     const urls = [url, ...RPC_FALLBACK.filter((u) => u !== url)];
     let last;
-    for (let a = 0; a < 6; a++) {
+    for (let a = 0; a < 8; a++) {
+      let wait = 600 * (a + 1);
       try {
         const r = await fetch(urls[a % urls.length], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'fuin', method, params }) });
+        // rate limited: back off exponentially (or as told), since public endpoints throttle bursts of verifications
+        if (r.status === 429) wait = Math.max(Math.min(1000 * 2 ** a, 8000), 1000 * (Number(r.headers.get('retry-after')) || 0));
         if ([429, 502, 503, 504].includes(r.status)) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         if (d.error) { const e = new Error(JSON.stringify(d.error).slice(0, 300)); e.rpc = true; throw e; }
-        if (key) RPC_CACHE.set(key, d.result);
+        if (key) RPC_CACHE.set(key, { value: d.result, at: Date.now() });
         return d.result;
-      } catch (e) { if (e.rpc) throw e; last = e; await new Promise((s) => setTimeout(s, 600 * (a + 1))); }
+      } catch (e) { if (e.rpc) throw e; last = e; await new Promise((s) => setTimeout(s, wait)); }
     }
     throw new Unavailable(`${method}: ${last && last.message}`);
   }
-  const viewCall = async (url, account, method, args) => {
-    const r = await rpc(url, 'query', { request_type: 'call_function', finality: 'final', account_id: account, method_name: method, args_base64: btoa(JSON.stringify(args)) });
+  const viewCall = async (url, account, method, args, blockId) => {
+    const at = blockId == null ? { finality: 'final' } : { block_id: blockId };
+    const r = await rpc(url, 'query', { request_type: 'call_function', ...at, account_id: account, method_name: method, args_base64: btoa(JSON.stringify(args)) });
     return JSON.parse(dec.decode(Uint8Array.from(r.result)));
   };
   async function block(url, height) {
@@ -181,8 +190,87 @@
     return -1;
   }
 
+  // ---- Intel TDX quote: collateral from the PCCS mirror, then Intel's chain. dcap-qvl reports a network failure and an
+  // unparseable quote with the same message, so ask the mirror directly: reachable means the quote is at fault (`code`),
+  // unreachable means the evidence is unavailable. ----
+  async function tdxVerify(quote, cacheKey, cfg, code) {
+    let coll = COLLATERAL.get(cacheKey);
+    if (!coll) try { coll = await root.Dcap.collateral(quote, cfg.pccs); COLLATERAL.set(cacheKey, coll); }
+    catch (e) {
+      let up = false;
+      try { up = (await fetch(cfg.pccs.replace(/\/$/, '') + '/tdx/certification/v4/qe/identity')).ok; } catch { up = false; }
+      if (!up) throw new Unavailable('TDX collateral service unreachable');
+      throw new Refused(code);
+    }
+    try { return root.Dcap.verify(quote, coll); } catch (e) { throw new Refused(code); }
+  }
+
+  // ---- TEE score: ports of fuin/tee.py check_local (no network) and check_remote ----
+  class TeeUnapproved extends Error {}  // genuine-looking evidence the verifier's pins don't cover: CAN'T CERTIFY, after later checks
+  const isTee = (policy, S) => !!(policy && policy.audit && policy.audit.mode === S.tee_audit);
+  const leInt = (v, signed) => { const b = new Uint8Array(8), d = new DataView(b.buffer); signed ? d.setBigInt64(0, BigInt(v), true) : d.setBigUint64(0, BigInt(v), true); return b; };
+  async function taskHashV1(rec) {  // OutLayer's V1 preimage: fixed field order, UTF-8 strings, little-endian integers, absent optional fields omitted
+    const s = (x) => enc.encode(x), parts = [s(rec.task_type), leInt(rec.task_id, true)];
+    for (const k of ['repo_url', 'commit_hash', 'build_target', 'wasm_hash', 'input_hash']) if (rec[k] != null) parts.push(s(rec[k]));
+    parts.push(s(rec.output_hash));
+    if (rec.block_height != null) parts.push(leInt(rec.block_height, false));
+    for (const k of ['caller_account_id', 'project_id', 'secrets_ref']) if (rec[k] != null) parts.push(s(rec[k]));
+    parts.push(leInt(rec.timestamp, true));
+    if (rec.attached_usd != null) parts.push(s(rec.attached_usd));
+    return hex(await sha256(...parts));
+  }
+  async function teeLocal(ev, cert, cfg) {
+    const need = (c, code = 'tee_score_invalid') => req(c, code), obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+    need(obj(ev) && ev.v === 'fuin-tee-evidence-v1' && ['transaction_hash', 'input_data', 'scorer_url'].every((k) => typeof ev[k] === 'string'));
+    const rec = ev.record, out = ev.output, b = cert.benchmark, r = cert.run;
+    need(obj(rec) && obj(out));
+    need(typeof rec.tdx_quote === 'string' && Number.isInteger(rec.task_id) && Number.isInteger(rec.timestamp)
+      && ['task_type', 'output_hash', 'input_hash', 'wasm_hash'].every((k) => typeof rec[k] === 'string'));
+    const pin = rec.wasm_hash;
+    if (isTee(b.policy, cfg.supported) && pin !== b.policy.audit.scorer_wasm_sha256) throw new Refused('tee_score_mismatch');  // the sealed build
+    need(rec.input_hash === hex(await sha256(enc.encode(ev.input_data))));
+    need(rec.output_hash === hex(await sha256(enc.encode(jcs(out)))));  // = Python's sort_keys compact JSON for these strings and integers
+    need(rec.transaction_hash === ev.transaction_hash && rec.task_type === 'execute' && rec.build_target === 'wasm32-wasip2');
+    need(rec.caller_account_id === cert.registry.owner);
+    let inp; try { inp = JSON.parse(ev.input_data); } catch { throw new Refused('tee_score_invalid'); }
+    need(obj(inp) && inp.mode === 'score' && inp.blob_sha256 === out.blob_sha256);
+    const signers = new Set(r.items.map((it) => it.signature.signing_address.toLowerCase()));
+    need(out.v === 'fuin-tee-score-v1', 'tee_score_mismatch');
+    need(out.model === r.model_id && out.n === b.n && out.total === r.total_score && out.benchmark_root === b.root && out.policy_hash === b.policy_hash
+      && out.run_root === r.run_root && signers.size === 1 && signers.has(out.signer), 'tee_score_mismatch');
+    const v2 = [cfg.supported.template_v2, cfg.supported.template_v3].includes(b.policy.request.template);  // nonces rebuilt from this block hash
+    need((out.seal_block_hash ?? null) === (v2 ? b.seal_block_hash : null), 'tee_score_mismatch');
+    // last, so tampered evidence is refused even when it also names an unpinned build
+    if (!cfg.tee.pins.includes(pin) || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : pin) !== pin) throw new TeeUnapproved('tee_unapproved');
+    return { task: rec.task_id, pin };
+  }
+  async function teeRemote(ev, cert, cfg) {
+    const rec = ev.record, T = cfg.tee, url = cfg.rpc, owner = cert.registry.owner;
+    let quote; try { quote = b64(rec.tdx_quote); } catch { throw new Refused('tee_attestation_invalid'); }
+    const res = await tdxVerify(quote, rec.tdx_quote, cfg, 'tee_attestation_invalid');
+    const td = res.report.TD10 || res.report.TD15; req(!!td, 'tee_attestation_invalid');
+    req(res.status !== 'Revoked' && (parseInt(td.td_attributes.slice(0, 2), 16) & 1) === 0, 'tee_attestation_invalid');
+    if (rec.timestamp < T.v1_cutoff) throw new TeeUnapproved('tee_unapproved');
+    const rd = td.report_data.toLowerCase();
+    req(rd.slice(0, 64) === await taskHashV1(rec) && /^0*$/.test(rd.slice(64)), 'tee_attestation_invalid');
+    const m = { mrtd: td.mr_td, rtmr0: td.rt_mr0, rtmr1: td.rt_mr1, rtmr2: td.rt_mr2, rtmr3: td.rt_mr3 };
+    if (await viewCall(url, T.outlayer.register, 'is_measurements_approved', { measurements: m }, rec.block_height) !== true) throw new TeeUnapproved('tee_unapproved');
+    const st = await rpc(url, 'EXPERIMENTAL_tx_status', { tx_hash: ev.transaction_hash, sender_account_id: owner, wait_until: 'FINAL' });
+    const tx = st.transaction, call = (tx.actions && tx.actions[0] && tx.actions[0].FunctionCall) || {};
+    req(tx.signer_id === owner && tx.receiver_id === T.outlayer.contract && call.method_name === 'request_execution', 'tee_score_invalid');
+    let args; try { args = JSON.parse(dec.decode(b64(call.args))); } catch { throw new Refused('tee_score_invalid'); }
+    req(args.input_data === ev.input_data && ((args.source || {}).WasmUrl || {}).hash === rec.wasm_hash, 'tee_score_invalid');
+    const outs = [];
+    for (const x of st.receipts_outcome) {
+      const v = x.outcome.status.SuccessValue; if (!v) continue;
+      try { let o = JSON.parse(dec.decode(b64(v))); if (typeof o === 'string') o = JSON.parse(o); outs.push(jcs(o)); } catch { /* not a JSON result */ }
+    }
+    req(outs.includes(jcs(ev.output)), 'tee_score_invalid');
+    return `quote ${res.status}, task hash bound, worker approved at block ${rec.block_height}, request and result on chain`;
+  }
+
   // ---- schema (subset of verify._validate: everything the browser reads) ----
-  function validate(c) {
+  function validate(c, S) {
     const need = (cond, where) => { if (!cond) throw new Refused('certificate_invalid', where); };
     const n32 = (v, w) => need(isHex32(v), w), num = (v, w) => need(Number.isInteger(v) && v >= 0, w), str = (v, w) => need(typeof v === 'string' && v.length > 0 && v.length <= 4096, w);
     need(c && typeof c === 'object' && !Array.isArray(c) && c.version === 1, 'top');
@@ -202,9 +290,14 @@
       need(it.signature && typeof it.signature === 'object', `${w}.signature`);
       for (const k of ['text', 'signature', 'signing_address', 'signature_kind']) str(it.signature[k], `${w}.signature.${k}`);
     });
-    for (const k of ['D', 'k', 'close_height', 'seed_height']) num(a[k], 'audit.' + k);
-    for (const k of ['close_tx', 'close_block_hash', 'seed_block_hash']) str(a[k], 'audit.' + k);
-    n32(a.seed, 'audit.seed'); need(Array.isArray(a.indices) && a.indices.every(Number.isInteger), 'audit.indices'); need(Array.isArray(a.reveals), 'audit.reveals');
+    str(b.seal_block_hash, 'benchmark.seal_block_hash');
+    need(r.evidence === undefined || (r.evidence && typeof r.evidence === 'object' && !Array.isArray(r.evidence)), 'run.evidence');
+    const tr = isTee(b.policy, S);  // a zero-reveal round has no sample, so no seed fields
+    for (const k of ['k', 'close_height', ...(tr ? [] : ['D', 'seed_height'])]) num(a[k], 'audit.' + k);
+    for (const k of ['close_tx', 'close_block_hash', ...(tr ? [] : ['seed_block_hash'])]) str(a[k], 'audit.' + k);
+    if (!tr) n32(a.seed, 'audit.seed');
+    need(Array.isArray(a.round_runs), 'audit.round_runs');
+    need(Array.isArray(a.indices) && a.indices.every(Number.isInteger), 'audit.indices'); need(Array.isArray(a.reveals), 'audit.reveals');
     a.reveals.forEach((x, j) => {
       const w = `audit.reveals[${j}]`; need(x && Number.isInteger(x.i) && x.item && typeof x.item === 'object', w);
       str(x.item.question, w + '.item.question'); str(x.item.answer, w + '.item.answer'); need(['numeric', 'exact'].includes(x.item.answer_type), w + '.item.answer_type');
@@ -214,19 +307,20 @@
     });
   }
 
-  function makePolicy(n, models, S, scorerName) {
+  function makePolicy(n, models, S, scorerName, teeWasm, e2ee) {  // teeWasm: a zero-reveal round's sealed scorer build
     const { d, k } = auditSize(n);
-    return { protocol: S.protocol, models, request: { template: S.template, privacy_profile: S.privacy },
+    return { protocol: S.protocol, models, request: { template: e2ee ? S.template_v3 : teeWasm ? S.template_v2 : S.template, privacy_profile: S.privacy },
       scorer: { name: scorerName, sha256: S.scorers[scorerName] }, score: { values: [0, 1], aggregate: 'sum', denominator: n },
-      audit: { D: d, target: { numerator: 95, denominator: 100 }, k, sampler: S.sampler } };
+      audit: teeWasm ? { mode: S.tee_audit, k: 0, scorer_wasm_sha256: teeWasm } : { D: d, target: { numerator: 95, denominator: 100 }, k, sampler: S.sampler } };
   }
 
-  /* verify(cert, cfg, onStep) → {outcome, code, detail, steps}. cfg: {supported, attested, registry, rpc, recorded?}.
+  /* verify(cert, cfg, onStep) → {outcome, code, detail, steps}. cfg: {supported, attested, registry, rpc, pccs, attestationPolicy, tee, recorded?}.
    * onStep(id, state, detail) with state in running|pass|fail|skip|info, for the UI. */
   async function verify(cert, cfg, onStep = () => {}) {
     RPC_FALLBACK = cfg.rpcFallback || [];
     const S = cfg.supported, deferred = [];
     let attMode = 'none';  // live: TDX checked here · recorded: shown from fuin verify · none: not checked
+    let teeMode = 'none', zeroReveal = false;  // teeMode live: the TEE score's OutLayer record checked here
     let step = '';
     const start = async (id) => { step = id; await onStep(id, 'running', ''); };
     const pass = async (detail) => onStep(step, 'pass', detail);
@@ -237,8 +331,8 @@
       catch (e) { if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep(id, 'skip', 'unavailable: ' + e.message); } else throw e; }
     };
     try {
-      await start('schema'); validate(cert); await pass('every field has the right type and form');
-      const { benchmark: b, run: r, audit: a } = cert, n = b.n, items = r.items;
+      await start('schema'); validate(cert, S); await pass('every field has the right type and form');
+      const { benchmark: b, run: r, audit: a } = cert, n = b.n, items = r.items, tr = zeroReveal = isTee(b.policy, S);
       await start('model');
       if (!cfg.attested.includes(r.model_id)) throw new CantCertify(/^(openai|anthropic|google|xai)\//.test(r.model_id) ? 'model_not_tee' : 'policy_unsupported');
       await pass(`${r.model_id} is a TEE model in the verifier's attestation policy`);
@@ -259,10 +353,18 @@
       });
       await local('policy', async () => {
         req(hex(await sha256(enc.encode(jcs(b.policy)))) === b.policy_hash, 'policy_mismatch');
-        const sn = b.policy.scorer && b.policy.scorer.name;
-        req(sn in S.scorers && jcs(b.policy) === jcs(makePolicy(n, b.policy.models, S, sn)), 'policy_mismatch');
+        const sn = b.policy.scorer && b.policy.scorer.name, tw = tr ? b.policy.audit.scorer_wasm_sha256 : undefined;
+        const e3 = !!b.policy.request && b.policy.request.template === S.template_v3;
+        req(sn in S.scorers && (!tr || isHex32(tw)) && jcs(b.policy) === jcs(makePolicy(n, b.policy.models, S, sn, tw, e3)), 'policy_mismatch');
+        // a sampled v3 round's reveals must be re-encrypted (secp256k1 ECDH), which this page doesn't do yet: say so
+        if (e3 && !tr) throw new CantCertify('policy_unsupported');
         req(jcs(Object.keys(b.policy.models).sort()) === jcs([...b.models].sort()) && r.model_id in b.policy.models, 'policy_mismatch');
         req(Object.values(b.policy.models).every((s) => Object.keys(s).every((x) => S.allowed_settings.includes(x))), 'policy_mismatch');
+        if (tr) {  // zero-reveal: no sample at all; every item is re-scored in the TEE instead
+          k = 0;
+          req(a.mode === S.tee_audit && a.k === 0 && a.indices.length === 0 && a.reveals.length === 0, 'audit_sample_mismatch');
+          return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); TEE-scored by scorer ${tw.slice(0, 12)}…, nothing revealed; ${S.template_v2}`;
+        }
         const au = auditSize(n); k = au.k;
         req(a.D === au.d && a.k === au.k && a.target && a.target.numerator === 95 && a.target.denominator === 100, 'audit_sample_mismatch');
         return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); audit k=${k} of ${n}`;
@@ -288,12 +390,25 @@
           req(await verifyProof(rl[x.i], x.i, n, x.proof_run.map(unhex), unhex(r.run_root)), 'reveal_mismatch');
           const rq = b64(x.request_b64), rs = b64(x.response_b64);
           req(hex(await sha256(rq)) === it.req_sha256 && hex(await sha256(rs)) === it.resp_sha256, 'signature_text_mismatch');
-          const expected = enc.encode(JSON.stringify({ model: r.model_id, messages: [{ role: 'user', content: x.item.question }], stream: false, user: x.item.request_nonce, ...b.policy.models[r.model_id] }));
+          const nonce = b.policy.request.template === S.template_v2  // v2: bound to the seal block, so no request predates the seal (v3 never reaches here)
+            ? hex(await sha256(enc.encode('fuin-nonce-v2'), unhex(x.item.request_nonce), b58decode(b.seal_block_hash))) : x.item.request_nonce;
+          const expected = enc.encode(JSON.stringify({ model: r.model_id, messages: [{ role: 'user', content: x.item.question }], stream: false, user: nonce, ...b.policy.models[r.model_id] }));
           req(eq(rq, expected), 'request_policy_mismatch');
           req(scoreResponse(x.item, rs, b.policy.scorer.name) === it.score, 'score_mismatch');
         }
-        return `${k}/${k} revealed: proofs pass, exact request rebuilt, re-score matches`;
+        return tr ? 'none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)'
+          : `${k}/${k} revealed: proofs pass, exact request rebuilt, re-score matches`;
       });
+
+      // TEE score, local half first: a later outage can't hide evidence that contradicts the certificate
+      const teeEv = (r.evidence || {}).tee_score;
+      let teeInfo = null;
+      if (tr && teeEv == null) deferred.push(['tee_score_missing', 'the sealed policy promises a TEE score and the certificate carries none']);
+      if (teeEv != null) {
+        await start('tee');
+        try { teeInfo = await teeLocal(teeEv, cert, cfg); await onStep('tee', 'running', 'record matches the certificate; checking its quote and the chain…'); }
+        catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the TEE scorer build is not the one this verifier pins']); await onStep('tee', 'fail', 'tee_unapproved'); }
+      }
 
       const gpu = cfg.recorded ? 'GPU (NVIDIA NRAS) and deployment trace: recorded by fuin verify, not checked here'
         : 'GPU (NVIDIA NRAS blocks browsers) and deployment trace: not checked here; run fuin verify';
@@ -303,18 +418,7 @@
         await online('attestation', async () => {
           const out = [];
           for (const rep of reps) {
-            const quote = unhex(rep.intel_quote);
-            let coll = COLLATERAL.get(rep.intel_quote);
-            if (!coll) try { coll = await root.Dcap.collateral(quote, cfg.pccs); COLLATERAL.set(rep.intel_quote, coll); }
-            catch (e) {
-              // dcap-qvl reports a network failure and an unparseable quote with the same message, so ask the mirror
-              // directly: reachable means the quote is at fault (invalid evidence); unreachable means unavailable evidence.
-              let up = false;
-              try { up = (await fetch(cfg.pccs.replace(/\/$/, '') + '/tdx/certification/v4/qe/identity')).ok; } catch { up = false; }
-              if (!up) throw new Unavailable('TDX collateral service unreachable');
-              throw new Refused('attestation_invalid');
-            }
-            let res; try { res = root.Dcap.verify(quote, coll); } catch (e) { throw new Refused('attestation_invalid'); }
+            const res = await tdxVerify(unhex(rep.intel_quote), rep.intel_quote, cfg, 'attestation_invalid');
             req(res.status !== 'Revoked', 'tcb_revoked');
             const td = res.report.TD10 || res.report.TD15; req(!!td, 'attestation_invalid');
             const signer = String(rep.signing_address).toLowerCase().replace(/^0x/, '');
@@ -362,6 +466,8 @@
         for (const [tx, m, h] of [[b.seal_tx, 'seal', b.seal_height], [r.commit_tx, 'commit_run', r.commit_height], [a.close_tx, 'close_round', a.close_height]])
           req((await txReceiptHeight(url, tx, reg.owner, reg.account, m)) === h, 'record_mismatch');
         req(got.seal_height < r.commit_height && r.commit_height < got.close_height, 'commit_order_invalid');
+        const sealHdr = await block(url, b.seal_height);  // the hash a v2 template binds every request nonce to
+        req(sealHdr && sealHdr.hash === b.seal_block_hash, 'record_mismatch');
         const keys = (await rpc(url, 'query', { request_type: 'view_access_key_list', finality: 'final', account_id: reg.account })).keys.length;
         rec = got;
         return `seal ${b.seal_height} < commit ${r.commit_height} < close ${a.close_height} on ${reg.account}; ${keys === 0 ? 'locked (0 access keys)' : keys + ' access key(s): code replaceable'}`;
@@ -370,13 +476,14 @@
         if (!rec) throw new Unavailable('registry unavailable');
         const closeHdr = await block(url, a.close_height);
         req(closeHdr && closeHdr.hash === a.close_block_hash, 'audit_sample_mismatch');
+        const runs = rec.runs.map((x) => ({ model_id: x.model_id, run_index: x.run_index, run_root: x.run_root, total_score: x.total_score }))
+          .sort((p, q) => (p.model_id < q.model_id ? -1 : p.model_id > q.model_id ? 1 : p.run_index - q.run_index));
+        req(jcs(runs) === jcs(a.round_runs), 'audit_sample_mismatch');
+        if (tr) return `closed at ${a.close_height} with ${runs.length} runs; no sample: a TEE-scored round reveals nothing`;
         const thr = a.close_height + 2, fin = (await block(url, null)).height;
         let seedHdr = null;
         for (let h = thr; h <= fin && !seedHdr; h++) { const x = await block(url, h); if (x) seedHdr = x; }
         req(seedHdr && seedHdr.prev_height < thr && seedHdr.height === a.seed_height && seedHdr.hash === a.seed_block_hash, 'audit_sample_mismatch');
-        const runs = rec.runs.map((x) => ({ model_id: x.model_id, run_index: x.run_index, run_root: x.run_root, total_score: x.total_score }))
-          .sort((p, q) => (p.model_id < q.model_id ? -1 : p.model_id > q.model_id ? 1 : p.run_index - q.run_index));
-        req(jcs(runs) === jcs(a.round_runs), 'audit_sample_mismatch');
         const ctx = { network: reg.network, registry: reg.account, owner: rec.owner, benchmark_id: rec.benchmark_id, benchmark_root: rec.root,
           policy_hash: rec.policy_hash, close_height: rec.close_height, close_block_hash: closeHdr.hash, runs };
         const seed = await sha256(enc.encode('fuin-audit-v1'), b58decode(seedHdr.hash), await sha256(enc.encode(jcs(ctx))));
@@ -385,16 +492,33 @@
         req(jcs(rv) === jcs(derived), 'reveal_mismatch');
         return `seed block ${seedHdr.height} (first final block ≥ close+2) re-derives the ${k} audited items`;
       });
+      if (teeInfo && !root.Dcap) await onStep('tee', 'skip', 'record matches the certificate, but its quote is not checked here: the Intel TDX verifier did not load. Run fuin verify.');
+      else if (teeInfo) {
+        await start('tee');
+        try {
+          const detail = await teeRemote(teeEv, cert, cfg); teeMode = 'live';
+          await pass(`all ${n} items rebuilt and re-scored inside an OutLayer TDX enclave by scorer ${teeInfo.pin.slice(0, 12)}… (task ${teeInfo.task}): total ${r.total_score}/${n} and both roots match; ${detail}`);
+        } catch (e) {
+          if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the execution's block, or legacy format"]); await onStep('tee', 'fail', 'tee_unapproved'); }
+          else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('tee', 'skip', 'unavailable: ' + e.message); }
+          else throw e;
+        }
+      }
     } catch (e) {
       if (e instanceof Refused) { await onStep(step, 'fail', e.code + (e.where ? ` (${e.where})` : '')); return { outcome: 'REFUSED', code: e.code, where: e.where }; }
       if (e instanceof CantCertify) { await onStep(step, 'fail', e.code); return { outcome: 'CANT_CERTIFY', code: e.code }; }
       await onStep(step, 'fail', 'certificate_invalid'); return { outcome: 'REFUSED', code: 'certificate_invalid', where: String(e && e.message).slice(0, 120) };
     }
     if (deferred.length) return { outcome: 'CANT_CERTIFY', code: deferred[0][0], detail: deferred[0][1] };
-    const au = auditSize(cert.benchmark.n);
+    const n = cert.benchmark.n, au = auditSize(n);
     if (attMode === 'none') return { outcome: 'PARTIAL', code: 'attestation not checked', attestation: attMode };
+    // a zero-reveal round's only score check is its TEE score: without it here, nothing about the scores was checked
+    if (zeroReveal && teeMode !== 'live') return { outcome: 'PARTIAL', code: 'TEE score not checked in this browser', attestation: attMode, tee: teeMode };
     if (!cfg.recorded) return { outcome: 'PARTIAL', code: 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked' };
-    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', scope: `audit passed ${au.k}/${cert.benchmark.n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)` };
+    const tee = `every item rebuilt and re-scored inside an OutLayer TDX enclave (checked here)`;
+    const scope = zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
+      : `audit passed ${au.k}/${n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)${teeMode === 'live' ? '; ' + tee : ''}`;
+    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, scope };
   }
 
   root.FuinVerify = { verify, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };

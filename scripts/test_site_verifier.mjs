@@ -8,15 +8,20 @@ for (const f of ['site/vendor/noble.js', 'site/vendor/dcap.js', 'site/data.js', 
 }
 const ctx = globalThis;
 const F = ctx.FUIN, V = ctx.FuinVerify;
-const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: rec });
+const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: rec });
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let fails = 0;
 const check = async (name, cert, want, net = true, over = {}) => {
   const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
-  const res = await V.verify(cert, c);
-  const got = res.outcome + (res.code ? ' ' + res.code : '');
+  // a certificate carrying a TEE score must have had it checked here whenever the verdict is VERIFIED
+  const verdict = (res) => res.outcome + (res.code ? ' ' + res.code : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_score && res.tee !== 'live' ? ' (TEE not checked)' : '');
+  let got = verdict(await V.verify(cert, c)), retries = 0;
+  // a public RPC's rate limit is an outage, not a verdict on the certificate: wait it out, at most twice
+  while (net && got === 'CANT_CERTIFY evidence_unavailable' && want !== got && retries < 2) {
+    retries++; await new Promise((s) => setTimeout(s, 45000)); got = verdict(await V.verify(cert, c));
+  }
   const ok = got === want; fails += !ok;
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: ${got}${ok ? '' : ' (want ' + want + ')'}`);
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: ${got}${ok ? '' : ' (want ' + want + ')'}${retries ? ` (after ${retries} retry for an RPC outage)` : ''}`);
 };
 for (const r of F.rounds) for (const e of r.certs) await check(e.file, e.cert, 'VERIFIED');
 const base = F.rounds.find((r) => r.id === 'near-dev-60-r1').certs.find((e) => /qwen/i.test(e.cert.run.model_id)).cert;  // r1 qwen, by id: round order changes as rounds are added
@@ -41,6 +46,27 @@ await check('unapproved OS measurements (MRTD, RTMR0-2)', base, 'CANT_CERTIFY me
 await check('os_image_hash differs from the policy', mut((c) => { c.run.model_report.model_attestations[0].info.os_image_hash = '00'.repeat(32); }), 'CANT_CERTIFY measurement_unapproved');
 await check('uploaded certificate: no recorded GPU or trace result', base, 'PARTIAL GPU and deployment trace not checked in a browser', true, { recorded: null });
 await check('one-byte salt', mut((c) => { c.audit.reveals[0].salt = 'ab'; }), 'REFUSED certificate_invalid');
+// TEE score: the same mutations as the CLI fixtures (scripts/make_fixtures.py), on the round-3 TEE base
+const teeBase = F.rounds.find((r) => r.id === 'near-dev-300-r3').certs.find((e) => /glm/i.test(e.cert.run.model_id)).cert;
+const tmut = (fn) => { const c = clone(teeBase); fn(c.run.evidence.tee_score); return c; };
+const rehash = async (ev) => { ev.record.output_hash = V.hex(await V.sha256(new TextEncoder().encode(V.jcs(ev.output)))); };
+await check('TEE total edited', tmut((ev) => { ev.output.total++; }), 'REFUSED tee_score_invalid');
+const rehashed = clone(teeBase); rehashed.run.evidence.tee_score.output.total++; await rehash(rehashed.run.evidence.tee_score);
+await check('TEE total edited, output hash recomputed', rehashed, 'REFUSED tee_score_mismatch');
+await check('TEE task id forged', tmut((ev) => { ev.record.task_id++; }), 'REFUSED tee_attestation_invalid');
+await check('TEE scorer build not pinned', tmut((ev) => { ev.record.wasm_hash = '11'.repeat(32); }), 'CANT_CERTIFY tee_unapproved');
+await check('TEE total edited and build not pinned', tmut((ev) => { ev.record.wasm_hash = '11'.repeat(32); ev.output.total++; }), 'REFUSED tee_score_invalid');
+await check('TEE record pointed at another real transaction', tmut((ev) => { ev.transaction_hash = ev.record.transaction_hash = teeBase.benchmark.seal_tx; }), 'REFUSED tee_score_invalid');
+// a zero-reveal round: its TEE score is the only score check, so removing or contradicting it must never verify
+const zr = F.rounds.find((r) => r.certs[0].cert.benchmark.policy.audit.mode === F.supported.tee_audit);
+if (zr) {
+  const zb = zr.certs[0].cert, zmut = (fn) => { const c = clone(zb); fn(c); return c; };
+  await check('zero-reveal: TEE score removed', zmut((c) => { delete c.run.evidence.tee_score; }), 'CANT_CERTIFY tee_score_missing');
+  await check('zero-reveal: sealed scorer swapped', zmut((c) => { c.run.evidence.tee_score.record.wasm_hash = '11'.repeat(32); }), 'REFUSED tee_score_mismatch');
+  await check('zero-reveal: seal block hash changed', zmut((c) => { c.benchmark.seal_block_hash = '1'.repeat(32); }), 'REFUSED tee_score_mismatch');
+  await check('zero-reveal: a sample smuggled in', zmut((c) => { c.audit.indices = [0]; }), 'REFUSED audit_sample_mismatch');
+  await check('zero-reveal: uploaded, no recorded GPU or trace result', zb, 'PARTIAL GPU and deployment trace not checked in a browser', true, { recorded: null });
+} else { console.log('FAIL no zero-reveal round in site/data.js'); fails++; }
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);
 // scorer parity with Python on every revealed answer
