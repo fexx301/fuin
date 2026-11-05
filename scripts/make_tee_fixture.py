@@ -54,7 +54,8 @@ for i, (r, ans) in enumerate(zip(st["items"], answers)):
     rleaves.append(core.run_leaf(i, bl, core.sha256(req), core.sha256(resp), score)); bleaves.append(bl); total += score
     st["runs"][model]["rows"].append({"i": i, "request_b64": tee.b64(req), "response_b64": tee.b64(resp), "signature": signature})
 expected = {"model": model, "n": 3, "total": total, "benchmark_root": core.merkle_root(bleaves).hex(), "policy_hash": P.policy_hash(pol),
-            "run_root": core.merkle_root(rleaves).hex(), "signer": acct.address.lower(), **({"seal_block_hash": SEAL_HASH} if V2 else {})}
+            "run_root": core.merkle_root(rleaves).hex(), "signer": acct.address.lower(), **({"seal_block_hash": SEAL_HASH} if V2 else {}),
+            **({"unreadable": 1} if V3 else {})}  # item 2's answer is encrypted to another key (scorer v4 counts it)
 out = Path(__file__).resolve().parents[1] / f"tests/fixtures/tee-synthetic-round{'-v3' if V3 else '-v2' if V2 else ''}.json"
 out.write_text(json.dumps({"round": tee.plaintext(st, model), "expected": expected}, ensure_ascii=False, indent=1) + "\n")
 print(f"wrote {out.name}: total {total}/3, signer {acct.address.lower()}")

@@ -30,6 +30,9 @@ E2EE_LIMIT = ("Questions and answers were end-to-end encrypted to the model's at
 E2EE_KEY_LIMIT = ("The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers "
                   "encrypted to another key and commit them unreadable (each scores 0): a total could be lowered without the "
                   "certificate showing it.")
+E2EE_KEY_LIMIT_COUNTED = ("The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen "
+                          "answers encrypted to another key and commit them unreadable (each scores 0); the TEE scorer counts "
+                          "such answers, and the count is printed with the TEE score.")
 
 
 class Refused(Exception):
@@ -134,6 +137,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     when a service is down; an unavailable service only defers the verdict to CAN'T CERTIFY.
     """
     checks, warnings = [], []
+    counted = {}  # an end-to-end-encrypted run's unreadable answers, when its TEE scorer attests the count
     pol_att = attestation_policy or owner.attestation_policy()
     deferred: list[tuple[str, str]] = []  # (CAN'T CERTIFY code, detail), reported only if nothing is REFUSED
     trace = None
@@ -356,8 +360,13 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             except tee.TeeUnapproved as e:
                 deferred.append((str(e), "OutLayer worker measurements not approved at the execution's block, or legacy format"))
                 return
+            u = tee_info.get("unreadable")
+            if u is not None:
+                counted["unreadable"] = u
             ok("tee score", f"all {n} items rebuilt and re-scored inside an OutLayer TDX enclave by scorer {tee_info['pin'][:12]}… "
-                            f"(task {tee_info['task']}): total {r['total_score']}/{n} and both roots match; {detail}")
+                            f"(task {tee_info['task']}): total {r['total_score']}/{n} and both roots match"
+                            + (f"; {u} unreadable answer{'' if u == 1 else 's'} (counted inside the TEE)" if u is not None else "")
+                            + f"; {detail}")
 
         for step in (attest, registry, sample, tee_remote):
             online(step)
@@ -389,7 +398,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                       "exact, not statistical, under the TEE trust assumptions")
     v2 = P.is_seal_bound(b["policy"])
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
-    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
+    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

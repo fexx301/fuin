@@ -63,6 +63,7 @@
   "policy_hash": "5a32bda4310b86d7962f168f212116317ffefc1c0e125b7cb2e164ed401d4bf7",
   "run_root": "3c8859a6c006d8a9efc6fccea88c6ce8ea69bee42b7ee1f085002bd9146f893b",
   "signer": "0x4a62316623ad457f02cdc5d997ded67a383ec569",
-  "seal_block_hash": "4Kp2YgCwZCU6nM8ZpCq3Y8qD3iJb8DqJ5tR7vV9xW2aB"
+  "seal_block_hash": "4Kp2YgCwZCU6nM8ZpCq3Y8qD3iJb8DqJ5tR7vV9xW2aB",
+  "unreadable": 1
  }
 }

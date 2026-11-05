@@ -108,6 +108,7 @@ fn template_v3_re_encrypts_every_question_and_scores_the_decrypted_answers_like_
         assert_eq!(got[k], exp[k], "{k}");
     }
     assert_eq!(got["total"], 2); // item 2's answer is encrypted to another key: unreadable, so 0
+    assert_eq!(got["unreadable"], 1); // and counted, so a deliberately unreadable answer shows in the attested output
 }
 
 #[test]

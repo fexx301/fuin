@@ -40,6 +40,9 @@ pub struct Outcome {
     pub run_root: String,
     pub signer: String,
     pub seal_block_hash: Option<String>,
+    /// template v3: answers that came back non-empty but don't decrypt with their item's key (each scored 0). The key an
+    /// answer is encrypted back to travels in an unsigned header, so this count is what makes such answers visible.
+    pub unreadable: Option<u64>,
 }
 
 impl Outcome {
@@ -50,6 +53,9 @@ impl Outcome {
             "signer": self.signer, "blob_sha256": blob_sha256});
         if let Some(h) = &self.seal_block_hash {
             v["seal_block_hash"] = h.clone().into(); // the verifier compares it with the chain's block at the seal height
+        }
+        if let Some(u) = self.unreadable {
+            v["unreadable"] = u.into();
         }
         v
     }
@@ -334,19 +340,22 @@ pub fn score_text(item: &Value, content: &str, v2: bool) -> Result<u8, String> {
 
 /// scorer.score_response: the first choice's message content; a malformed or empty response scores 0.
 pub fn score_response(item: &Value, response: &[u8], v2: bool) -> Result<u8, String> {
-    score_response_e2ee(item, response, v2, None)
+    score_response_e2ee(item, response, v2, None).map(|(score, _)| score)
 }
 
 /// With `e2ee` (the item's salt and the model), the answer is decrypted first (e2ee.decrypted_response): a non-empty
-/// content string that doesn't decrypt reads as "", so an unreadable answer scores 0.
-fn score_response_e2ee(item: &Value, response: &[u8], v2: bool, e2ee: Option<(&[u8; 32], &str)>) -> Result<u8, String> {
-    let Ok(v) = serde_json::from_slice::<Value>(response) else { return Ok(0) };
+/// content string that doesn't decrypt reads as "", so an unreadable answer scores 0. Returns (score, unreadable).
+fn score_response_e2ee(item: &Value, response: &[u8], v2: bool, e2ee: Option<(&[u8; 32], &str)>) -> Result<(u8, bool), String> {
+    let Ok(v) = serde_json::from_slice::<Value>(response) else { return Ok((0, false)) };
     match v.get("choices").and_then(|c| c.get(0)).and_then(|c| c.get("message")).and_then(|m| m.get("content")).and_then(Value::as_str) {
         Some(content) => match e2ee {
-            Some((salt, model)) if !content.is_empty() => score_text(item, &e2ee::decrypt(content, salt, model).unwrap_or_default(), v2),
-            _ => score_text(item, content, v2),
+            Some((salt, model)) if !content.is_empty() => match e2ee::decrypt(content, salt, model) {
+                Some(plain) => Ok((score_text(item, &plain, v2)?, false)),
+                None => Ok((score_text(item, "", v2)?, true)),
+            },
+            _ => Ok((score_text(item, content, v2)?, false)),
         },
-        None => Ok(0),
+        None => Ok((0, false)),
     }
 }
 
@@ -395,6 +404,7 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
     }
     let settings = policy["models"].get(&r.model).and_then(Value::as_object).ok_or("model not in the sealed policy")?;
     let (mut bleaves, mut rleaves, mut total, mut signer) = (Vec::with_capacity(n), Vec::with_capacity(n), 0u64, None::<String>);
+    let mut unreadable = 0u64;
     for (i, (it, row)) in r.items.iter().zip(&r.rows).enumerate() {
         let at = |e: String| format!("item {i}: {e}");
         let idx = (i as u64).to_be_bytes();
@@ -432,7 +442,8 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         if signer.get_or_insert_with(|| who.clone()) != &who {
             return Err(at("more than one signer".into()));
         }
-        let score = score_response_e2ee(&item, &row.response, v2, v3.then_some((&it.salt, r.model.as_str()))).map_err(at)?;
+        let (score, lost) = score_response_e2ee(&item, &row.response, v2, v3.then_some((&it.salt, r.model.as_str()))).map_err(at)?;
+        unreadable += u64::from(lost);
         total += u64::from(score);
         rleaves.push(sha256(&[&[2u8], &idx, &bleaf, &req_sha, &resp_sha, &[score]]));
         bleaves.push(bleaf);
@@ -451,5 +462,6 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         run_root: hex::encode(merkle_root(rleaves)?),
         signer: signer.unwrap_or_default(),
         seal_block_hash: if v2_nonce { r.seal_block_hash.clone() } else { None },
+        unreadable: v3.then_some(unreadable),
     })
 }

@@ -53,6 +53,20 @@ def expected(st: dict, model: str) -> dict:
     return out
 
 
+def unreadable(st: dict, model: str) -> int:
+    """Template v3: answers that came back non-empty but don't decrypt with their item's key (each scored 0)."""
+    from fuin import e2ee
+    n = 0
+    for x in st["runs"][model]["rows"]:
+        try:
+            content = json.loads(base64.b64decode(x["response_b64"]))["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError):
+            continue
+        if isinstance(content, str) and content and e2ee.decrypt(content, bytes.fromhex(st["items"][x["i"]]["salt"]), model) is None:
+            n += 1
+    return n
+
+
 def _signer_pub(rn: dict) -> bytes:
     from fuin import e2ee
     return e2ee.model_pub(next(c for c in rn["model_report"]["model_attestations"] if c["signing_address"].lower() == rn["signer"]))
@@ -225,6 +239,8 @@ def score(st: dict, model: str, owner: str, host) -> dict:
         if cleanup:
             cleanup()
     want = expected(st, model)
+    if "unreadable" in out:  # scorer v4+ counts answers that don't decrypt; the owner's own count must agree
+        want["unreadable"] = unreadable(st, model)
     diff = {k: (out.get(k), v) for k, v in want.items() if out.get(k) != v}
     if diff:
         raise RuntimeError(f"TEE outcome differs from the run's commitments: {diff}")
@@ -307,10 +323,13 @@ def check_local(ev, cert: dict) -> dict:
           "tee_score_mismatch")
     v2 = P.is_seal_bound(b["policy"])  # the scorer rebuilt each nonce from this block hash
     _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), "tee_score_mismatch")
+    if "unreadable" in out:  # scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
+        u = out["unreadable"]
+        _need(P.is_e2ee(b["policy"]) and type(u) is int and 0 <= u <= b["n"], "tee_score_mismatch")
     # last, so tampered evidence is refused even when it also names an unpinned build
     if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:
         raise TeeUnapproved("tee_unapproved")
-    return {"task": rec["task_id"], "pin": pin}
+    return {"task": rec["task_id"], "pin": pin, "unreadable": out.get("unreadable")}
 
 
 def check_remote(ev, cert: dict) -> str:

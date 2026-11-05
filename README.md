@@ -245,6 +245,10 @@ With end-to-end encryption (request template v3), also:
 - Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
 - The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0): a total could be lowered without the certificate showing it.
 
+When the round's TEE scorer counts unreadable answers (scorer v4 onwards), that limit reads instead:
+
+- The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0); the TEE scorer counts such answers, and the count is printed with the TEE score.
+
 Also: verification needs the public services listed above (it is account-free, not offline). Without end-to-end encryption, requests pass through NEAR's gateway in the clear, so their privacy in transit relies on NEAR operating it. Failed inference attempts are owner-reported and can't be verified. Testnet only.
 
 ## Repository

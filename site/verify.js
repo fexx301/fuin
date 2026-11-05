@@ -295,9 +295,11 @@
       && out.run_root === r.run_root && signers.size === 1 && signers.has(out.signer), 'tee_score_mismatch');
     const v2 = [cfg.supported.template_v2, cfg.supported.template_v3].includes(b.policy.request.template);  // nonces rebuilt from this block hash
     need((out.seal_block_hash ?? null) === (v2 ? b.seal_block_hash : null), 'tee_score_mismatch');
+    if ('unreadable' in out)  // scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
+      need(b.policy.request.template === cfg.supported.template_v3 && Number.isInteger(out.unreadable) && out.unreadable >= 0 && out.unreadable <= b.n, 'tee_score_mismatch');
     // last, so tampered evidence is refused even when it also names an unpinned build
     if (!cfg.tee.pins.includes(pin) || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : pin) !== pin) throw new TeeUnapproved('tee_unapproved');
-    return { task: rec.task_id, pin };
+    return { task: rec.task_id, pin, unreadable: out.unreadable };
   }
   async function teeRemote(ev, cert, cfg) {
     const rec = ev.record, T = cfg.tee, url = cfg.rpc, owner = cert.registry.owner;
@@ -570,7 +572,8 @@
         await start('tee');
         try {
           const detail = await teeRemote(teeEv, cert, cfg); teeMode = 'live';
-          await pass(`all ${n} items rebuilt and re-scored inside an OutLayer TDX enclave by scorer ${teeInfo.pin.slice(0, 12)}… (task ${teeInfo.task}): total ${r.total_score}/${n} and both roots match; ${detail}`);
+          const u = teeInfo.unreadable, lost = u == null ? '' : `; ${u} unreadable answer${u === 1 ? '' : 's'} (counted inside the TEE)`;
+          await pass(`all ${n} items rebuilt and re-scored inside an OutLayer TDX enclave by scorer ${teeInfo.pin.slice(0, 12)}… (task ${teeInfo.task}): total ${r.total_score}/${n} and both roots match${lost}; ${detail}`);
         } catch (e) {
           if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the execution's block, or legacy format"]); await onStep('tee', 'fail', 'tee_unapproved'); }
           else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('tee', 'skip', 'unavailable: ' + e.message); }
