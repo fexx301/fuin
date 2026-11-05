@@ -9,7 +9,7 @@ import hashlib
 import requests
 import yaml
 
-from fuin import attestation, core, inference, near, owner, provenance
+from fuin import attestation, tee, core, inference, near, owner, provenance
 from fuin import policy as P
 
 TOP = {"version", "registry", "benchmark", "run", "audit"}
@@ -150,10 +150,10 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         # B. model support: the verifier's own attestation policy decides; the catalog only words the reason
         if r["model_id"] not in pol_att.get("models", {}):
             try:
-                tee = attestation.is_tee_model(r["model_id"], catalog)
+                is_tee = attestation.is_tee_model(r["model_id"], catalog)
             except (requests.RequestException, ValueError, KeyError):
-                tee = None
-            raise CantCertify("model_not_tee" if tee is False else "policy_unsupported")
+                is_tee = None
+            raise CantCertify("model_not_tee" if is_tee is False else "policy_unsupported")
 
         # C. local checks
         _req(len(items) == n and [it["i"] for it in items] == list(range(n)), "item_set_mismatch")
@@ -201,6 +201,15 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             _req(req == expected, "request_policy_mismatch")
             _req(scorer.score_response(x["item"], resp) == it["score"], "score_mismatch")
         ok("reveals", f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
+
+        tee_ev, tee_info = (r.get("evidence") or {}).get("tee_score"), None
+        if tee_ev is not None:  # optional: every item re-scored inside a TEE (fuin/tee.py); local half first
+            try:
+                tee_info = tee.check_local(tee_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "the TEE scorer build is not the one this verifier pins"))
 
         # D. network checks
         used = {it["signature"]["signing_address"].lower() for it in items}
@@ -279,7 +288,20 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             _req(rv == derived, "reveal_mismatch")
             ok("audit sample", f"seed block {seed_hdr['height']} (first final block ≥ close+2); indices {a['indices']}")
 
-        for step in (attest, registry, sample):
+        def tee_remote():
+            if tee_info is None:
+                return
+            try:
+                detail = tee.check_remote(tee_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "OutLayer worker measurements not approved at the execution's block, or legacy format"))
+                return
+            ok("tee score", f"all {n} items rebuilt and re-scored inside an OutLayer TDX enclave by scorer {tee_info['pin'][:12]}… "
+                            f"(task {tee_info['task']}): total {r['total_score']}/{n} and both roots match; {detail}")
+
+        for step in (attest, registry, sample, tee_remote):
             online(step)
     except Refused as e:
         code, _, where = str(e).partition(":")
@@ -299,7 +321,10 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
              f"audit passed {k}/{n} with zero mismatches; detection power {float(p) * 100:.4f}% for ≥{d} incorrect item "
              f"scores under the stated sampling assumptions (not the probability that the total is correct); "
              f"directly revealed {k}, unrevealed {n - k} (indirect disclosure, such as shared sources, is not computed here)")
-    limits = LIMITS
+    if any(c[0] == "tee score" for c in checks):
+        scope += (f"; every item re-scored inside an OutLayer TDX enclave from the sealed bytes: the total {r['total_score']}/{n} is "
+                  "exact, not statistical, under the TEE trust assumptions")
+    limits = LIMITS + ([tee.TEE_LIMIT] if any(c[0] == "tee score" for c in checks) else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

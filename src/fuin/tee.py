@@ -5,10 +5,22 @@ of one run from the sealed bytes, inside an Intel TDX enclave, and returns only 
 """
 
 import base64
+import hashlib
 import json
+import re
+import struct
+import subprocess
+import tempfile
+import time
 from pathlib import Path
 
-from fuin import core
+import requests
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+from fuin import core, near
 from fuin import policy as P
 
 TEE_POLICY = Path(__file__).resolve().parents[2] / "policy" / "tee-v1.json"
@@ -42,3 +54,242 @@ def b64(b: bytes) -> str:
 
 def jdump(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+# ---------------- owner side: encrypt, host, execute ----------------
+
+def tee_policy() -> dict:
+    return json.loads(TEE_POLICY.read_text())
+
+
+def encrypt(plain: bytes, tee_pub_hex: str) -> tuple[bytes, str, str]:
+    """ECIES to the scorer's in-TEE key: X25519, HKDF-SHA256 ("fuin-tee-round-v1"), ChaCha20-Poly1305 (tee/src/main.rs)."""
+    eph = X25519PrivateKey.generate()
+    shared = eph.exchange(X25519PublicKey.from_public_bytes(bytes.fromhex(tee_pub_hex)))
+    key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"fuin-tee-round-v1").derive(shared)
+    nonce = __import__("os").urandom(12)
+    eph_pub = eph.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return ChaCha20Poly1305(key).encrypt(nonce, plain, None), eph_pub.hex(), nonce.hex()
+
+
+def _near_file(signer: str, contract: str, method: str, args: bytes, gas: str, deposit: str) -> str:
+    with tempfile.NamedTemporaryFile(suffix=".args") as f:
+        f.write(args); f.flush()
+        cmd = ["near", "contract", "call-function", "as-transaction", contract, method, "file-args", f.name, "prepaid-gas", gas,
+               "attached-deposit", deposit, "sign-as", signer, "network-config", "testnet", "sign-with-keychain", "send"]
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    return p.stdout + p.stderr
+
+
+def fastfs_upload(signer: str, data: bytes, ext: str, mime: str) -> str:
+    """Publish bytes on FastFS the way outlayer-cli does: a deliberately failing `__fastdata_fastfs` call whose arguments
+    FastNEAR indexes (Borsh: Simple below 1 MiB, Partial chunks above). Returns the URL once it serves these exact bytes."""
+    h = hashlib.sha256(data).hexdigest()
+    path, mime_b = f"{h}.{ext}".encode(), mime.encode()
+    s = lambda b: struct.pack("<I", len(b)) + b
+    ch = 1 << 20
+    if len(data) <= ch:
+        payloads = [b"\x00" + s(path) + b"\x01" + s(mime_b) + s(data)]
+    else:
+        nonce = (int(time.time()) - 1_769_000_000) & 0xFFFFFFFF
+        payloads = [b"\x01" + s(path) + struct.pack("<II", off, len(data)) + s(mime_b) + s(data[off:off + ch]) + struct.pack("<I", nonce)
+                    for off in range(0, len(data), ch)]
+    for p in payloads:
+        _near_file(signer, signer, "__fastdata_fastfs", p, "1 Tgas", "0 NEAR")
+    url = f"https://test.fastfs.io/{signer}/{signer}/{h}.{ext}"
+    for _ in range(30):
+        r = requests.get(url, timeout=60)
+        if r.status_code == 200 and hashlib.sha256(r.content).hexdigest() == h:
+            return url
+        time.sleep(6)
+    raise RuntimeError(f"FastFS doesn't serve {url} yet")
+
+
+def _output_from_chain(tx: str, signer: str) -> dict:
+    st = near.rpc("EXPERIMENTAL_tx_status", {"tx_hash": tx, "sender_account_id": signer, "wait_until": "FINAL"})
+    for r in st["receipts_outcome"]:
+        val = r["outcome"]["status"].get("SuccessValue")
+        if val:
+            out = json.loads(base64.b64decode(val))
+            out = json.loads(out) if isinstance(out, str) else out
+            if isinstance(out, dict) and ("v" in out or "error" in out):
+                return out
+    raise RuntimeError(f"no OutLayer output in {tx}")
+
+
+def execute(signer: str, input_obj: dict) -> tuple[str, str, dict]:
+    """request_execution on OutLayer with the pinned scorer build. Returns (tx hash, exact input string, output)."""
+    tp = tee_policy()
+    input_data = jdump(input_obj)
+    args = {"source": {"WasmUrl": {"url": tp["scorer"]["url"], "hash": tp["scorer"]["wasm_sha256"], "build_target": "wasm32-wasip2"}},
+            "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
+            "input_data": input_data, "response_format": "Json"}
+    out = _near_file(signer, tp["outlayer"]["contract"], "request_execution", json.dumps(args).encode(), "300 Tgas", "0.1 NEAR")
+    m = re.search(r"Transaction ID:\s*([1-9A-HJ-NP-Za-km-z]{43,44})", out)
+    if not m:
+        raise RuntimeError(f"request_execution not sent: {out[-400:]}")
+    result = _output_from_chain(m.group(1), signer)
+    if "error" in result:
+        raise RuntimeError(f"TEE scorer refused: {result['error']}")
+    return m.group(1), input_data, result
+
+
+def fetch_record(tx: str) -> dict:
+    """OutLayer's attestation record for an execution (embedded in the certificate; verification never calls this API)."""
+    url = f"{tee_policy()['outlayer']['api']}/attestations/by-tx/{tx}"
+    for _ in range(20):
+        r = requests.get(url, timeout=60)
+        if r.status_code == 200:
+            return r.json()
+        time.sleep(6)
+    raise RuntimeError(f"no attestation record at {url}: HTTP {r.status_code}")
+
+
+def keygen(owner: str) -> dict:
+    """One in-TEE keypair per scorer build and owner; the sealed secret only that build, called by `owner`, can open."""
+    tp = tee_policy()
+    path = Path("private") / f"tee-key-{owner}-{tp['scorer']['wasm_sha256'][:12]}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    tx, input_data, out = execute(owner, {"mode": "keygen"})
+    key = {"owner": owner, "wasm_sha256": tp["scorer"]["wasm_sha256"], "pub": out["pub"], "sealed": out["sealed"],
+           "transaction_hash": tx, "input_data": input_data, "output": out, "record": fetch_record(tx)}
+    path.write_text(json.dumps(key, indent=1))
+    return key
+
+
+def score(st: dict, model: str, owner: str, host=None) -> dict:
+    """Encrypt one run to the scorer's in-TEE key, host the ciphertext, have OutLayer re-score it, and return the
+    evidence for the certificate. `host(bytes) -> (url, encoding)` defaults to FastFS (permanent, public)."""
+    key = keygen(owner)
+    plain = jdump(plaintext(st, model)).encode()
+    blob, eph_pub, nonce = encrypt(plain, key["pub"])
+    url, encoding = host(blob) if host else (fastfs_upload(owner, blob, "bin", "application/octet-stream"), "raw")
+    served = requests.get(url, timeout=120).content
+    tx, input_data, out = execute(owner, {"mode": "score", "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
+                                          "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce})
+    want = expected(st, model)
+    diff = {k: (out.get(k), v) for k, v in want.items() if out.get(k) != v}
+    if diff:
+        raise RuntimeError(f"TEE outcome differs from the run's commitments: {diff}")
+    return {"v": "fuin-tee-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
+            "record": fetch_record(tx), "scorer_url": tee_policy()["scorer"]["url"]}
+
+
+# ---------------- verifier side ----------------
+
+V1_CUTOFF = 1_769_784_939  # OutLayer attestations from 2026-01-30 commit to the extended (V1) task-hash fields
+TEE_LIMIT = ("A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the "
+             "execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with tee/build.sh.")
+
+
+class TeeRefused(Exception):
+    """Invalid or contradictory TEE evidence (REFUSED, code in args[0])."""
+
+
+class TeeUnapproved(Exception):
+    """Genuine-looking evidence the verifier's pins don't cover (CAN'T CERTIFY)."""
+
+
+def _need(cond, code="tee_score_invalid"):
+    if not cond:
+        raise TeeRefused(code)
+
+
+def _sorted_compact(obj) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def task_hash_v1(rec: dict) -> str:
+    """OutLayer's task hash (outlayer-verify preimage.rs, format V1): field order fixed, strings as UTF-8, integers
+    little-endian, absent optional fields contributing nothing."""
+    h = hashlib.sha256()
+    h.update(rec["task_type"].encode())
+    h.update(struct.pack("<q", rec["task_id"]))
+    for k in ("repo_url", "commit_hash", "build_target", "wasm_hash", "input_hash"):
+        if rec.get(k) is not None:
+            h.update(rec[k].encode())
+    h.update(rec["output_hash"].encode())
+    if rec.get("block_height") is not None:
+        h.update(struct.pack("<Q", rec["block_height"]))
+    for k in ("caller_account_id", "project_id", "secrets_ref"):
+        if rec.get(k) is not None:
+            h.update(rec[k].encode())
+    h.update(struct.pack("<q", rec["timestamp"]))
+    if rec.get("attached_usd") is not None:
+        h.update(rec["attached_usd"].encode())
+    return h.hexdigest()
+
+
+def check_local(ev, cert: dict) -> dict:
+    """Every TEE check that needs no network. Raises TeeRefused / TeeUnapproved; returns details for the check line."""
+    _need(isinstance(ev, dict) and ev.get("v") == "fuin-tee-evidence-v1")
+    _need(all(isinstance(ev.get(k), str) for k in ("transaction_hash", "input_data", "scorer_url")))
+    rec, out = ev.get("record"), ev.get("output")
+    _need(isinstance(rec, dict) and isinstance(out, dict))
+    _need(isinstance(rec.get("tdx_quote"), str) and isinstance(rec.get("task_id"), int) and isinstance(rec.get("timestamp"), int)
+          and all(isinstance(rec.get(k), str) for k in ("task_type", "output_hash", "input_hash", "wasm_hash")))
+    pin = tee_policy()["scorer"]["wasm_sha256"]
+    if rec["wasm_hash"] != pin or rec.get("executed_wasm_sha256", pin) != pin:
+        raise TeeUnapproved("tee_unapproved")
+    _need(rec["input_hash"] == hashlib.sha256(ev["input_data"].encode()).hexdigest())
+    _need(rec["output_hash"] == hashlib.sha256(_sorted_compact(out).encode()).hexdigest())
+    _need(rec.get("transaction_hash") == ev["transaction_hash"] and rec["task_type"] == "execute" and rec.get("build_target") == "wasm32-wasip2")
+    _need(rec.get("caller_account_id") == cert["registry"]["owner"])
+    try:
+        inp = json.loads(ev["input_data"])
+    except ValueError:
+        raise TeeRefused("tee_score_invalid") from None
+    _need(isinstance(inp, dict) and inp.get("mode") == "score" and inp.get("blob_sha256") == out.get("blob_sha256"))
+    b, r = cert["benchmark"], cert["run"]
+    signers = {it["signature"]["signing_address"].lower() for it in r["items"]}
+    _need(out.get("v") == "fuin-tee-score-v1", "tee_score_mismatch")
+    _need((out.get("model"), out.get("n"), out.get("total"), out.get("benchmark_root"), out.get("policy_hash"), out.get("run_root"))
+          == (r["model_id"], b["n"], r["total_score"], b["root"], b["policy_hash"], r["run_root"]) and {out.get("signer")} == signers,
+          "tee_score_mismatch")
+    return {"task": rec["task_id"], "pin": pin}
+
+
+def check_remote(ev, cert: dict) -> str:
+    """The network half: the OutLayer quote, its task hash, worker approval at the execution's block, the chain record.
+    Outages raise RuntimeError / requests / RPC errors, which the verifier defers to CAN'T CERTIFY."""
+    from fuin import attestation as A  # local import: attestation pulls in the TDX verifier
+    rec, tp = ev["record"], tee_policy()
+    try:
+        quote_hex = base64.b64decode(rec["tdx_quote"], validate=True).hex()
+    except ValueError:
+        raise TeeRefused("tee_attestation_invalid") from None
+    try:
+        status, _adv, td = A.verify_quote(quote_hex)
+    except (ValueError, TypeError) as e:
+        raise TeeRefused("tee_attestation_invalid") from e
+    _need(status != "Revoked" and int(td["td_attributes"][:2], 16) & 1 == 0, "tee_attestation_invalid")
+    if rec["timestamp"] < V1_CUTOFF:
+        raise TeeUnapproved("tee_unapproved")
+    rd = td["report_data"].lower()
+    _need(rd[:64] == task_hash_v1(rec) and set(rd[64:]) <= {"0"}, "tee_attestation_invalid")
+    m = {"mrtd": td["mr_td"], "rtmr0": td["rt_mr0"], "rtmr1": td["rt_mr1"], "rtmr2": td["rt_mr2"], "rtmr3": td["rt_mr3"]}
+    res = near.rpc("query", {"request_type": "call_function", "block_id": rec["block_height"], "account_id": tp["outlayer"]["register"],
+                             "method_name": "is_measurements_approved",
+                             "args_base64": base64.b64encode(json.dumps({"measurements": m}).encode()).decode()})
+    if json.loads(bytes(res["result"])) is not True:
+        raise TeeUnapproved("tee_unapproved")
+    owner_id = cert["registry"]["owner"]
+    st = near.rpc("EXPERIMENTAL_tx_status", {"tx_hash": ev["transaction_hash"], "sender_account_id": owner_id, "wait_until": "FINAL"})
+    tx = st["transaction"]
+    _need(tx["signer_id"] == owner_id and tx["receiver_id"] == tp["outlayer"]["contract"])
+    call = tx["actions"][0].get("FunctionCall", {}) if tx["actions"] else {}
+    _need(call.get("method_name") == "request_execution")
+    args = json.loads(base64.b64decode(call["args"]))
+    _need(args.get("input_data") == ev["input_data"] and args.get("source", {}).get("WasmUrl", {}).get("hash") == tp["scorer"]["wasm_sha256"])
+    outs = []
+    for x in st["receipts_outcome"]:
+        val = x["outcome"]["status"].get("SuccessValue")
+        if val:
+            try:
+                o = json.loads(base64.b64decode(val))
+                outs.append(json.loads(o) if isinstance(o, str) else o)
+            except ValueError:
+                continue
+    _need(ev["output"] in outs)
+    return f"quote {status}, task hash bound, worker approved at block {rec['block_height']}, request and result on chain"

@@ -1,0 +1,17 @@
+{
+  "version": "tee-v1",
+  "note": "The verifier's pins for TEE-scored runs. The scorer is tee/ built with tee/build.sh (pinned toolchain, Cargo.lock, remapped paths); rebuilding from this repository must give wasm_sha256. OutLayer endpoints are for testnet.",
+  "scorer": {
+    "wasm_sha256": "a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7",
+    "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7.wasm",
+    "bytes": 688048,
+    "source": "tee/ (rebuild: tee/build.sh)"
+  },
+  "outlayer": {
+    "network": "testnet",
+    "contract": "outlayer.testnet",
+    "register": "worker.outlayer.testnet",
+    "api": "https://testnet-api.outlayer.ai",
+    "task_hash_format": "V1 (timestamp >= 1769784939)"
+  }
+}
