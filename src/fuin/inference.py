@@ -7,6 +7,7 @@ before parsing. Signature text is `<model>:<sha256(request)>:<sha256(response)>`
 import hashlib
 import json
 import os
+import socket
 import time
 
 import requests
@@ -14,6 +15,19 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 
 GATEWAY = "https://cloud-api.near.ai"
+
+
+class _KeepAlive(requests.adapters.HTTPAdapter):
+    """TCP keepalive probes every 15 s after 30 s idle: a non-streaming answer can take minutes with no bytes on the wire,
+    and NATs and mobile networks drop connections that look idle (round 4's and 5's 'Connection reset by peer')."""
+
+    def init_poolmanager(self, *args, **kwargs):
+        opts = [(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1), (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)]
+        idle = getattr(socket, "TCP_KEEPIDLE", getattr(socket, "TCP_KEEPALIVE", None))  # Linux / macOS name
+        opts += [(socket.IPPROTO_TCP, o, v) for o, v in ((idle, 30), (getattr(socket, "TCP_KEEPINTVL", None), 15),
+                                                          (getattr(socket, "TCP_KEEPCNT", None), 8)) if o is not None]
+        kwargs["socket_options"] = opts
+        super().init_poolmanager(*args, **kwargs)
 
 
 def _auth() -> dict:
@@ -53,8 +67,10 @@ def build_request(model: str, question: str, nonce_hex: str, settings: dict) -> 
 def complete(request: bytes, extra_headers: dict | None = None) -> tuple[bytes, dict]:
     # long reasoning (up to max_tokens) under parallel load can take many minutes; a short read timeout
     # abandons answers NEAR keeps generating (and bills), so wait long enough for the cap to be reached
-    r = requests.post(f"{GATEWAY}/v1/chat/completions", data=request, timeout=(30, 1200), headers={
-        **_auth(), "Content-Type": "application/json", "x-no-aliasing": "true", "Accept-Encoding": "identity", **(extra_headers or {})})
+    with requests.Session() as s:
+        s.mount("https://", _KeepAlive())
+        r = s.post(f"{GATEWAY}/v1/chat/completions", data=request, timeout=(30, 1200), headers={
+            **_auth(), "Content-Type": "application/json", "x-no-aliasing": "true", "Accept-Encoding": "identity", **(extra_headers or {})})
     r.raise_for_status()
     return r.content, r.json()
 
