@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-command review: every check a judge can run without an account, API key or the hidden test set.
 # Exit 0 only if all pass. Needs uv and network (Intel PCS, NVIDIA NRAS, NEAR testnet RPC, NEAR AI catalog, GitHub raw).
-# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 10 minutes.
+# Optional: cargo, for the contract tests (skipped with a note if absent). Takes about 5 minutes; allow 15.
 set -u
 cd "$(dirname "$0")/.."
 unset NEARAI_API_KEY
@@ -9,10 +9,16 @@ fail=0
 step() { printf '\n== %s\n' "$1"; }
 
 step "1/5 verify the real certificates (expect VERIFIED for each)"
-for c in examples/cert-*.json; do
-  uv run fuin verify "$c" | head -1
-  [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+tmp=$(mktemp -d)
+for c in examples/cert-*.json; do  # independent network-bound checks: run them together, print in order
+  ( uv run fuin verify "$c" > "$tmp/$(basename "$c").out"; echo $? > "$tmp/$(basename "$c").rc" ) &
 done
+wait
+for c in examples/cert-*.json; do
+  head -1 "$tmp/$(basename "$c").out"
+  [ "$(cat "$tmp/$(basename "$c").rc")" -eq 0 ] || fail=1
+done
+rm -rf "$tmp"
 
 step "2/5 tamper fixtures (expect every line 'ok')"
 uv run python scripts/check_fixtures.py examples/tampered/manifest.json || fail=1
