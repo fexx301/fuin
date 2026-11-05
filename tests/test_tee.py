@@ -58,6 +58,12 @@ def test_another_scorer_build_is_not_certified():
         tee.check_local(e, cert())
 
 
+def test_tampered_evidence_naming_an_unpinned_build_is_still_refused():
+    e = ev(); e["record"]["wasm_hash"] = "11" * 32; e["output"]["total"] += 1
+    with pytest.raises(tee.TeeRefused, match="tee_score_invalid"):
+        tee.check_local(e, cert())
+
+
 def test_run_by_another_account_is_refused():
     e = ev(); e["record"]["caller_account_id"] = "someone.testnet"
     with pytest.raises(tee.TeeRefused, match="tee_score_invalid"):

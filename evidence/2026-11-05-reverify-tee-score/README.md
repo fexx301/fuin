@@ -1,5 +1,7 @@
 # Every round re-scored inside a TEE, 2026-11-05
 
+> **Superseded the same day** by `../2026-11-05-reverify-tee-v2/`. All six scores were re-done on scorer v2, which rebuilds identically on any host, and scorer v1 (below) was retired. The tasks and transactions here remain on chain as history.
+
 The random audit checks a sample. A TEE score checks every answer. Round 3's two runs were re-scored, all 300 answers each, inside an Intel TDX enclave on OutLayer (NEAR's verifiable off-chain compute, built by FastNEAR). Both certificates now carry the evidence, and `fuin verify` checks it (`verify-output.txt`, `verify.jsonl`: VERIFIED, exit 0, with a `tee score` check).
 
 | Run | TEE total | Committed total | OutLayer task | Transaction |

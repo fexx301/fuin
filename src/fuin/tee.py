@@ -1,6 +1,6 @@
 """TEE-scored runs on OutLayer: the owner side (plaintext, encryption, upload, execution) and the verifier's check.
 
-The TEE scorer (tee/, a reproducible wasm32-wasip2 build pinned in policy/tee-v1.json) rebuilds and scores every answer
+The TEE scorer (tee/, a wasm32-wasip2 build pinned in policy/tee-v2.json; canonical build tee/build-docker.sh) rebuilds and scores every answer
 of one run from the sealed bytes, inside an Intel TDX enclave, and returns only the roots, the total and the signer.
 """
 
@@ -218,7 +218,8 @@ def score(st: dict, model: str, owner: str, host) -> dict:
 
 V1_CUTOFF = 1_769_784_939  # OutLayer attestations from 2026-01-30 commit to the extended (V1) task-hash fields
 TEE_LIMIT = ("A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the "
-             "execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with tee/build.sh.")
+             "execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with "
+             "tee/build-docker.sh on any host with Docker.")
 
 
 class TeeRefused(Exception):
@@ -271,8 +272,6 @@ def check_local(ev, cert: dict) -> dict:
     sealed_pin = cert["benchmark"]["policy"]["audit"].get("scorer_wasm_sha256") if P.is_tee_round(cert["benchmark"]["policy"]) else None
     if sealed_pin is not None and pin != sealed_pin:  # a zero-reveal round sealed which scorer build scores it
         raise TeeRefused("tee_score_mismatch")
-    if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:
-        raise TeeUnapproved("tee_unapproved")
     _need(rec["input_hash"] == hashlib.sha256(ev["input_data"].encode()).hexdigest())
     _need(rec["output_hash"] == hashlib.sha256(_sorted_compact(out).encode()).hexdigest())
     _need(rec.get("transaction_hash") == ev["transaction_hash"] and rec["task_type"] == "execute" and rec.get("build_target") == "wasm32-wasip2")
@@ -290,6 +289,9 @@ def check_local(ev, cert: dict) -> dict:
           "tee_score_mismatch")
     v2 = b["policy"]["request"]["template"] == P.TEMPLATE_V2  # the scorer rebuilt each nonce from this block hash
     _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), "tee_score_mismatch")
+    # last, so tampered evidence is refused even when it also names an unpinned build
+    if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:
+        raise TeeUnapproved("tee_unapproved")
     return {"task": rec["task_id"], "pin": pin}
 
 

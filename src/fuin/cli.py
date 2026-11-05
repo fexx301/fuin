@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import hashlib
 import json
 import sys
 
@@ -104,19 +105,27 @@ def main(argv=None) -> int:
     elif a.cmd == "verify":
         outcomes = set()
         for path in a.certs:
+            raw = b""
             try:
-                cert = json.loads(open(path, encoding="utf-8").read())
+                raw = open(path, "rb").read()
+                cert = json.loads(raw.decode("utf-8"))
             except (OSError, ValueError) as e:
                 res = {"outcome": "REFUSED", "code": "certificate_invalid", "detail": str(e), "checks": []}
             else:
                 res = verify.verify(cert)
-            print(json.dumps({"cert": path, **res}, default=list)) if a.json else _print_verdict(path, res)
+            # the file's hash ties a recorded result to these exact bytes (scripts/build_page.py refuses a mismatch)
+            print(json.dumps({"cert": path, "cert_sha256": hashlib.sha256(raw).hexdigest(), **res}, default=list)) if a.json else _print_verdict(path, res)
             outcomes.add(res["outcome"])
         return 1 if "REFUSED" in outcomes else 2 if "CANT_CERTIFY" in outcomes else 0  # REFUSED outranks CAN'T CERTIFY
     elif a.cmd == "show":
         cert = json.loads(open(a.cert, encoding="utf-8").read())
         b, r, au = cert["benchmark"], cert["run"], cert["audit"]
         print(f"{b['id']} · {r['model_id']} run {r['run_index']} · committed total {r['total_score']}/{b['n']}")
+        from fuin import policy as P
+        if P.is_tee_round(b["policy"]):
+            print(f"audit: none · a TEE-scored round reveals nothing: all {b['n']} items stay private and were re-scored inside "
+                  f"OutLayer's TEE by scorer {b['policy']['audit']['scorer_wasm_sha256'][:12]}… (fuin verify checks that evidence)")
+            return 0
         print(f"audit: D={au['D']} k={au['k']} (target 95%) · revealed {au['k']} of {b['n']}, unrevealed {b['n'] - au['k']}")
         print(f"settings: {b['policy']['models'][r['model_id']]} · scorer {b['policy']['scorer']['name']}")
         items = {it["i"]: it for it in r["items"]}
