@@ -1,0 +1,5 @@
+# Pinned so anyone rebuilding the scorer gets the same sha256 the verifier pins (see build.sh).
+[toolchain]
+channel = "1.95.0"
+targets = ["wasm32-wasip2"]
+profile = "minimal"

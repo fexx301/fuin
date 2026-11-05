@@ -1,0 +1,38 @@
+[package]
+name = "fuin-tee"
+version = "0.1.0"
+edition = "2021"
+description = "Fūin TEE scorer: rebuilds and scores a whole sealed round inside an OutLayer TDX enclave"
+license = "MIT"
+publish = false
+
+[lib]
+name = "fuin_tee"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fuin-tee"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+sha2 = "0.10"
+sha3 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+num-bigint = "0.4"
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+outlayer = { version = "=0.2.1", features = ["encryption-keys"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+getrandom = "0.3"
+wasi-http-client = "0.2.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

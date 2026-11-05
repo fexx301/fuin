@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 target/
 private/
+
+# TEE scorer build output
+tee/target/

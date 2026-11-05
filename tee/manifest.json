@@ -1,0 +1,5 @@
+{
+  "display": {"name": "Fuin TEE scorer"},
+  "capabilities": {"network": ["test.fastfs.io", "gist.githubusercontent.com"]},
+  "encryption_keys": [{"path": "fuin-tee", "bind": "wasm"}]
+}
