@@ -14,6 +14,7 @@ sigstore's TUF repository).
 
 import hashlib
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -120,7 +121,11 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
 SLSA_V1 = "https://slsa.dev/provenance/v1"
 GITHUB_OIDC = "https://token.actions.githubusercontent.com"
 NEAR_BUILDERS = "https://github.com/nearai/"  # NEAR AI's GitHub organisation
-BUNDLE_CACHE = Path.home() / ".cache" / "fuin" / "slsa"  # raw sigstore bundles by image digest; re-verified on every use
+# raw sigstore bundles by image digest, re-verified on every use; best-effort, so a read-only home only costs a re-download
+BUNDLE_CACHE = Path(os.environ.get("FUIN_CACHE_DIR") or Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "fuin") / "slsa"
+# sigstore's public-good trusted root (Fulcio, Rekor, CT logs, TSA), pinned like the attestation policies: no TUF fetch and
+# no writes outside the clone. Source: tuf-repo-cdn.sigstore.dev, 2026-11-05.
+SIGSTORE_ROOT = Path(__file__).resolve().parents[2] / "policy" / "sigstore-trusted-root.json"
 
 
 _VERIFIER = None  # sigstore's trust root, fetched once per process
@@ -157,8 +162,11 @@ def _slsa_bundle(repo: str, digest: str) -> bytes | None:
         b = requests.get(f"{base}/blobs/{man.json()['layers'][0]['digest']}", headers=auth, timeout=60)
         b.raise_for_status()
         blob = b.content
-    BUNDLE_CACHE.mkdir(parents=True, exist_ok=True)
-    cached.write_bytes(blob)  # an empty file records "no provenance published" for this digest
+    try:
+        BUNDLE_CACHE.mkdir(parents=True, exist_ok=True)
+        cached.write_bytes(blob)  # an empty file records "no provenance published" for this digest
+    except OSError:
+        pass
     return blob or None
 
 
@@ -175,12 +183,12 @@ def build_provenance(image: str) -> dict | None:
     if blob is None:
         return None
     from cryptography import x509
-    from sigstore.models import Bundle
+    from sigstore.models import Bundle, TrustedRoot
     from sigstore.verify import Verifier, policy
     try:
         bundle = Bundle.from_json(blob)
         global _VERIFIER
-        _VERIFIER = _VERIFIER or Verifier.production()
+        _VERIFIER = _VERIFIER or Verifier(trusted_root=TrustedRoot.from_file(str(SIGSTORE_ROOT)))
         _, payload = _VERIFIER.verify_dsse(bundle, policy.OIDCIssuerV2(GITHUB_OIDC))
         san = bundle.signing_certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
         builder = (san.get_values_for_type(x509.UniformResourceIdentifier) or [""])[0]

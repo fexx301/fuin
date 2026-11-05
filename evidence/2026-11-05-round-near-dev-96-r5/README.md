@@ -17,7 +17,7 @@ All three certificates VERIFY keyless (`verify-output.txt`, `verify.jsonl`, exit
 - **Seal:** `88z24HiczTdmJKBc932L6DqTrdUb6TphsNnXw68KfUo1` at height 276350082 (block hash `GrDFw8mbckEjD1VXCPD1Pdc3iZVAMoJoujsbGwXQeYoR`).
 - **Close:** `Aav6gqN8Vh165xqjzse9vrtmZ8MQ6o7fzScnkyA16abq` at 276373812.
 - **Settings:** reasoning on, temperature 0 and a cap of 8,192 tokens, as in round 4.
-- **On the wire:** none of the 288 signed requests contains its question in plaintext. Every answer and its reasoning came back as ciphertext.
+- **On the wire:** none of the 288 signed requests contains its question in plaintext. Of the 288 answers, 250 came back as ciphertext that decrypts with the item's salt-derived key, and 38 are empty (cut off before answering); none is unreadable. All 288 reasoning fields are ciphertext that decrypts. These counts need the salts, so they are owner-reported.
 - **TEE hosting:** each encrypted run sat on a secret gist only while the scorer fetched it, then was deleted.
 
 **Before the real round:**
@@ -37,6 +37,8 @@ All three certificates VERIFY keyless (`verify-output.txt`, `verify.jsonl`, exit
 - **Every hidden score is checked exactly inside the TEE.**
 - **Nothing is revealed.**
 - **The gateway never saw a question or an answer.** It saw the model, the settings, the nonce, the timing and the sizes.
+
+**A v3 weakness, printed as a limit.** The key each answer is encrypted back to travels in an unsigned header. An owner could send a different key for a chosen item, read the answer under their own key, and commit a copy that the salt-derived key can't open, which scores 0. That lowers a total without the certificate showing it. Round 5 has no unreadable answer (above, owner-reported). A later scorer can attest the count of unreadable answers, so this becomes visible.
 
 **What it trusts.**
 - **The answering model's TEE,** to decrypt honestly.

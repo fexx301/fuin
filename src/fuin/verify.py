@@ -27,6 +27,9 @@ SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no si
                     "seal and the commitment are not individually timestamped.")
 E2EE_LIMIT = ("Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, "
               "the generation settings, the nonce, the timing and the sizes.")
+E2EE_KEY_LIMIT = ("The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers "
+                  "encrypted to another key and commit them unreadable (each scores 0): a total could be lowered without the "
+                  "certificate showing it.")
 
 
 class Refused(Exception):
@@ -184,7 +187,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             _req(a.get("mode") == P.TEE_AUDIT and a["k"] == 0 and a["indices"] == [] and a["reveals"] == [], "audit_sample_mismatch")
             ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; "
                          f"TEE-scored by scorer {b['policy']['audit']['scorer_wasm_sha256'][:12]}…, nothing revealed; "
-                         f"{b['policy']['request']['template']}")
+                         f"{b['policy']['request']['template']}" + (" (end-to-end encrypted)" if P.is_e2ee(b["policy"]) else ""))
         else:
             d, k = core.audit_size(n)
             _req((a["D"], a["k"], a["target"]) == (d, k, {"numerator": 95, "denominator": 100}), "audit_sample_mismatch")
@@ -386,7 +389,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                       "exact, not statistical, under the TEE trust assumptions")
     v2 = P.is_seal_bound(b["policy"])
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
-    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
+    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

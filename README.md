@@ -25,7 +25,7 @@ Every claim below maps to a command:
 
 | Claim | Check | Expected |
 |---|---|---|
-| A stranger can verify a result without an account or the test set | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json` | `VERIFIED`, 9 `[pass]` lines, exit 0 |
+| A stranger can verify a result without an account or the test set | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json` | `VERIFIED`, 10 `[pass]` lines, exit 0 |
 | Each answer is signed by the model's TEE-attested key | same output, `signatures` and `attestation` lines | `60/60 provider_tee …`; `quote UpToDate, NRAS True` |
 | The served container and weights are traced to NEAR's public deployment repo | same output, `deployment trace` line | `… nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc …` |
 | The set and results were committed on NEAR, with the seal before the commit and the commit before the close | same output, `registry` line | `seal … < commit … < close …` |
@@ -92,7 +92,7 @@ DeepSeek-V4.1-Flash, added in round 4, leads both rounds it ran: 84 of 155 and 4
 
 ## Try it (no account, no API key, no test set)
 
-You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, an archival NEAR testnet RPC (FastNEAR's by default, NEAR's as fallback; set `FUIN_TESTNET_RPC` to pin another archival endpoint, since certificates cite blocks older than regular nodes keep), the NEAR AI model catalog and raw.githubusercontent.com. One verification takes about 40 seconds.
+You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, an archival NEAR testnet RPC (FastNEAR's by default, NEAR's as fallback; set `FUIN_TESTNET_RPC` to pin another archival endpoint, since certificates cite blocks older than regular nodes keep), the NEAR AI model catalog, raw.githubusercontent.com and Docker Hub (for image build provenance; if it is unreachable, the verifier says it didn't check). One verification takes about 40 seconds.
 
 1. **Verify a real certificate.**
 
@@ -101,7 +101,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json
    ```
 
-   You see `VERIFIED` with nine passing checks (rows, commitments, policy, signatures, attestation, deployment trace, registry, audit sample, reveals), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (two models × three rounds).
+   You see `VERIFIED` with ten passing checks (rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample, TEE score; a certificate whose serving image NEAR built adds an eleventh, build provenance), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (two models × three rounds).
 
 2. **Watch tampering get refused.**
 
@@ -144,7 +144,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (95 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
+4. **Run the tests.** `uv run pytest` (99 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
 
 ## How it works
 
@@ -241,6 +241,7 @@ For a zero-reveal round, the sampling and reveal limits are not printed. With a 
 With end-to-end encryption (request template v3), also:
 
 - Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
+- The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0): a total could be lowered without the certificate showing it.
 
 Also: verification needs the public services listed above (it is account-free, not offline). Without end-to-end encryption, requests pass through NEAR's gateway in the clear, so their privacy in transit relies on NEAR operating it. Failed inference attempts are owner-reported and can't be verified. Testnet only.
 
@@ -250,7 +251,7 @@ Also: verification needs the public services listed above (it is account-free, n
 |---|---|
 | `src/fuin/` | CLI (`cli.py`), owner workflow (`owner.py`), verifier (`verify.py`), attestation (`attestation.py`), deployment trace (`provenance.py`), protocol core (`core.py`), scorers, NEAR access (`near.py`) |
 | `contract/` | the registry contract and its tests |
-| `policy/` | the verifier's attestation policies (accepted configurations per model) and `tee-v2.json` (the one accepted TEE scorer build) |
+| `policy/` | the verifier's attestation policies (accepted configurations per model), `tee-v2.json` (the accepted TEE scorer builds, each with its source commit) and `sigstore-trusted-root.json` (sigstore's public trusted root, pinned, for image build provenance) |
 | `tee/` | the TEE scorer: Rust compiled to WASI P2, its canonical reproducible build (`build-docker.sh`, which runs `build.sh` in a digest-pinned Linux image), its tests against the Python scorer |
 | `examples/` | real certificates; `tampered/` fixtures and their manifest |
 | `evidence/` | dated command output, transactions and probe write-ups behind every claim here |
