@@ -6,7 +6,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 - Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 6 minutes. It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
 - No account, API key or hidden test set is needed. The script unsets `NEARAI_API_KEY`.
-- If the NEAR RPC rate-limits you (HTTP 429), set `FUIN_TESTNET_RPC` to another testnet RPC.
+- The default RPC is FastNEAR's archival testnet endpoint (NEAR's archival endpoint as fallback): certificates cite blocks and transactions older than regular nodes keep. If you set `FUIN_TESTNET_RPC`, use an archival endpoint.
 - `fuin verify` exit codes:
   - `0`: every certificate VERIFIED;
   - `1`: at least one REFUSED (invalid evidence);
@@ -26,4 +26,4 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 ## Scope
 
 - Limits are listed in the README and printed with every VERIFIED.
-- The 60-item test set is deliberately not in the repo. Only its audited sample (23 items) is revealed, inside the certificates.
+- The three test sets (60, 60 and 300 items) are deliberately not in the repo. Only each round's audited sample (23, 23 and 28 items) is revealed, inside the certificates.
