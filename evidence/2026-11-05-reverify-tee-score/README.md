@@ -51,3 +51,7 @@ It returns only the two roots, the total, the policy hash and the signer. It ref
 - **What it adds.** The 272 unrevealed items' scores are now checked exactly, not statistically, under the TEE trust assumptions printed with the limits.
 - **What it doesn't.** It doesn't un-reveal the 28 audited items. A round that reveals nothing would need a different sealed policy, which no current round uses.
 - **What it trusts.** On top of NEAR AI Cloud's TEE for inference: Intel TDX, OutLayer's worker-measurement governance, and its key service (NEAR MPC key derivation).
+
+**Known issues for a scorer v2.**
+- **Error messages can leak.** The scorer's error messages become public, on-chain output. One of them (`unsupported decimal …`) would quote the value it couldn't parse, which could be a private answer. No round-3 run produced an error. The fix is generic error text, which needs a new pinned build.
+- **Reproducibility is per platform.** Builds aren't yet identical across platforms (see above).
