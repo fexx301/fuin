@@ -7,15 +7,15 @@ Fūin (封印, pronounced *foo-een*) is Japanese for "seal": the test set is sea
   <img src="assets/fuin-logo.svg" alt="Fūin logo" width="320">
 </picture>
 
-Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and a sample picked by a future NEAR block is revealed and re-scored.
+Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is re-scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all.
 
-Built at NEAR HACKATHON (Nov 1–14, 2026), track `privacy`.
+Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
 ## For judges
 
 **Human reviewers (2 minutes):**
 1. Read [the problem](#the-problem) and [the result](#result-which-near-ai-cloud-model-answers-near-developer-questions-correctly).
-2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 21 cases (17 tampered or malformed certificates refused, 4 that can't be certified), each caught by a named check.
+2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 23 cases (18 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
 - Run `scripts/review.sh`. It needs uv and network, takes about 5 minutes (allow 15, or run it in the background: it waits on Intel, NVIDIA, NEAR and OutLayer), and exits 0 with `ALL CHECKS PASSED`.
@@ -30,9 +30,10 @@ Every claim below maps to a command:
 | The served container and weights are traced to NEAR's public deployment repo | same output, `deployment trace` line | `… nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc …` |
 | The set and results were committed on NEAR, with the seal before the commit and the commit before the close | same output, `registry` line | `seal … < commit … < close …` |
 | The owner can't choose which items a committed round reveals | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
-| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 21 `ok` lines, exit 0 |
+| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 23 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
-| The TEE scorer that ran is this repository's code | `tee/build.sh` on macOS (Apple silicon) with Rust 1.95.0 and `wasm32-wasip2` | prints `a848254b…`, the pin in `policy/tee-v1.json`. A Linux x86_64 build currently gives a different hash: not yet reproducible across platforms |
+| A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
+| The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `2614ddaa…`, the current pin in `policy/tee-v2.json` (scorer v3). Scorer v2 (`dabae968…`, the build behind rounds 1–4's scores) rebuilds the same way from commit `6381ee9` |
 | The registry can't be changed | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
 ## The problem
@@ -46,10 +47,13 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Three independent rounds of private questions (60, 60 and 300), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Both models ran with reasoning on and temperature 0. The scorer is strict: the answer must be the number or term alone.
+Four independent rounds of private questions (60, 60, 300 and 155), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Round 4 reveals nothing; its scores are checked only inside the TEE. The scorer is strict: the answer must be the number or term alone.
 
 | Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
+| `near-dev-155-r4` (8,192), zero-reveal | deepseek-ai/DeepSeek-V4.1-Flash-1017 | **84/155** (54.2%) | nothing revealed | 1/155 |
+| `near-dev-155-r4` (8,192), zero-reveal | z-ai/glm-5.3-flash | **64/155** (41.3%) | nothing revealed | 36/155 |
+| `near-dev-155-r4` (8,192), zero-reveal | Qwen/Qwen3.8-27B | **39/155** (25.2%) | nothing revealed | 26/155 |
 | `near-dev-300-r3` (8,192) | z-ai/glm-5.3-flash, served as `graphistry/GLM-5.3-Flash-W4AFP8` | **122/300** (40.7%) | (28) 10 · 14 · 0 · 4 | 72/300 |
 | `near-dev-300-r3` (8,192) | Qwen/Qwen3.8-27B, served as `Qwen/Qwen3.8-27B-FP8` | **77/300** (25.7%) | (28) 9 · 17 · 0 · 2 | 54/300 |
 | `near-dev-60-r2` (8,192) | z-ai/glm-5.3-flash | **32/60** | (23) 13 · 4 · 2 · 4 | 6/60 |
@@ -57,7 +61,7 @@ Three independent rounds of private questions (60, 60 and 300), each with exact 
 | `near-dev-60-r1` (4,096) | z-ai/glm-5.3-flash | **25/60** | (23) 10 · 5 · 1 · 7 | 21/60 |
 | `near-dev-60-r1` (4,096) | Qwen/Qwen3.8-27B | **17/60** | (23) 6 · 9 · 0 · 8 | 17/60 |
 
-On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs. At the same 8,192 cap, round 3 cut off GLM 72 times and Qwen 54 times. Even if every cut-off had ended in a correct answer, GLM would still lead (194 against 131), but that is an upper bound, not a measurement: what either model would answer with a larger cap is unknown without a higher-cap rerun. The rounds use different questions, so compare models within a round, not percentages across rounds.
+Round 4 adds DeepSeek-V4.1-Flash, which leads with 84 of 155, ahead of GLM (64) and Qwen (39). On all four suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer questions correctly than Qwen. On the 300-question round the gap is 45 questions (122 against 77). Qwen's revealed misses are mostly wrong answers rather than cut-offs. At the same 8,192 cap, round 3 cut off GLM 72 times and Qwen 54 times. Even if every cut-off had ended in a correct answer, GLM would still lead (194 against 131), but that is an upper bound, not a measurement: what either model would answer with a larger cap is unknown without a higher-cap rerun. The rounds use different questions, so compare models within a round, not percentages across rounds.
 
 **Reading the columns:**
 - **Revealed breakdown:** a reading aid computed from the revealed bytes (`fuin show`), not a score. *Format* means the right value in a form the strict scorer rejects, such as `**10%**`. *Cut off* means no final answer before the cap.
@@ -68,7 +72,8 @@ On all three suites, GLM-5.3-flash as NEAR serves it answers more NEAR developer
 - **Round 1:** the audit directly reveals 23 items, which is what the verifier reports as "directly revealed 23, unrevealed 37". One unrevealed item cites the same docs line as two revealed items, and its answer follows from theirs. It is indirectly disclosed, which the verifier does not compute. Known disclosure: **24 items; 36 stay hidden.**
 - **Round 2:** one question per cited line, so its known disclosure is the 23 revealed; **37 stay hidden.**
 - **Round 3:** one question per cited line, and none shares a line with rounds 1–2. The audit reveals 28; **272 of 300 (91%) stay hidden**, at the same 95% detection power as the 60-question rounds.
-- **Every round, re-scored inside a TEE:** all six totals were also recomputed over every signed answer (840 in all) inside an Intel TDX enclave on OutLayer and match the commitments, so the unrevealed scores (37, 37 and 272 per run) are checked exactly, not by sample ([TEE score](#tee-score)).
+- **Round 4:** reveals nothing. All 155 stay hidden, one question per cited line, none shared with rounds 1–3.
+- **Every round, scored inside a TEE:** all nine totals were computed over every signed answer (1,305 in all) inside an Intel TDX enclave on OutLayer and match the commitments, so the unrevealed scores (37, 37, 272 and 155 per run) are checked exactly, not by sample ([TEE score](#tee-score)).
 
 **Disclosure at scale.** For a fixed detection target the audit size grows only slowly with suite size and levels off (23 items at 60, 29 at 1,000), so larger private suites disclose a far smaller share. From the same `core.audit_size` code, at ≥95% detection power for ≥10% incorrect scores:
 
@@ -99,7 +104,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    uv run python scripts/check_fixtures.py examples/tampered/manifest.json
    ```
 
-   You see 21 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
+   You see 23 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
 
    | Fixture | What changed | Verdict |
    |---|---|---|
@@ -122,6 +127,8 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    | tee-rehashed-total | the same, with the record's output hash recomputed to match | REFUSED `tee_score_mismatch` |
    | tee-forged-task | OutLayer's task id edited in the record | REFUSED `tee_attestation_invalid` |
    | tee-unpinned-scorer | the record names a scorer build other than the pinned one | CAN'T CERTIFY `tee_unapproved` |
+   | zero-reveal-unscored | a zero-reveal round's certificate with its TEE score removed, so nothing checks its scores | CAN'T CERTIFY `tee_score_missing` |
+   | zero-reveal-scorer-swapped | the TEE record names a build other than the one sealed in the round's policy | REFUSED `tee_score_mismatch` |
    | evidence-unavailable | NEAR RPC unreachable | CAN'T CERTIFY `evidence_unavailable` |
 
 3. **Read the audit.**
@@ -132,7 +139,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (88 tests, including hostile-input, outage, unapproved-OS and TEE-evidence cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and a signed synthetic round with six refusals).
+4. **Run the tests.** `uv run pytest` (95 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
 
 ## How it works
 
@@ -152,7 +159,16 @@ Flow: **seal → run → commit → close → sample → reveal → verify.**
 
 The audit checks a sample; a TEE score checks every answer. The owner encrypts one run (each item's sealed bytes and salt, the sealed policy, the signed requests and responses) to a key that exists only inside Fūin's TEE scorer, which runs in an Intel TDX enclave on OutLayer. The scorer (`tee/`) rebuilds every benchmark leaf from the sealed bytes, rebuilds every request from the sealed template and requires it to equal the signed bytes, recovers every signature, scores every answer with the sealed scorer's exact rules, and returns only the two roots, the total and the signer. `fuin verify` then checks the OutLayer attestation (the Intel quote, OutLayer's task hash, the worker's approval at the execution's block, and the request and result on chain) and that the output equals the certificate's own roots, total, model and signer.
 
-All six certificates carry TEE scores (rounds 1–3, both models; OutLayer tasks 20867–20868 and 20950–20953), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make the audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. Details: `evidence/2026-11-05-reverify-tee-score/`.
+Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21078–21084; round 4 scored only this way, tasks 21125–21127), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make rounds 1–3's audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. The scores were first computed on a build that reproduced only on macOS, then re-done on the canonical build, which reproduces on any host; the first build is no longer accepted. Details: `evidence/2026-11-05-reverify-tee-score/` and `evidence/2026-11-05-reverify-tee-v2/`.
+
+### Zero-reveal rounds
+
+`fuin seal --tee` seals a round that reveals nothing. Three things differ from a sampled round:
+- **The policy** names the exact scorer build (by sha256) that will score every item inside the TEE, and has no audit sample.
+- **The verifier** requires that TEE score: without it the certificate is CAN'T CERTIFY `tee_score_missing`, and a record naming any other build is REFUSED `tee_score_mismatch`.
+- **Every request's nonce** is `sha256("fuin-nonce-v2" ‖ item nonce ‖ seal block hash)`. That block hash didn't exist before the seal, so no signed answer can predate it, which a sampled round can't show. The TEE scorer rebuilds each nonce from the hash, and the verifier compares the hash with the chain.
+
+The trade-off: a sampled round's score check needs only public bytes, while a zero-reveal round's relies on the TEE (Intel TDX, OutLayer's worker governance and key service). In exchange, no question is ever published. Round 4 (`near-dev-155-r4`) is a zero-reveal round: 155 questions, three models, nothing revealed. Details: `evidence/2026-11-05-round-near-dev-155-r4/`.
 
 ## NEAR tools used
 
@@ -183,6 +199,8 @@ uv run --env-file .env fuin tee-score --id my-bench-1 --model z-ai/glm-5.3-flash
 uv run fuin status --id my-bench-1      # at any point: which steps are done and the exact next command
 ```
 
+To reveal nothing, seal with `--tee` (every item scored inside the TEE by the sealed scorer build; run `tee-score` for every model after `close`, and the certificates are written once all are scored). Add `--e2ee` to encrypt each question and answer end to end between you and the model's attested key, so NEAR's gateway never sees them.
+
 For a second person trying Fūin on their own private questions, [PILOT.md](PILOT.md) is a step-by-step kit with a report form.
 
 `fuin check` catches malformed items, duplicate questions, answers that appear in their own question, questions that don't say what form to answer in, and two items citing the same source line (revealing one can disclose the other). It also states the disclosure for your suite size, for example "60 items → reveals 23 (38.3%)" or "1,000 items → reveals 29 (2.9%)". `fuin seal` runs the same suite check and refuses a suite with errors, because a seal can't be undone.
@@ -201,9 +219,17 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 
 Printed as well when a certificate carries a TEE score:
 
-- A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. The scorer build is pinned by sha256 and rebuilds from tee/ with tee/build.sh.
+- A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.
 
-Also: verification needs the public services listed above (it is account-free, not offline). Requests pass through NEAR's gateway, so their privacy in transit relies on NEAR operating it. Failed inference attempts are owner-reported and can't be verified. Testnet only.
+For a zero-reveal round, the sampling and reveal limits are not printed. With a seal-bound request template (v2 or v3), the timing limit is replaced by:
+
+- Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
+
+With end-to-end encryption (request template v3), also:
+
+- Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
+
+Also: verification needs the public services listed above (it is account-free, not offline). Without end-to-end encryption, requests pass through NEAR's gateway in the clear, so their privacy in transit relies on NEAR operating it. Failed inference attempts are owner-reported and can't be verified. Testnet only.
 
 ## Repository
 
@@ -211,11 +237,11 @@ Also: verification needs the public services listed above (it is account-free, n
 |---|---|
 | `src/fuin/` | CLI (`cli.py`), owner workflow (`owner.py`), verifier (`verify.py`), attestation (`attestation.py`), deployment trace (`provenance.py`), protocol core (`core.py`), scorers, NEAR access (`near.py`) |
 | `contract/` | the registry contract and its tests |
-| `policy/` | the verifier's attestation policies (accepted configurations per model) and `tee-v1.json` (the pinned TEE scorer) |
-| `tee/` | the TEE scorer: Rust compiled to WASI P2, a reproducible build (`build.sh`), its tests against the Python scorer |
+| `policy/` | the verifier's attestation policies (accepted configurations per model) and `tee-v2.json` (the one accepted TEE scorer build) |
+| `tee/` | the TEE scorer: Rust compiled to WASI P2, its canonical reproducible build (`build-docker.sh`, which runs `build.sh` in a digest-pinned Linux image), its tests against the Python scorer |
 | `examples/` | real certificates; `tampered/` fixtures and their manifest |
 | `evidence/` | dated command output, transactions and probe write-ups behind every claim here |
 | `scripts/` | fixture builder and checker, suite source checker, leak guard, results-page builder |
-| `site/` | interactive page: verify certificates in the browser (every local check, live NEAR RPC checks, and the Intel TDX quote via Phala's WASM build of `dcap-qvl`; NVIDIA's GPU verdict and the deployment trace can't run in a browser, so a published certificate shows `fuin verify`'s recorded result for those two and an uploaded one gets PARTLY CHECKED), tamper with them live, explore results. Open `site/index.html`; data from `scripts/build_page.py`, vendored crypto from `scripts/build_vendor.sh`, tested by `node scripts/test_site_verifier.mjs` |
+| `site/` | interactive page: verify certificates in the browser (every local check, live NEAR RPC checks, and the Intel TDX quote via Phala's WASM build of `dcap-qvl`; the TEE score's OutLayer record (quote, task hash, worker approval, chain record) is checked live; NVIDIA's GPU verdict and the deployment trace can't run in a browser, so a published certificate shows `fuin verify`'s recorded result for those two (matched to its exact bytes) and an uploaded one gets PARTLY CHECKED), tamper with them live, explore results. Open `site/index.html`; data from `scripts/build_page.py`, vendored crypto from `scripts/build_vendor.sh`, tested by `node scripts/test_site_verifier.mjs` |
 
 MIT licence.

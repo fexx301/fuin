@@ -12,8 +12,8 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
   - `1`: at least one REFUSED (invalid evidence);
   - `2`: none REFUSED but at least one CAN'T CERTIFY (unavailable or unsupported evidence).
   With `--json`, each certificate prints one JSON line.
-- Round 3's certificates also carry a TEE score (`run.evidence.tee_score`, checked by `src/fuin/tee.py`): every answer re-scored inside an OutLayer TDX enclave. Its codes are `tee_score_invalid`, `tee_score_mismatch` and `tee_attestation_invalid` (REFUSED) and `tee_unapproved` (CAN'T CERTIFY).
-- `scripts/review.sh` step 4 also runs the TEE scorer's Rust tests and rebuilds it (`tee/build.sh`, expecting the sha256 pinned in `policy/tee-v1.json`) when Rust 1.95.0 with `wasm32-wasip2` is installed; otherwise it says it skipped them.
+- Every certificate also carries a TEE score (`run.evidence.tee_score`, checked by `src/fuin/tee.py` and, in the browser, by `site/verify.js`): every answer re-scored inside an OutLayer TDX enclave. Its codes are `tee_score_invalid`, `tee_score_mismatch` and `tee_attestation_invalid` (REFUSED), and `tee_unapproved` and `tee_score_missing` (CAN'T CERTIFY). The last applies to a zero-reveal round (`benchmark.policy.audit.mode` = `tee-scored-v1`), whose TEE score is its only score check: such a certificate has no reveals and no audit seed.
+- `scripts/review.sh` step 4 also runs the TEE scorer's Rust tests when Rust 1.95.0 with `wasm32-wasip2` is installed, and rebuilds the scorer with `tee/build-docker.sh` when Docker is running, expecting the `current` sha256 in `policy/tee-v2.json`. Each part says when it was skipped; a rebuild that can't complete (image pull, network) is skipped, not failed. The first rebuild pulls a Rust image and crates, which adds a few minutes.
 
 ## Where each claim is evidenced
 
@@ -23,7 +23,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Don't run
 
-`fuin seal`, `run`, `commit`, `close` and `reveal` are owner commands. They need a NEAR AI API key and sign NEAR testnet transactions. Reviewing needs only `fuin verify`, `fuin show`, `scripts/check_fixtures.py` and the tests.
+`fuin seal`, `run`, `commit`, `close`, `reveal` and `tee-score` are owner commands. They need a NEAR AI API key or the owner's NEAR keys, and sign NEAR testnet transactions. Reviewing needs only `fuin verify`, `fuin show`, `scripts/check_fixtures.py` and the tests.
 
 ## Scope
 
