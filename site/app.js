@@ -142,7 +142,8 @@
   const STEPS = [
     ['schema', 'Certificate shape', 'local'], ['model', 'Model is attested', 'local'], ['rows', 'Rows and total', 'local'],
     ['commitments', 'Merkle commitments', 'local'], ['policy', 'Sealed policy', 'local'], ['signatures', 'Every model signature', 'local'],
-    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU and trace, recorded)', 'Intel via PCCS'],
+    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU, recorded)', 'Intel via PCCS'],
+    ['trace', 'Serving container traced to NEAR\'s repo', 'Intel via PCCS · GitHub'],
     ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Round close and audit sample', 'NEAR RPC'],
     ['tee', 'Every answer re-scored in a TEE', 'OutLayer quote via PCCS · NEAR RPC'],
   ];
@@ -180,7 +181,7 @@
     const li = $('#ck-' + id); if (!li) return;
     li.className = state === 'running' ? 'active running' : state;
     $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : '';
-    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU and trace ${gpuRecorded ? 'recorded' : 'not checked'}`
+    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU ${gpuRecorded ? 'recorded' : 'not checked'}`
       : { pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', running: '' }[state] ?? '';
     if (detail) $('.dt', li).textContent = detail;
     await sleep(state === 'running' ? 260 : 90);
@@ -191,7 +192,8 @@
     const live = res.outcome === 'VERIFIED' && res.attestation === 'live';
     const cls = live ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
     const title = res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome === 'PARTIAL' ? 'PARTLY CHECKED' : res.outcome;
-    const sub = res.outcome === 'VERIFIED' ? (live ? `TDX${res.tee === 'live' ? ' and TEE score' : ''} checked now · GPU and trace recorded` : 'attestation recorded, not checked here') : res.code;
+    const now = ['TDX', res.trace === 'live' ? 'trace' : '', res.tee === 'live' ? 'TEE score' : ''].filter(Boolean);
+    const sub = res.outcome === 'VERIFIED' ? (live ? `${now.length > 1 ? now.slice(0, -1).join(', ') + ' and ' + now[now.length - 1] : now[0]} checked now · GPU ${res.trace === 'live' ? '' : 'and trace '}recorded` : 'attestation recorded, not checked here') : res.code;
     s.innerHTML = ''; s.append(title, h('small', {}, sub));
     s.classList.add('show', cls);
     $('#announce').textContent = `${title}: ${sub}`;
@@ -345,7 +347,7 @@
   }
   async function boot() {
     progress('Loading certificates');
-    await Promise.all([load('vendor/noble.js', 'signature checker'), load('verify.js', 'verifier'), load('data.js', 'certificates')]);
+    await Promise.all([load('vendor/noble.js', 'signature checker'), load('vendor/yaml.js', 'deployment trace reader'), load('verify.js', 'verifier'), load('data.js', 'certificates')]);
     F = window.FUIN; V = window.FuinVerify;
     const vl = $('#verifyLoading'); if (vl) vl.remove();
     picker(); results(); explorer(); refusals();

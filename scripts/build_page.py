@@ -24,7 +24,11 @@ def slim(cert: dict) -> dict:
     keep = lambda a: {"signing_address": a["signing_address"], "model_name": a.get("model_name"), "request_nonce": a.get("request_nonce"),
                       "intel_quote": a.get("intel_quote"), "event_log": a.get("event_log"),
                       "info": {"tcb_info": {"app_compose": a.get("info", {}).get("tcb_info", {}).get("app_compose")},
-                               "os_image_hash": a.get("info", {}).get("os_image_hash")}}  # the browser's OS check needs it
+                               "os_image_hash": a.get("info", {}).get("os_image_hash")},  # the browser's OS check needs it
+                      # the browser replays NEAR's attested deployment log, as provenance.trace does
+                      **({"compose_manager_attestation": {k: a["compose_manager_attestation"].get(k) for k in
+                                                          ("actions", "actions_hash", "nonce", "report_data", "quote")}}
+                         if a.get("compose_manager_attestation") else {})}
     c["run"]["model_report"] = {"model_attestations": [keep(a) for a in cert["run"]["model_report"]["model_attestations"]]}  # GPU payload dropped
     return c
 
@@ -89,7 +93,7 @@ def main() -> None:
     js = "window.FUIN = " + json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n"
     Path("site/data.js").write_text(js, encoding="utf-8")
     # Small file the page loads first: the hero's dot map plus the byte size of each heavy script, for real progress.
-    sizes = {f: Path("site", f).stat().st_size for f in ("vendor/noble.js", "verify.js", "data.js", "vendor/dcap.js")}
+    sizes = {f: Path("site", f).stat().st_size for f in ("vendor/noble.js", "vendor/yaml.js", "verify.js", "data.js", "vendor/dcap.js")}
     Path("site/hero-data.js").write_text("window.FUIN_HERO = " + json.dumps({"hands": hero_data, "assets": sizes}, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"wrote site/data.js ({len(js) // 1024} KB; rounds {', '.join(r['id'] for r in rounds)}; commit {data['commit']})")
 

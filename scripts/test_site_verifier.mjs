@@ -2,8 +2,8 @@
 // Usage: node scripts/test_site_verifier.mjs   (needs network for the NEAR RPC steps)
 import fs from 'node:fs';
 globalThis.window = globalThis;
-for (const f of ['site/vendor/noble.js', 'site/vendor/dcap.js', 'site/data.js', 'site/verify.js']) {
-  const g = f.endsWith('noble.js') ? '\nglobalThis.Noble = Noble;' : f.endsWith('dcap.js') ? '\nglobalThis.Dcap = Dcap;' : '';
+for (const f of ['site/vendor/noble.js', 'site/vendor/yaml.js', 'site/vendor/dcap.js', 'site/data.js', 'site/verify.js']) {
+  const g = f.endsWith('noble.js') ? '\nglobalThis.Noble = Noble;' : f.endsWith('yaml.js') ? '\nglobalThis.Yaml = Yaml;' : f.endsWith('dcap.js') ? '\nglobalThis.Dcap = Dcap;' : '';
   (0, eval)(fs.readFileSync(f, 'utf8') + g);
 }
 const ctx = globalThis;
@@ -14,7 +14,7 @@ let fails = 0;
 const check = async (name, cert, want, net = true, over = {}) => {
   const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   // a certificate carrying a TEE score must have had it checked here whenever the verdict is VERIFIED
-  const verdict = (res) => res.outcome + (res.code ? ' ' + res.code : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_score && res.tee !== 'live' ? ' (TEE not checked)' : '');
+  const verdict = (res) => res.outcome + (res.code ? ' ' + res.code : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_score && res.tee !== 'live' ? ' (TEE not checked)' : '') + (res.outcome === 'VERIFIED' && res.trace !== 'live' ? ' (trace not checked)' : '');
   let got = verdict(await V.verify(cert, c)), retries = 0;
   // a public RPC's rate limit is an outage, not a verdict on the certificate: wait it out, at most twice
   while (net && got === 'CANT_CERTIFY evidence_unavailable' && want !== got && retries < 2) {
@@ -44,7 +44,9 @@ const polOS = clone(F.attestation_policy);
 for (const e of Object.values(polOS.models[base.run.model_id])) e.os_measurements = [{ mr_td: '00'.repeat(48), rt_mr0: '00'.repeat(48), rt_mr1: '00'.repeat(48), rt_mr2: '00'.repeat(48) }];
 await check('unapproved OS measurements (MRTD, RTMR0-2)', base, 'CANT_CERTIFY measurement_unapproved', true, { attestationPolicy: polOS });
 await check('os_image_hash differs from the policy', mut((c) => { c.run.model_report.model_attestations[0].info.os_image_hash = '00'.repeat(32); }), 'CANT_CERTIFY measurement_unapproved');
-await check('uploaded certificate: no recorded GPU or trace result', base, 'PARTIAL GPU and deployment trace not checked in a browser', true, { recorded: null });
+await check('uploaded certificate: no recorded GPU result', base, 'PARTIAL GPU not checked in a browser', true, { recorded: null });
+await check('deployment log edited', mut((c) => { const a = c.run.model_report.model_attestations[0].compose_manager_attestation; const up = a.actions.find((x) => x.action === 'compose_up'); up.file = up.file + '.x'; }), 'REFUSED attestation_invalid');
+await check('deployment attestation removed', mut((c) => { delete c.run.model_report.model_attestations[0].compose_manager_attestation; }), 'CANT_CERTIFY deployment_untraced');
 await check('one-byte salt', mut((c) => { c.audit.reveals[0].salt = 'ab'; }), 'REFUSED certificate_invalid');
 // TEE score: the same mutations as the CLI fixtures (scripts/make_fixtures.py), on the round-3 TEE base
 const teeBase = F.rounds.find((r) => r.id === 'near-dev-300-r3').certs.find((e) => /glm/i.test(e.cert.run.model_id)).cert;
@@ -65,7 +67,7 @@ if (zr) {
   await check('zero-reveal: sealed scorer swapped', zmut((c) => { c.run.evidence.tee_score.record.wasm_hash = '11'.repeat(32); }), 'REFUSED tee_score_mismatch');
   await check('zero-reveal: seal block hash changed', zmut((c) => { c.benchmark.seal_block_hash = '1'.repeat(32); }), 'REFUSED tee_score_mismatch');
   await check('zero-reveal: a sample smuggled in', zmut((c) => { c.audit.indices = [0]; }), 'REFUSED audit_sample_mismatch');
-  await check('zero-reveal: uploaded, no recorded GPU or trace result', zb, 'PARTIAL GPU and deployment trace not checked in a browser', true, { recorded: null });
+  await check('zero-reveal: uploaded, no recorded GPU result', zb, 'PARTIAL GPU not checked in a browser', true, { recorded: null });
 } else { console.log('FAIL no zero-reveal round in site/data.js'); fails++; }
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);

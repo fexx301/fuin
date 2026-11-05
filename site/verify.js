@@ -2,11 +2,12 @@
  * Local: schema, rows, Merkle roots (RFC 8785 + domain-tagged SHA-256), sealed policy, every EIP-191 signature,
  * revealed proofs, exact request bytes, re-score. Network (NEAR RPC, CORS-enabled): registry record, transaction
  * receipts, seed block, audit sample; the Intel TDX quote (Phala's WebAssembly build of dcap-qvl, collateral from a public
- * PCCS mirror) against the approved application and OS measurements; a TEE score's OutLayer record (its TDX quote, task
+ * PCCS mirror) against the approved application and OS measurements; the deployment trace (NEAR's attested deployment log
+ * replayed to public compose files on GitHub, YAML read with js-yaml); a TEE score's OutLayer record (its TDX quote, task
  * hash, the worker's approval at the execution's block, the request and result on chain), which is a zero-reveal round's
- * only score check. Not in a browser: NVIDIA's GPU verdict (NRAS blocks
- * browsers) and the deployment trace. VERIFIED therefore needs fuin verify's recorded result for those two on this exact,
- * unmodified certificate; otherwise the result is PARTIAL (run `fuin verify`). Needs globals: Noble, Dcap, crypto.subtle, fetch.
+ * only score check. Not in a browser: NVIDIA's GPU verdict (NRAS blocks browsers). VERIFIED therefore needs fuin verify's
+ * recorded result for it on this exact, unmodified certificate; otherwise the result is PARTIAL (run `fuin verify`).
+ * Needs globals: Noble, Yaml, Dcap, crypto.subtle, fetch.
  */
 (function (root) {
   'use strict';
@@ -205,6 +206,60 @@
     try { return root.Dcap.verify(quote, coll); } catch (e) { throw new Refused(code); }
   }
 
+  // ---- deployment trace: port of fuin/provenance.py trace(). NEAR's compose-manager attests its own action log with a
+  // second TDX quote on the same machine; the log names each deployed compose file by repo commit and sha256. ----
+  class Untraced extends Error {}  // no log, or no deployed service serves the model: CAN'T CERTIFY deployment_untraced
+  const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  async function traceDeployment(rep, nonce, tdModel, cfg) {
+    const cma = rep.compose_manager_attestation;
+    if (!cma) throw new Untraced('no compose_manager_attestation in the report');
+    let ah;  // present, so anything malformed in it is invalid evidence, not a missing trace
+    try {
+      ah = hex(await sha256(enc.encode(jcs(cma.actions))));
+      req(ah === cma.actions_hash && String(cma.nonce).toLowerCase() === nonce && String(cma.report_data).toLowerCase() === ah + nonce, 'attestation_invalid');
+    } catch (e) { if (e instanceof Refused) throw e; throw new Refused('attestation_invalid'); }
+    const res = await tdxVerify(unhex(cma.quote), cma.quote, cfg, 'attestation_invalid');
+    const td = res.report.TD10 || res.report.TD15;
+    req(!!td && td.report_data.toLowerCase() === ah + nonce, 'attestation_invalid');
+    req(['mr_td', 'rt_mr0', 'rt_mr1', 'rt_mr2', 'mr_config_id', 'rt_mr3'].every((k) => td[k] === tdModel[k]), 'attestation_invalid');  // same CVM
+    let repo;
+    try { repo = JSON.parse(rep.info.tcb_info.app_compose).docker_compose_file.match(/GITHUB_REPO=https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)(?:\.git)?\s/)[1]; }
+    catch { throw new Untraced('measured app_compose pins no GITHUB_REPO'); }
+    const files = new Map();
+    const compose = async (a) => {
+      const key = a.commit + ' ' + a.file;
+      if (!files.has(key)) {
+        let r; try { r = await fetch(`https://raw.githubusercontent.com/${repo}/${a.commit}/${a.file}`); } catch { throw new Unavailable('GitHub unreachable'); }
+        if (!r.ok) throw new Unavailable(`GitHub HTTP ${r.status} for ${a.file}`);
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if (a.file_sha256) req(hex(await sha256(bytes)) === a.file_sha256, 'attestation_invalid');
+        let doc; try { doc = root.Yaml.load(dec.decode(bytes)); } catch { throw new Untraced(`${a.file} does not parse as YAML`); }
+        files.set(key, doc || {});
+      }
+      return files.get(key);
+    };
+    const latest = new Map();  // service -> the last up/down action that touched it
+    for (const a of [...cma.actions].reverse()) {
+      if (a.action !== 'compose_up' && a.action !== 'compose_down') continue;
+      for (const n of (a.services && a.services.length ? a.services : Object.keys((await compose(a)).services || {}))) if (!latest.has(n)) latest.set(n, a);
+    }
+    const serving = [];
+    for (const [name, a] of latest) {
+      if (a.action !== 'compose_up') continue;
+      const svc = ((await compose(a)).services || {})[name]; if (!svc) continue;
+      const cmd = Array.isArray(svc.command) ? svc.command.join(' ') : String(svc.command ?? '');
+      if (!new RegExp('--served-model-name\\s+' + escRe(rep.model_name) + '(\\s|$)').test(cmd)) continue;
+      const img = String(svc.image ?? ''), m = img.match(/([a-z0-9][\w./-]*@sha256:[0-9a-f]{64})/), path = cmd.match(/--model-path\s+(\S+)/);
+      const cut = cmd.indexOf('--lora-modules'), base = cut < 0 ? cmd : cmd.slice(0, cut), lora = cut < 0 ? '' : cmd.slice(cut);
+      const hub = (path ? path[1] : base).match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/);
+      serving.push({ service: name, tag: a.tag, file: a.file, image: m ? m[1] : img, weights: hub ? `${hub[1]}/${hub[2]}` : (path ? path[1] : '?'),
+        loras: [...lora.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((x) => x[1]) });
+    }
+    if (!serving.length) throw new Untraced(`no deployed service declares --served-model-name ${rep.model_name}`);
+    serving.sort((p, q) => (p.service < q.service ? -1 : p.service > q.service ? 1 : 0));
+    return { repo, status: res.status, services: serving };
+  }
+
   // ---- TEE score: ports of fuin/tee.py check_local (no network) and check_remote ----
   class TeeUnapproved extends Error {}  // genuine-looking evidence the verifier's pins don't cover: CAN'T CERTIFY, after later checks
   const isTee = (policy, S) => !!(policy && policy.audit && policy.audit.mode === S.tee_audit);
@@ -321,6 +376,7 @@
     const S = cfg.supported, deferred = [];
     let attMode = 'none';  // live: TDX checked here · recorded: shown from fuin verify · none: not checked
     let teeMode = 'none', zeroReveal = false;  // teeMode live: the TEE score's OutLayer record checked here
+    let traceMode = 'none';  // live: the deployment trace replayed here
     let step = '';
     const start = async (id) => { step = id; await onStep(id, 'running', ''); };
     const pass = async (detail) => onStep(step, 'pass', detail);
@@ -410,8 +466,9 @@
         catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the TEE scorer build is not the one this verifier pins']); await onStep('tee', 'fail', 'tee_unapproved'); }
       }
 
-      const gpu = cfg.recorded ? 'GPU (NVIDIA NRAS) and deployment trace: recorded by fuin verify, not checked here'
-        : 'GPU (NVIDIA NRAS blocks browsers) and deployment trace: not checked here; run fuin verify';
+      const gpu = cfg.recorded ? 'GPU (NVIDIA NRAS): recorded by fuin verify, not checked here'
+        : 'GPU (NVIDIA NRAS blocks browsers): not checked here; run fuin verify';
+      const approvedTd = new Map();  // signer -> its model quote's measurements, for the same-machine check of the trace
       const reps = r.model_report.model_attestations.filter((x) => used.has(String(x.signing_address).toLowerCase()));
       if (root.DcapReady && !root.Dcap) { await onStep('attestation', 'running', 'loading the Intel TDX verifier…'); try { await root.DcapReady; } catch { /* falls back below */ } }
       if (root.Dcap && reps.length && reps.every((x) => x.intel_quote)) {
@@ -442,6 +499,7 @@
               deferred.push(['measurement_unapproved', '']);
               out.push(`quote ${res.status} but ${entry ? 'its OS measurements (MRTD, RTMR0-2) are' : `configuration ${ch.slice(0, 10)}… is`} not approved in ${cfg.attestationPolicy.version} (CAN'T CERTIFY measurement_unapproved)`); continue;
             }
+            approvedTd.set(String(rep.signing_address).toLowerCase(), td);
             out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… and OS ${td.mr_td.slice(0, 10)}… approved by ${cfg.attestationPolicy.version}`);
           }
           attMode = 'live';
@@ -452,6 +510,21 @@
         attMode = cfg.recorded ? 'recorded' : 'none';
         await onStep('attestation', cfg.recorded ? 'info' : 'skip', cfg.recorded ? `recorded by fuin verify, not checked here: ${cfg.recorded}` : 'not checked here: the Intel TDX verifier did not load or the certificate has no quote. Run fuin verify.');
       }
+      // the serving container, traced live from NEAR's attested deployment log when the model quote was checked here
+      const rep0 = reps[0], tdModel = rep0 && approvedTd.get(String(rep0.signing_address).toLowerCase());
+      if (attMode === 'live' && tdModel) {
+        await start('trace');
+        try {
+          const tr = await traceDeployment(rep0, r.preflight_nonce, tdModel, cfg); traceMode = 'live';
+          await pass(`compose-manager log (quote ${tr.status}) → ${tr.repo}: ` + tr.services.slice(0, 2).map((x) => `${x.service} @${x.tag} ${x.file} image …${x.image.slice(-12)} weights ${x.weights.split('/').pop()}`
+            + (x.loras.length ? ` (same instance also serves LoRA adapters under other names: ${x.loras.join(', ')})` : '')).join('; ')
+            + (tr.services.length > 2 ? ` (+${tr.services.length - 2} more replicas)` : ''));
+        } catch (e) {
+          if (e instanceof Untraced) { deferred.push(['deployment_untraced', e.message]); await onStep('trace', 'fail', 'deployment_untraced'); }
+          else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('trace', 'skip', 'unavailable: ' + e.message); }
+          else throw e;
+        }
+      } else await onStep('trace', cfg.recorded ? 'info' : 'skip', cfg.recorded ? 'recorded by fuin verify, not checked here' : 'not checked here: needs the model quote checked first. Run fuin verify.');
 
       const reg = cert.registry, url = cfg.rpc; let rec = null;
       await online('registry', async () => {
@@ -514,11 +587,11 @@
     if (attMode === 'none') return { outcome: 'PARTIAL', code: 'attestation not checked', attestation: attMode };
     // a zero-reveal round's only score check is its TEE score: without it here, nothing about the scores was checked
     if (zeroReveal && teeMode !== 'live') return { outcome: 'PARTIAL', code: 'TEE score not checked in this browser', attestation: attMode, tee: teeMode };
-    if (!cfg.recorded) return { outcome: 'PARTIAL', code: 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked' };
+    if (!cfg.recorded) return { outcome: 'PARTIAL', code: traceMode === 'live' ? 'GPU not checked in a browser' : 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked', trace: traceMode };
     const tee = `every item rebuilt and re-scored inside an OutLayer TDX enclave (checked here)`;
     const scope = zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
       : `audit passed ${au.k}/${n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)${teeMode === 'live' ? '; ' + tee : ''}`;
-    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, scope };
+    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, trace: traceMode, scope };
   }
 
   root.FuinVerify = { verify, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };
