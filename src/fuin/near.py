@@ -10,7 +10,10 @@ import time
 import requests
 
 # rpc.testnet.near.org rate-limits hard (HTTP 429 after ~15 calls); FastNEAR's public testnet RPC did not, Nov 3
-NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", "https://test.rpc.fastnear.com")}
+# Archival endpoints: a certificate cites blocks and transactions older than a regular node keeps (about two days on
+# testnet; seen Nov 5: Nov 3 transactions already gone from the regular endpoints). FUIN_TESTNET_RPC pins one endpoint.
+ARCHIVAL = ["https://archival-rpc.testnet.fastnear.com", "https://archival-rpc.testnet.near.org"]
+NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", ARCHIVAL[0])}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
             "code_hash": "HvqaWNNceCX7AMtsanPobAt5mkAE2MsZdP2BURA2cgef"}
@@ -22,10 +25,12 @@ class RpcError(RuntimeError):
 
 def rpc(method: str, params, network: str = "testnet") -> dict:
     attempts = 7  # public RPCs rate-limit (HTTP 429); back off ~1 minute in total before giving up
+    pinned = network != "testnet" or "FUIN_TESTNET_RPC" in os.environ
+    urls = [NETWORKS[network]] + ([] if pinned else [u for u in ARCHIVAL if u != NETWORKS[network]])  # alternate on retries
     for attempt in range(attempts):
         wait = min(2 ** attempt, 20)
         try:
-            r = requests.post(NETWORKS[network], json={"jsonrpc": "2.0", "id": "fuin", "method": method, "params": params}, timeout=30)
+            r = requests.post(urls[attempt % len(urls)], json={"jsonrpc": "2.0", "id": "fuin", "method": method, "params": params}, timeout=30)
             if r.status_code in (429, 502, 503, 504):
                 if r.headers.get("Retry-After", "").isdigit():
                     wait = min(int(r.headers["Retry-After"]), 30)
