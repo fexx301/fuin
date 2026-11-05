@@ -142,7 +142,7 @@
   const STEPS = [
     ['schema', 'Certificate shape', 'local'], ['model', 'Model is attested', 'local'], ['rows', 'Rows and total', 'local'],
     ['commitments', 'Merkle commitments', 'local'], ['policy', 'Sealed policy', 'local'], ['signatures', 'Every model signature', 'local'],
-    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU, recorded)', 'Intel via PCCS'],
+    ['reveals', 'Revealed sample re-scored', 'local'], ['attestation', 'Intel TDX quote (+ GPU and trace, recorded)', 'Intel via PCCS'],
     ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Audit sample from a NEAR block', 'NEAR RPC'],
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -172,7 +172,7 @@
     const li = $('#ck-' + id); if (!li) return;
     li.className = state === 'running' ? 'active running' : state;
     $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : '';
-    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU ${gpuRecorded ? 'recorded' : 'not checked'}`
+    $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU and trace ${gpuRecorded ? 'recorded' : 'not checked'}`
       : { pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', running: '' }[state] ?? '';
     if (detail) $('.dt', li).textContent = detail;
     await sleep(state === 'running' ? 260 : 90);
@@ -183,7 +183,7 @@
     const live = res.outcome === 'VERIFIED' && res.attestation === 'live';
     const cls = live ? 'ok' : res.outcome === 'REFUSED' ? 'bad' : 'cant';
     const title = res.outcome === 'CANT_CERTIFY' ? "CAN'T CERTIFY" : res.outcome === 'PARTIAL' ? 'PARTLY CHECKED' : res.outcome;
-    const sub = res.outcome === 'VERIFIED' ? (live ? `TDX checked now · GPU ${res.gpu === 'recorded' ? 'recorded' : 'not checked'}` : 'attestation recorded, not checked here') : res.code;
+    const sub = res.outcome === 'VERIFIED' ? (live ? 'TDX checked now · GPU and trace recorded' : 'attestation recorded, not checked here') : res.code;
     s.innerHTML = ''; s.append(title, h('small', {}, sub));
     s.classList.add('show', cls);
     $('#announce').textContent = `${title}: ${sub}`;
@@ -191,7 +191,7 @@
   function recordedLine(entry, tampered) {
     if (!entry || !entry.recorded || tampered) return null;
     const ch = Object.fromEntries((entry.recorded.checks || []).map(([n, , d]) => [n, d]));
-    return ch.attestation ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced` : null;
+    return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced` : null;
   }
   async function run(entry, mutate) {
     const id = ++running;
@@ -206,7 +206,7 @@
     const meta = $('#certMeta'); meta.innerHTML = '';
     meta.append(`committed ${r.total_score}/${b.n} · run ${r.run_index} · `, ...evidenceLinks(entry, cert));
     renderChecks(); $('#stamp').className = 'stamp';
-    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: recordedLine(entry, !!mutate) },
+    const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
     if (id === running) stamp(res);
   }

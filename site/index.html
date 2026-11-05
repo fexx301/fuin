@@ -76,7 +76,7 @@ html,body{background:#161616;margin:0}
       <ul class="checks" id="checks"></ul>
       <div class="stamp" id="stamp" aria-hidden="true"></div>
       <div class="sr" id="announce" role="status" aria-live="polite"></div>
-      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses. Its collateral comes from a public mirror and is signed by Intel. NVIDIA's GPU verdict service blocks browsers, so that one result is shown as recorded by the command-line verifier. The command line is the reference verifier.</p>
+      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public archival RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses, including the approved application and OS measurements. Its collateral comes from a public mirror and is signed by Intel. NVIDIA's GPU verdict service blocks browsers and the deployment trace doesn't run here, so for the published certificates those two are shown as recorded by the command-line verifier; a certificate you upload gets PARTLY CHECKED. The command line is the reference verifier.</p>
     </div>
   </div>
 </div></section>
@@ -105,14 +105,14 @@ html,body{background:#161616;margin:0}
   <div class="steps" id="steps"></div>
   <div class="split" style="margin-top:22px">
     <div class="panel"><p class="eyebrow">What a VERIFIED certificate proves</p><ul>
-      <li>A named model's attested TEE key signed every committed answer, byte for byte.</li>
+      <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
     <div class="panel"><p class="eyebrow">What it doesn't prove</p><ul>
       <li>Hidden scores are checked statistically, not item by item.</li>
-      <li>Instances of a model can share a key; the trace is taken at preflight.</li>
+      <li>Instances of a model can share a key; the trace is taken at preflight. Approved measurements are recorded from NEAR's reports, not rebuilt from source.</li>
       <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
       <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300.</li>
       <li>When inference happened. Testnet only.</li></ul></div>
@@ -121,7 +121,7 @@ html,body{background:#161616;margin:0}
 
 <section class="band" id="refusals"><div class="wrap">
   <p class="eyebrow">05 · Refusals</p>
-  <h2>14 tests of tampering, unsupported models and missing evidence.</h2>
+  <h2>17 tests of tampering, unsupported models and missing evidence.</h2>
   <p class="lead">Each fixture makes one change to a real certificate, or withholds a service the verifier needs. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
   <div class="refusals" id="refList"></div>
 </div></section>
@@ -130,7 +130,7 @@ html,body{background:#161616;margin:0}
   <p class="eyebrow">06 · Reproduce</p>
   <h2>Check everything on your own machine.</h2>
   <p class="lead">No account, no API key, no test set. About five minutes.</p>
-  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 14 fixtures and the tests</span>
+  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 17 fixtures and the tests</span>
 git clone https://github.com/fexx301/fuin &amp;&amp; cd fuin
 ./scripts/review.sh
 

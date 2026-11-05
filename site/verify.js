@@ -1,8 +1,10 @@
 /* Fūin in-browser verifier: a port of src/fuin/verify.py for every check a browser can do.
  * Local: schema, rows, Merkle roots (RFC 8785 + domain-tagged SHA-256), sealed policy, every EIP-191 signature,
  * revealed proofs, exact request bytes, re-score. Network (NEAR RPC, CORS-enabled): registry record, transaction
- * receipts, seed block, audit sample. Not in a browser: Intel TDX / NVIDIA GPU attestation and the deployment trace
- * (run `fuin verify`). Needs globals: Noble (vendor/noble.js), crypto.subtle, fetch.
+ * receipts, seed block, audit sample; the Intel TDX quote (Phala's WebAssembly build of dcap-qvl, collateral from a public
+ * PCCS mirror) against the approved application and OS measurements. Not in a browser: NVIDIA's GPU verdict (NRAS blocks
+ * browsers) and the deployment trace. VERIFIED therefore needs fuin verify's recorded result for those two on this exact,
+ * unmodified certificate; otherwise the result is PARTIAL (run `fuin verify`). Needs globals: Noble, Dcap, crypto.subtle, fetch.
  */
 (function (root) {
   'use strict';
@@ -100,15 +102,27 @@
     const e = Math.min(a.e, b.e, tol.e), sc = (x) => x.m * 10n ** BigInt(x.e - e);
     const d = sc(a) - sc(b); return (d < 0n ? -d : d) <= sc(tol);
   }
+  // Python 3.13 (Unicode 15.1) behaviour the sealed scorers rely on, generated from Python, not hand-written:
+  // str.isspace() characters, the zero of every decimal-digit run (Nd), and the code points where str.casefold()
+  // differs from per-character toLowerCase(). Re-generate if the reference Python changes.
+  const PY_WS = "\t\n\u000b\f\r\u001c\u001d\u001e\u001f \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000";
+  const PY_DIGIT_ZEROS = [48, 1632, 1776, 1984, 2406, 2534, 2662, 2790, 2918, 3046, 3174, 3302, 3430, 3558, 3664, 3792, 3872, 4160, 4240, 6112, 6160, 6470, 6608, 6784, 6800, 6992, 7088, 7232, 7248, 42528, 43216, 43264, 43472, 43504, 43600, 44016, 65296, 66720, 68912, 69734, 69872, 69942, 70096, 70384, 70736, 70864, 71248, 71360, 71472, 71904, 72016, 72784, 73040, 73120, 73552, 92768, 92864, 93008, 120782, 120792, 120802, 120812, 120822, 123200, 123632, 124144, 125264, 130032];
+  const PY_FOLD = {"\u00b5":"\u03bc","\u00df":"ss","\u0149":"\u02bcn","\u017f":"s","\u01f0":"j\u030c","\u0345":"\u03b9","\u0390":"\u03b9\u0308\u0301","\u03b0":"\u03c5\u0308\u0301","\u03c2":"\u03c3","\u03d0":"\u03b2","\u03d1":"\u03b8","\u03d5":"\u03c6","\u03d6":"\u03c0","\u03f0":"\u03ba","\u03f1":"\u03c1","\u03f5":"\u03b5","\u0587":"\u0565\u0582","\u13a0":"\u13a0","\u13a1":"\u13a1","\u13a2":"\u13a2","\u13a3":"\u13a3","\u13a4":"\u13a4","\u13a5":"\u13a5","\u13a6":"\u13a6","\u13a7":"\u13a7","\u13a8":"\u13a8","\u13a9":"\u13a9","\u13aa":"\u13aa","\u13ab":"\u13ab","\u13ac":"\u13ac","\u13ad":"\u13ad","\u13ae":"\u13ae","\u13af":"\u13af","\u13b0":"\u13b0","\u13b1":"\u13b1","\u13b2":"\u13b2","\u13b3":"\u13b3","\u13b4":"\u13b4","\u13b5":"\u13b5","\u13b6":"\u13b6","\u13b7":"\u13b7","\u13b8":"\u13b8","\u13b9":"\u13b9","\u13ba":"\u13ba","\u13bb":"\u13bb","\u13bc":"\u13bc","\u13bd":"\u13bd","\u13be":"\u13be","\u13bf":"\u13bf","\u13c0":"\u13c0","\u13c1":"\u13c1","\u13c2":"\u13c2","\u13c3":"\u13c3","\u13c4":"\u13c4","\u13c5":"\u13c5","\u13c6":"\u13c6","\u13c7":"\u13c7","\u13c8":"\u13c8","\u13c9":"\u13c9","\u13ca":"\u13ca","\u13cb":"\u13cb","\u13cc":"\u13cc","\u13cd":"\u13cd","\u13ce":"\u13ce","\u13cf":"\u13cf","\u13d0":"\u13d0","\u13d1":"\u13d1","\u13d2":"\u13d2","\u13d3":"\u13d3","\u13d4":"\u13d4","\u13d5":"\u13d5","\u13d6":"\u13d6","\u13d7":"\u13d7","\u13d8":"\u13d8","\u13d9":"\u13d9","\u13da":"\u13da","\u13db":"\u13db","\u13dc":"\u13dc","\u13dd":"\u13dd","\u13de":"\u13de","\u13df":"\u13df","\u13e0":"\u13e0","\u13e1":"\u13e1","\u13e2":"\u13e2","\u13e3":"\u13e3","\u13e4":"\u13e4","\u13e5":"\u13e5","\u13e6":"\u13e6","\u13e7":"\u13e7","\u13e8":"\u13e8","\u13e9":"\u13e9","\u13ea":"\u13ea","\u13eb":"\u13eb","\u13ec":"\u13ec","\u13ed":"\u13ed","\u13ee":"\u13ee","\u13ef":"\u13ef","\u13f0":"\u13f0","\u13f1":"\u13f1","\u13f2":"\u13f2","\u13f3":"\u13f3","\u13f4":"\u13f4","\u13f5":"\u13f5","\u13f8":"\u13f0","\u13f9":"\u13f1","\u13fa":"\u13f2","\u13fb":"\u13f3","\u13fc":"\u13f4","\u13fd":"\u13f5","\u1c80":"\u0432","\u1c81":"\u0434","\u1c82":"\u043e","\u1c83":"\u0441","\u1c84":"\u0442","\u1c85":"\u0442","\u1c86":"\u044a","\u1c87":"\u0463","\u1c88":"\ua64b","\u1c89":"\u1c89","\u1e96":"h\u0331","\u1e97":"t\u0308","\u1e98":"w\u030a","\u1e99":"y\u030a","\u1e9a":"a\u02be","\u1e9b":"\u1e61","\u1e9e":"ss","\u1f50":"\u03c5\u0313","\u1f52":"\u03c5\u0313\u0300","\u1f54":"\u03c5\u0313\u0301","\u1f56":"\u03c5\u0313\u0342","\u1f80":"\u1f00\u03b9","\u1f81":"\u1f01\u03b9","\u1f82":"\u1f02\u03b9","\u1f83":"\u1f03\u03b9","\u1f84":"\u1f04\u03b9","\u1f85":"\u1f05\u03b9","\u1f86":"\u1f06\u03b9","\u1f87":"\u1f07\u03b9","\u1f88":"\u1f00\u03b9","\u1f89":"\u1f01\u03b9","\u1f8a":"\u1f02\u03b9","\u1f8b":"\u1f03\u03b9","\u1f8c":"\u1f04\u03b9","\u1f8d":"\u1f05\u03b9","\u1f8e":"\u1f06\u03b9","\u1f8f":"\u1f07\u03b9","\u1f90":"\u1f20\u03b9","\u1f91":"\u1f21\u03b9","\u1f92":"\u1f22\u03b9","\u1f93":"\u1f23\u03b9","\u1f94":"\u1f24\u03b9","\u1f95":"\u1f25\u03b9","\u1f96":"\u1f26\u03b9","\u1f97":"\u1f27\u03b9","\u1f98":"\u1f20\u03b9","\u1f99":"\u1f21\u03b9","\u1f9a":"\u1f22\u03b9","\u1f9b":"\u1f23\u03b9","\u1f9c":"\u1f24\u03b9","\u1f9d":"\u1f25\u03b9","\u1f9e":"\u1f26\u03b9","\u1f9f":"\u1f27\u03b9","\u1fa0":"\u1f60\u03b9","\u1fa1":"\u1f61\u03b9","\u1fa2":"\u1f62\u03b9","\u1fa3":"\u1f63\u03b9","\u1fa4":"\u1f64\u03b9","\u1fa5":"\u1f65\u03b9","\u1fa6":"\u1f66\u03b9","\u1fa7":"\u1f67\u03b9","\u1fa8":"\u1f60\u03b9","\u1fa9":"\u1f61\u03b9","\u1faa":"\u1f62\u03b9","\u1fab":"\u1f63\u03b9","\u1fac":"\u1f64\u03b9","\u1fad":"\u1f65\u03b9","\u1fae":"\u1f66\u03b9","\u1faf":"\u1f67\u03b9","\u1fb2":"\u1f70\u03b9","\u1fb3":"\u03b1\u03b9","\u1fb4":"\u03ac\u03b9","\u1fb6":"\u03b1\u0342","\u1fb7":"\u03b1\u0342\u03b9","\u1fbc":"\u03b1\u03b9","\u1fbe":"\u03b9","\u1fc2":"\u1f74\u03b9","\u1fc3":"\u03b7\u03b9","\u1fc4":"\u03ae\u03b9","\u1fc6":"\u03b7\u0342","\u1fc7":"\u03b7\u0342\u03b9","\u1fcc":"\u03b7\u03b9","\u1fd2":"\u03b9\u0308\u0300","\u1fd3":"\u03b9\u0308\u0301","\u1fd6":"\u03b9\u0342","\u1fd7":"\u03b9\u0308\u0342","\u1fe2":"\u03c5\u0308\u0300","\u1fe3":"\u03c5\u0308\u0301","\u1fe4":"\u03c1\u0313","\u1fe6":"\u03c5\u0342","\u1fe7":"\u03c5\u0308\u0342","\u1ff2":"\u1f7c\u03b9","\u1ff3":"\u03c9\u03b9","\u1ff4":"\u03ce\u03b9","\u1ff6":"\u03c9\u0342","\u1ff7":"\u03c9\u0342\u03b9","\u1ffc":"\u03c9\u03b9","\ua7cb":"\ua7cb","\ua7cc":"\ua7cc","\ua7ce":"\ua7ce","\ua7d2":"\ua7d2","\ua7d4":"\ua7d4","\ua7da":"\ua7da","\ua7dc":"\ua7dc","\uab70":"\u13a0","\uab71":"\u13a1","\uab72":"\u13a2","\uab73":"\u13a3","\uab74":"\u13a4","\uab75":"\u13a5","\uab76":"\u13a6","\uab77":"\u13a7","\uab78":"\u13a8","\uab79":"\u13a9","\uab7a":"\u13aa","\uab7b":"\u13ab","\uab7c":"\u13ac","\uab7d":"\u13ad","\uab7e":"\u13ae","\uab7f":"\u13af","\uab80":"\u13b0","\uab81":"\u13b1","\uab82":"\u13b2","\uab83":"\u13b3","\uab84":"\u13b4","\uab85":"\u13b5","\uab86":"\u13b6","\uab87":"\u13b7","\uab88":"\u13b8","\uab89":"\u13b9","\uab8a":"\u13ba","\uab8b":"\u13bb","\uab8c":"\u13bc","\uab8d":"\u13bd","\uab8e":"\u13be","\uab8f":"\u13bf","\uab90":"\u13c0","\uab91":"\u13c1","\uab92":"\u13c2","\uab93":"\u13c3","\uab94":"\u13c4","\uab95":"\u13c5","\uab96":"\u13c6","\uab97":"\u13c7","\uab98":"\u13c8","\uab99":"\u13c9","\uab9a":"\u13ca","\uab9b":"\u13cb","\uab9c":"\u13cc","\uab9d":"\u13cd","\uab9e":"\u13ce","\uab9f":"\u13cf","\uaba0":"\u13d0","\uaba1":"\u13d1","\uaba2":"\u13d2","\uaba3":"\u13d3","\uaba4":"\u13d4","\uaba5":"\u13d5","\uaba6":"\u13d6","\uaba7":"\u13d7","\uaba8":"\u13d8","\uaba9":"\u13d9","\uabaa":"\u13da","\uabab":"\u13db","\uabac":"\u13dc","\uabad":"\u13dd","\uabae":"\u13de","\uabaf":"\u13df","\uabb0":"\u13e0","\uabb1":"\u13e1","\uabb2":"\u13e2","\uabb3":"\u13e3","\uabb4":"\u13e4","\uabb5":"\u13e5","\uabb6":"\u13e6","\uabb7":"\u13e7","\uabb8":"\u13e8","\uabb9":"\u13e9","\uabba":"\u13ea","\uabbb":"\u13eb","\uabbc":"\u13ec","\uabbd":"\u13ed","\uabbe":"\u13ee","\uabbf":"\u13ef","\ufb00":"ff","\ufb01":"fi","\ufb02":"fl","\ufb03":"ffi","\ufb04":"ffl","\ufb05":"st","\ufb06":"st","\ufb13":"\u0574\u0576","\ufb14":"\u0574\u0565","\ufb15":"\u0574\u056b","\ufb16":"\u057e\u0576","\ufb17":"\u0574\u056d","\ud803\udd50":"\ud803\udd50","\ud803\udd51":"\ud803\udd51","\ud803\udd52":"\ud803\udd52","\ud803\udd53":"\ud803\udd53","\ud803\udd54":"\ud803\udd54","\ud803\udd55":"\ud803\udd55","\ud803\udd56":"\ud803\udd56","\ud803\udd57":"\ud803\udd57","\ud803\udd58":"\ud803\udd58","\ud803\udd59":"\ud803\udd59","\ud803\udd5a":"\ud803\udd5a","\ud803\udd5b":"\ud803\udd5b","\ud803\udd5c":"\ud803\udd5c","\ud803\udd5d":"\ud803\udd5d","\ud803\udd5e":"\ud803\udd5e","\ud803\udd5f":"\ud803\udd5f","\ud803\udd60":"\ud803\udd60","\ud803\udd61":"\ud803\udd61","\ud803\udd62":"\ud803\udd62","\ud803\udd63":"\ud803\udd63","\ud803\udd64":"\ud803\udd64","\ud803\udd65":"\ud803\udd65","\ud81b\udea0":"\ud81b\udea0","\ud81b\udea1":"\ud81b\udea1","\ud81b\udea2":"\ud81b\udea2","\ud81b\udea3":"\ud81b\udea3","\ud81b\udea4":"\ud81b\udea4","\ud81b\udea5":"\ud81b\udea5","\ud81b\udea6":"\ud81b\udea6","\ud81b\udea7":"\ud81b\udea7","\ud81b\udea8":"\ud81b\udea8","\ud81b\udea9":"\ud81b\udea9","\ud81b\udeaa":"\ud81b\udeaa","\ud81b\udeab":"\ud81b\udeab","\ud81b\udeac":"\ud81b\udeac","\ud81b\udead":"\ud81b\udead","\ud81b\udeae":"\ud81b\udeae","\ud81b\udeaf":"\ud81b\udeaf","\ud81b\udeb0":"\ud81b\udeb0","\ud81b\udeb1":"\ud81b\udeb1","\ud81b\udeb2":"\ud81b\udeb2","\ud81b\udeb3":"\ud81b\udeb3","\ud81b\udeb4":"\ud81b\udeb4","\ud81b\udeb5":"\ud81b\udeb5","\ud81b\udeb6":"\ud81b\udeb6","\ud81b\udeb7":"\ud81b\udeb7","\ud81b\udeb8":"\ud81b\udeb8"};
+  const PY_DIGIT = new Map();
+  for (const z of PY_DIGIT_ZEROS) for (let d = 0; d < 10; d++) PY_DIGIT.set(String.fromCodePoint(z + d), String(d));
+  const pyStrip = (s) => { const a = Array.from(s); let i = 0, j = a.length;
+    while (i < j && PY_WS.includes(a[i])) i++; while (j > i && PY_WS.includes(a[j - 1])) j--; return a.slice(i, j).join(''); };
+  const pyFold = (s) => Array.from(s, (ch) => PY_FOLD[ch] ?? ch.toLowerCase()).join('');  // per character: no final-sigma context
+  const pyDigits = (s) => Array.from(s, (ch) => PY_DIGIT.get(ch) ?? ch).join('');  // Python's \d and Decimal accept any Nd digit
   function scoreText(item, content, v2) {
-    let s = content.trim(); if (s.endsWith('.')) s = s.slice(0, -1);
-    s = stripSet(s.trim(), v2 ? '`"\'*_' : '`"\'').trim();
+    let s = pyStrip(content); if (s.endsWith('.')) s = s.slice(0, -1);
+    s = pyStrip(stripSet(pyStrip(s), v2 ? '`"\'*_' : '`"\''));
     if (item.answer_type === 'numeric') {
-      s = s.replace(/(?<=\d)[,_](?=\d)/g, '');
+      s = pyDigits(s).replace(/(?<=\d)[,_](?=\d)/g, '');
       if (!NUMBER.test(s)) return 0;
       try { return absDiffLE(decimal(s), decimal(item.answer), decimal(item.tolerance || '0')) ? 1 : 0; } catch { return 0; }
     }
-    if (item.answer_type === 'exact') return [item.answer, ...(item.accept || [])].some((a) => a.toLowerCase() === s.toLowerCase()) ? 1 : 0;
+    if (item.answer_type === 'exact') return [item.answer, ...(item.accept || [])].some((a) => pyFold(a) === pyFold(s)) ? 1 : 0;
     throw new Error('unsupported answer_type');
   }
   function scoreResponse(item, bytes, scorerName) {
@@ -123,14 +137,23 @@
   }
 
   // ---- NEAR RPC ----
+  // Finalized transactions and blocks fetched by height or hash never change, so one page visit asks for each once
+  // (re-verifying under each cheat would otherwise trip public RPC rate limits). Keyed by the configured endpoint.
+  const RPC_CACHE = new Map();
+  let RPC_FALLBACK = [];  // other archival endpoints, tried alternately on retries (set per verify from cfg.rpcFallback)
   async function rpc(url, method, params) {
+    const immutable = method === 'EXPERIMENTAL_tx_status' || (method === 'block' && params.block_id != null);
+    const key = immutable ? url + ' ' + method + ' ' + JSON.stringify(params) : null;
+    if (key && RPC_CACHE.has(key)) return RPC_CACHE.get(key);
+    const urls = [url, ...RPC_FALLBACK.filter((u) => u !== url)];
     let last;
-    for (let a = 0; a < 4; a++) {
+    for (let a = 0; a < 6; a++) {
       try {
-        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'fuin', method, params }) });
+        const r = await fetch(urls[a % urls.length], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'fuin', method, params }) });
         if ([429, 502, 503, 504].includes(r.status)) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         if (d.error) { const e = new Error(JSON.stringify(d.error).slice(0, 300)); e.rpc = true; throw e; }
+        if (key) RPC_CACHE.set(key, d.result);
         return d.result;
       } catch (e) { if (e.rpc) throw e; last = e; await new Promise((s) => setTimeout(s, 600 * (a + 1))); }
     }
@@ -201,6 +224,7 @@
   /* verify(cert, cfg, onStep) → {outcome, code, detail, steps}. cfg: {supported, attested, registry, rpc, recorded?}.
    * onStep(id, state, detail) with state in running|pass|fail|skip|info, for the UI. */
   async function verify(cert, cfg, onStep = () => {}) {
+    RPC_FALLBACK = cfg.rpcFallback || [];
     const S = cfg.supported, deferred = [];
     let attMode = 'none';  // live: TDX checked here · recorded: shown from fuin verify · none: not checked
     let step = '';
@@ -271,7 +295,8 @@
         return `${k}/${k} revealed: proofs pass, exact request rebuilt, re-score matches`;
       });
 
-      const gpu = cfg.recorded ? `GPU: NVIDIA NRAS true (recorded by fuin verify)` : 'GPU: NVIDIA NRAS blocks browsers; run fuin verify';
+      const gpu = cfg.recorded ? 'GPU (NVIDIA NRAS) and deployment trace: recorded by fuin verify, not checked here'
+        : 'GPU (NVIDIA NRAS blocks browsers) and deployment trace: not checked here; run fuin verify';
       const reps = r.model_report.model_attestations.filter((x) => used.has(String(x.signing_address).toLowerCase()));
       if (root.DcapReady && !root.Dcap) { await onStep('attestation', 'running', 'loading the Intel TDX verifier…'); try { await root.DcapReady; } catch { /* falls back below */ } }
       if (root.Dcap && reps.length && reps.every((x) => x.intel_quote)) {
@@ -305,10 +330,15 @@
               rt = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([rt, d])));
             }
             req(hex(rt) === td.rt_mr3, 'attestation_invalid');
-            if (!((cfg.attestationPolicy.models[r.model_id] || []).includes(ch))) {  // defer, like the CLI: later checks can still refuse
-              deferred.push(['measurement_unapproved', '']); out.push(`quote ${res.status} but configuration ${ch.slice(0, 10)}… is not in ${cfg.attestationPolicy.version} (CAN'T CERTIFY measurement_unapproved)`); continue;
+            // the application (compose hash) and the OS it runs on (MRTD, RTMR0-2, os_image_hash) must both be approved
+            const entry = (cfg.attestationPolicy.models[r.model_id] || {})[ch];
+            const osOk = !!entry && rep.info.os_image_hash === entry.os_image_hash
+              && entry.os_measurements.some((m) => ['mr_td', 'rt_mr0', 'rt_mr1', 'rt_mr2'].every((k) => m[k] === td[k]));
+            if (!osOk) {  // defer, like the CLI: later checks can still refuse
+              deferred.push(['measurement_unapproved', '']);
+              out.push(`quote ${res.status} but ${entry ? 'its OS measurements (MRTD, RTMR0-2) are' : `configuration ${ch.slice(0, 10)}… is`} not approved in ${cfg.attestationPolicy.version} (CAN'T CERTIFY measurement_unapproved)`); continue;
             }
-            out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… accepted by ${cfg.attestationPolicy.version}`);
+            out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… and OS ${td.mr_td.slice(0, 10)}… approved by ${cfg.attestationPolicy.version}`);
           }
           attMode = 'live';
           return `TDX checked in your browser: ${out.join('; ')}. ${gpu}`;
@@ -363,7 +393,8 @@
     if (deferred.length) return { outcome: 'CANT_CERTIFY', code: deferred[0][0], detail: deferred[0][1] };
     const au = auditSize(cert.benchmark.n);
     if (attMode === 'none') return { outcome: 'PARTIAL', code: 'attestation not checked', attestation: attMode };
-    return { outcome: 'VERIFIED', attestation: attMode, gpu: cfg.recorded ? 'recorded' : 'not checked', scope: `audit passed ${au.k}/${cert.benchmark.n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)` };
+    if (!cfg.recorded) return { outcome: 'PARTIAL', code: 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked' };
+    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', scope: `audit passed ${au.k}/${cert.benchmark.n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)` };
   }
 
   root.FuinVerify = { verify, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };

@@ -12,7 +12,7 @@ const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, reg
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let fails = 0;
 const check = async (name, cert, want, net = true, over = {}) => {
-  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
+  const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   const res = await V.verify(cert, c);
   const got = res.outcome + (res.code ? ' ' + res.code : '');
   const ok = got === want; fails += !ok;
@@ -35,6 +35,11 @@ await check('edited app_compose (MRCONFIGID)', mut((c) => { c.run.model_report.m
 await check('unapproved config does not hide registry tampering', mut((c) => { c.benchmark.seal_height += 1; }), 'REFUSED record_mismatch', true,
   { attestationPolicy: { version: 'empty', models: {} } });
 await check('unapproved config alone', base, 'CANT_CERTIFY measurement_unapproved', true, { attestationPolicy: { version: 'empty', models: {} } });
+const polOS = clone(F.attestation_policy);
+for (const e of Object.values(polOS.models[base.run.model_id])) e.os_measurements = [{ mr_td: '00'.repeat(48), rt_mr0: '00'.repeat(48), rt_mr1: '00'.repeat(48), rt_mr2: '00'.repeat(48) }];
+await check('unapproved OS measurements (MRTD, RTMR0-2)', base, 'CANT_CERTIFY measurement_unapproved', true, { attestationPolicy: polOS });
+await check('os_image_hash differs from the policy', mut((c) => { c.run.model_report.model_attestations[0].info.os_image_hash = '00'.repeat(32); }), 'CANT_CERTIFY measurement_unapproved');
+await check('uploaded certificate: no recorded GPU or trace result', base, 'PARTIAL GPU and deployment trace not checked in a browser', true, { recorded: null });
 await check('one-byte salt', mut((c) => { c.audit.reveals[0].salt = 'ab'; }), 'REFUSED certificate_invalid');
 await check('RPC down, untampered', base, 'CANT_CERTIFY evidence_unavailable', false);
 await check('RPC down, tampered signature', mut((c) => { c.run.items[0].signature.text += 'x'; }), 'REFUSED signature_text_mismatch', false);
@@ -43,4 +48,8 @@ let parity = 0, total = 0;
 for (const r of F.rounds) for (const e of r.certs) { const sc = e.cert.benchmark.policy.scorer.name; const scores = Object.fromEntries(e.cert.run.items.map((i) => [i.i, i.score]));
   for (const x of e.cert.audit.reveals) { total++; if (V.scoreResponse(x.item, V.b64(x.response_b64), sc) === scores[x.i]) parity++; } }
 console.log(`scorer parity on revealed answers: ${parity}/${total}`); fails += parity !== total;
+// scorer parity with Python on 3,000 generated edge cases (Unicode case folding, whitespace, digits): scripts/make_scorer_parity.py
+const gen = JSON.parse(fs.readFileSync('tests/fixtures/scorer-parity.json', 'utf8')).cases;
+let genOk = 0; for (const c of gen) genOk += V.scoreText(c.item, c.content, false) === c.v1 && V.scoreText(c.item, c.content, true) === c.v2;
+console.log(`scorer parity on generated edge cases: ${genOk}/${gen.length}`); fails += genOk !== gen.length;
 process.exit(fails ? 1 : 0);

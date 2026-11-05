@@ -22,14 +22,16 @@ def slim(cert: dict) -> dict:
     c = json.loads(json.dumps(cert))
     keep = lambda a: {"signing_address": a["signing_address"], "model_name": a.get("model_name"), "request_nonce": a.get("request_nonce"),
                       "intel_quote": a.get("intel_quote"), "event_log": a.get("event_log"),
-                      "info": {"tcb_info": {"app_compose": a.get("info", {}).get("tcb_info", {}).get("app_compose")}}}
+                      "info": {"tcb_info": {"app_compose": a.get("info", {}).get("tcb_info", {}).get("app_compose")},
+                               "os_image_hash": a.get("info", {}).get("os_image_hash")}}  # the browser's OS check needs it
     c["run"]["model_report"] = {"model_attestations": [keep(a) for a in cert["run"]["model_report"]["model_attestations"]]}  # GPU payload dropped
     return c
 
 
 def recorded(rid: str) -> dict:
     out = {}
-    for f in glob.glob(f"evidence/*-round-{rid}/verify.jsonl"):
+    # the round's own record first, then any later re-verification (e.g. under a newer attestation policy) overrides it
+    for f in sorted(glob.glob(f"evidence/*-round-{rid}/verify.jsonl")) + sorted(glob.glob("evidence/*-reverify-*/verify.jsonl")):
         for line in open(f):
             r = json.loads(line)
             out[Path(r["cert"]).name] = {k: r.get(k) for k in ("outcome", "code", "checks", "warnings", "scope", "trace")}
@@ -61,12 +63,15 @@ def main() -> None:
         "generated_utc": datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         "registry": near.REGISTRY,
         "rpc": near.NETWORKS["testnet"],
+        "rpc_fallback": [u for u in near.ARCHIVAL if u != near.NETWORKS["testnet"]],
         "supported": {"protocol": P.PROTOCOL, "template": P.TEMPLATE, "privacy": P.PRIVACY, "sampler": P.SAMPLER,
                       "allowed_settings": sorted(P.ALLOWED_SETTINGS),
                       "scorers": {name: sha for (name, sha) in P.SCORERS}},
         "attested_models": sorted(owner.attestation_policy()["models"]),
         "attestation_policy": {"version": owner.attestation_policy()["version"],
-                               "models": {m: sorted(v["compose_hashes"]) for m, v in owner.attestation_policy()["models"].items()}},
+                               "models": {m: {ch: {"os_image_hash": e["os_image_hash"], "os_measurements": e["os_measurements"]}
+                                              for ch, e in v["compose_hashes"].items()}
+                                          for m, v in owner.attestation_policy()["models"].items()}},
         "pccs": "https://pccs.phala.network",
         "rounds": rounds,
         "hint": {"file": "examples/tampered/answer-hint.json", "cert": slim(json.loads(Path("examples/tampered/answer-hint.json").read_text()))},
