@@ -97,13 +97,22 @@
   // ---- scorers (ports of fuin-scorer-v1 and -v2) ----
   const NUMBER = /^[-+]?\d+(\.\d+)?([eE][-+]?\d+)?$/;
   function stripSet(s, set) { let a = 0, b = s.length; while (a < b && set.includes(s[a])) a++; while (b > a && set.includes(s[b - 1])) b--; return s.slice(a, b); }
-  function decimal(s) { // exact: value = m * 10^e
-    const m = s.match(/^([-+]?)(\d+)(?:\.(\d+))?(?:[eE]([-+]?\d+))?$/); if (!m) throw new Error('bad decimal');
-    const frac = m[3] || ''; return { m: BigInt((m[1] === '-' ? '-' : '') + m[2] + frac), e: (m[4] ? parseInt(m[4], 10) : 0) - frac.length };
+  function decimal(s, sealed) { // exact: value = m * 10^e. A sealed answer or tolerance is read as Python's Decimal() reads
+    // it: surrounding whitespace, Unicode digits, '_' between digits, and '.5' or '5.' forms (as the TEE scorer does)
+    if (sealed) s = pyDigits(pyStrip(s)).replace(/(?<=\d)_(?=\d)/g, '');
+    const m = s.match(sealed ? /^([-+]?)(\d*)(?:\.(\d*))?(?:[eE]([-+]?\d{1,9}))?$/ : /^([-+]?)(\d+)(?:\.(\d+))?(?:[eE]([-+]?\d+))?$/);
+    if (!m || !(m[2] || m[3])) throw new Error('bad decimal');
+    const frac = m[3] || ''; return { m: BigInt((m[1] === '-' ? '-' : '') + (m[2] || '') + frac || '0'), e: (m[4] ? parseInt(m[4], 10) : 0) - frac.length };
   }
-  function absDiffLE(a, b, tol) {
-    const e = Math.min(a.e, b.e, tol.e), sc = (x) => x.m * 10n ** BigInt(x.e - e);
-    const d = sc(a) - sc(b); return (d < 0n ? -d : d) <= sc(tol);
+  function absDiffLE(a, b, tol) {  // Python: the exact difference rounded to 28 significant digits, half-even, then compared
+    const sc = (x, e) => x.m * 10n ** BigInt(x.e - e), e = Math.min(a.e, b.e);
+    let m = sc(a, e) - sc(b, e), de = e; if (m < 0n) m = -m;
+    const digits = m.toString().length;
+    if (m !== 0n && digits > 28) {
+      const k = digits - 28, p = 10n ** BigInt(k), r = m % p, half = 5n * 10n ** BigInt(k - 1);
+      m = m / p; if (r > half || (r === half && m % 2n === 1n)) m += 1n; de += k;
+    }
+    const e2 = Math.min(de, tol.e); return sc({ m, e: de }, e2) <= sc(tol, e2);
   }
   // Python 3.13 (Unicode 15.1) behaviour the sealed scorers rely on, generated from Python, not hand-written:
   // str.isspace() characters, the zero of every decimal-digit run (Nd), and the code points where str.casefold()
@@ -123,7 +132,7 @@
     if (item.answer_type === 'numeric') {
       s = pyDigits(s).replace(/(?<=\d)[,_](?=\d)/g, '');
       if (!NUMBER.test(s)) return 0;
-      try { return absDiffLE(decimal(s), decimal(item.answer), decimal(item.tolerance || '0')) ? 1 : 0; } catch { return 0; }
+      try { return absDiffLE(decimal(s), decimal(item.answer, true), decimal(item.tolerance || '0', true)) ? 1 : 0; } catch { return 0; }
     }
     if (item.answer_type === 'exact') return [item.answer, ...(item.accept || [])].some((a) => pyFold(a) === pyFold(s)) ? 1 : 0;
     throw new Error('unsupported answer_type');

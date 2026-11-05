@@ -290,15 +290,30 @@ fn parse_decimal(s: &str, strict: bool) -> Option<(BigInt, i64)> {
     Some((m, e - frac.len() as i64))
 }
 
+/// abs(Decimal(x) - Decimal(answer)) <= Decimal(tolerance) as Python computes it: the exact difference is rounded to the
+/// default context's 28 significant digits, half-even, before the exact comparison.
 fn abs_diff_le(a: &(BigInt, i64), b: &(BigInt, i64), tol: &(BigInt, i64)) -> Option<bool> {
-    let e = a.1.min(b.1).min(tol.1);
-    let scale = |x: &(BigInt, i64)| -> Option<BigInt> {
+    let scale = |x: &(BigInt, i64), e: i64| -> Option<BigInt> {
         let k = u32::try_from(x.1 - e).ok().filter(|k| *k <= 2_000_000)?;
         Some(&x.0 * BigInt::from(10u8).pow(k))
     };
-    let d = scale(a)? - scale(b)?;
-    let d = if d < BigInt::from(0) { -d } else { d };
-    Some(d <= scale(tol)?)
+    let e = a.1.min(b.1);
+    let d = scale(a, e)? - scale(b, e)?;
+    let (mut m, mut de) = (if d < BigInt::from(0) { -d } else { d }, e);
+    let digits = m.to_string().len() as u32;
+    if m != BigInt::from(0) && digits > 28 {
+        let k = digits - 28;
+        let p = BigInt::from(10u8).pow(k);
+        let (mut q, r) = (&m / &p, &m % &p);
+        let half = BigInt::from(5u8) * BigInt::from(10u8).pow(k - 1);
+        if r > half || (r == half && &q % 2u8 == BigInt::from(1)) {
+            q += 1;
+        }
+        m = q;
+        de += i64::from(k);  // a carry to 10^28 changes no value, so it needs no renormalising for the comparison
+    }
+    let e2 = de.min(tol.1);
+    Some(scale(&(m, de), e2)? <= scale(tol, e2)?)
 }
 
 fn answer_decimal(s: &str) -> Result<(BigInt, i64), String> {

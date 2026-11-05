@@ -86,7 +86,14 @@ def _validate(c) -> None:
     txt(r.get("model_id"), "run.model_id"); num(r.get("run_index"), "run.run_index"); h32(r.get("preflight_nonce"), "run.preflight_nonce")
     need(isinstance(r.get("model_report"), dict) and isinstance(r["model_report"].get("model_attestations"), list), "run.model_report")
     for j, rep in enumerate(r["model_report"]["model_attestations"]):
-        need(isinstance(rep, dict) and isinstance(rep.get("signing_address"), str), f"run.model_report.model_attestations[{j}]")
+        w = f"run.model_report.model_attestations[{j}]"
+        need(isinstance(rep, dict), w)
+        for k in ("signing_address", "model_name", "intel_quote", "request_nonce"):  # every field the checks below read
+            need(isinstance(rep.get(k), str), f"{w}.{k}")
+        need(isinstance(rep.get("event_log"), list) and isinstance(rep.get("nvidia_payload"), (str, dict)), w)
+        info = rep.get("info")
+        need(isinstance(info, dict) and isinstance(info.get("tcb_info"), dict) and isinstance(info["tcb_info"].get("app_compose"), str),
+             f"{w}.info.tcb_info.app_compose")
     h32(r.get("run_root"), "run.run_root"); num(r.get("total_score"), "run.total_score")
     txt(r.get("commit_tx"), "run.commit_tx"); num(r.get("commit_height"), "run.commit_height")
     ev = r.get("evidence", {})

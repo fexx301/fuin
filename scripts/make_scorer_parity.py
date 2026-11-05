@@ -43,6 +43,20 @@ for _ in range(1500):  # numeric answers
     item = {"answer_type": "numeric", "answer": n, **({"tolerance": rng.choice(["0", "0.5", "1"])} if rng.random() < 0.4 else {})}
     cases.append({"item": item, "content": noise(said)})
 
+# Found by a blind review: sealed answers in every form Decimal() accepts, and differences that need more than the
+# default context's 28 significant digits (Python rounds the subtraction half-even before comparing with the tolerance)
+SEALED = [".5", "5.", " 3 ", "1_000", "٣", "+.5e1", "-0", "1E+2", "0.50", "\u20073\u2007", "-.25", "7.e1"]
+for _ in range(300):
+    item = {"answer_type": "numeric", "answer": rng.choice(SEALED),
+            **({"tolerance": rng.choice(["0", "0.5", " 1 ", ".1", "1."])} if rng.random() < 0.4 else {})}
+    cases.append({"item": item, "content": noise(rng.choice(["0.5", "5", "3", "1000", "5.0", "-0", "100", "1e2", "3.0000", "70", "-0.25"]))})
+for _ in range(300):
+    k = rng.randint(22, 34)
+    content = rng.choice(["", "-"]) + (("1." + "0" * k + rng.choice(["1", "5", "49", "51", "9", "50"])) if rng.random() < 0.6 else "0." + "9" * (k + 2))
+    item = {"answer_type": "numeric", "answer": rng.choice(["0", "0.0", "2", "-1", "1", "1" + "0" * rng.randint(20, 30)]),
+            "tolerance": rng.choice(["1", "0", "2", "1.0", "1e-30", "0." + "0" * 27 + "1"])}
+    cases.append({"item": item, "content": content})
+
 for c in cases:
     c["v1"] = scorer_v1.score_text(c["item"], c["content"])
     c["v2"] = scorer.score_text(c["item"], c["content"])

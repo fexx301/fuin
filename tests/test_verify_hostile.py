@@ -89,3 +89,18 @@ def test_non_dict_input():
 def test_unsupported_model_is_not_certified_even_offline():
     res = run(lambda c: c["run"].__setitem__("model_id", "openai/gpt-5.5"))
     assert res["outcome"] == "CANT_CERTIFY" and res["code"] in ("model_not_tee", "policy_unsupported")
+
+
+def test_an_attestation_entry_missing_a_field_is_refused_before_any_network_call():
+    """Found by a blind review: a missing model_name used to crash the verifier (CAN'T CERTIFY verifier_error)."""
+    import json as _json
+    from pathlib import Path as _Path
+    from unittest.mock import patch
+    from fuin import verify as _verify
+    cert = _json.loads((_Path(__file__).resolve().parents[1] / "examples/cert-near-dev-60-r1-qwen3.8-27b.json").read_text())
+    for field in ("model_name", "intel_quote", "event_log", "info"):
+        c = _json.loads(_json.dumps(cert))
+        del c["run"]["model_report"]["model_attestations"][0][field]
+        with patch("requests.get", side_effect=AssertionError("network")), patch("requests.post", side_effect=AssertionError("network")):
+            r = _verify.verify(c)
+        assert (r["outcome"], r["code"]) == ("REFUSED", "certificate_invalid"), (field, r)
