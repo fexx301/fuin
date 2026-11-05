@@ -23,7 +23,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Don't run
 
-`fuin seal`, `run`, `commit`, `close`, `reveal` and `tee-score` are owner commands. They need a NEAR AI API key or the owner's NEAR keys, and sign NEAR testnet transactions. Reviewing needs only `fuin verify`, `fuin show`, `scripts/check_fixtures.py` and the tests.
+`fuin seal`, `run`, `commit`, `close`, `reveal`, `tee-score` and `policy-update` are owner commands. They need a NEAR AI API key or the owner's NEAR keys, and sign NEAR testnet transactions. Reviewing needs only `fuin verify`, `fuin show`, `scripts/check_fixtures.py` and the tests.
 
 ## Scope
 

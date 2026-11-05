@@ -144,7 +144,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (99 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
+4. **Run the tests.** `uv run pytest` (101 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,000 generated cases, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
 
 ## How it works
 
@@ -213,6 +213,8 @@ uv run fuin status --id my-bench-1      # at any point: which steps are done and
 ```
 
 To reveal nothing, seal with `--tee` (every item scored inside the TEE by the sealed scorer build; run `tee-score` for every model after `close`, and the certificates are written once all are scored). Add `--e2ee` to encrypt each question and answer end to end between you and the model's attested key, so NEAR's gateway never sees them.
+
+When NEAR redeploys a model, a run's preflight stops with no accepted attestation. `uv run --env-file .env fuin policy-update` fetches fresh reports. For any configuration whose evidence holds (Intel quote, nonce binding, RTMR3, NVIDIA's verdict) but isn't approved yet, it drafts `policy/attestation-v<N+1>.json` with the measurements and deployment trace for review. It approves nothing itself: the verifier keeps its current policy until a person points `owner.ATTESTATION_POLICY` at the reviewed file.
 
 For a second person trying Fūin on their own private questions, [PILOT.md](PILOT.md) is a step-by-step kit with a report form.
 

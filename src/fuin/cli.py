@@ -50,6 +50,9 @@ def main(argv=None) -> int:
     p.add_argument("--tee", action="store_true", help="state the disclosure for a zero-reveal (TEE-scored) round")
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
+    p = sub.add_parser("policy-update", help="draft the next attestation policy from fresh reports when NEAR redeploys a model "
+                       "(needs a key; writes policy/attestation-v<N+1>.json for review, approves nothing)")
+    p.add_argument("--model", action="append", default=None, help="model to check (default: every model in the current policy)")
     p = sub.add_parser("tee-key", help="make the TEE scorer's in-enclave key for this owner (once per scorer build)")
     p.add_argument("--owner", required=True)
     p = sub.add_parser("tee-score", help="re-score a committed run inside OutLayer's TEE and add the evidence to its certificate")
@@ -84,6 +87,16 @@ def main(argv=None) -> int:
     elif a.cmd == "reveal":
         for p in owner.reveal(a.id, a.out):
             print(p)
+    elif a.cmd == "policy-update":
+        from fuin import policyupdate
+        draft, notes = policyupdate.propose(a.model or sorted(owner.attestation_policy()["models"]))
+        print("\n".join(notes))
+        if draft is None:
+            print("nothing new: every candidate is already approved or was not proposed")
+        else:
+            path = policyupdate.write(draft)
+            print(f"wrote {path} for review; the verifier keeps using {owner.ATTESTATION_POLICY.name} until "
+                  "owner.ATTESTATION_POLICY points at the reviewed file")
     elif a.cmd == "tee-key":
         from fuin import tee
         k = tee.keygen(a.owner)
