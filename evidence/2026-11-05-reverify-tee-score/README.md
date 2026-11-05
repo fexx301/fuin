@@ -36,7 +36,7 @@ It returns only the two roots, the total, the policy hash and the signer. It ref
 **Before the real runs:**
 - **Parity.** Natively, the scorer reproduced every benchmark root, run root, total, policy hash and signer for all 840 real rows of the six published runs. It also matched the Python scorers on 3,000 generated edge cases × 2 scorer versions (`tee/tests/parity.rs`).
 - **Synthetic run.** A signed synthetic round (`tests/fixtures/tee-synthetic-round.json`) was scored inside OutLayer and matched Python's outcome (task 20860, now the offline test fixture `tests/fixtures/tee-synthetic-evidence.json`).
-- **Reproducible build.** `tee/build.sh` gives sha256 `a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7` from a fresh clone at another path, and that is the pin in `policy/tee-v1.json`. The binary is served from FastFS at the URL there.
+- **Reproducible build, on one platform.** `tee/build.sh` gives sha256 `a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7` on macOS arm64 from a fresh clone at another path, and that is the pin in `policy/tee-v1.json`. A Linux x86_64 build of the same commit (CreateOS sandbox, same rustc 1.95.0 and wasm-component-ld 0.5.21) gave `3266d439…`, so builds aren't yet identical across platforms. The cause wasn't found within the time box. The binary is served from FastFS at the URL there.
 
 **Tampering** (`examples/tampered/`, checked live):
 

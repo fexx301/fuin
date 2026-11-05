@@ -32,7 +32,7 @@ Every claim below maps to a command:
 | The owner can't choose which items a committed round reveals | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
 | Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 21 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
-| The TEE scorer that ran is this repository's code | `tee/build.sh` (Rust 1.95.0 with `wasm32-wasip2`) | prints `a848254b…`, the pin in `policy/tee-v1.json` |
+| The TEE scorer that ran is this repository's code | `tee/build.sh` on macOS (Apple silicon) with Rust 1.95.0 and `wasm32-wasip2` | prints `a848254b…`, the pin in `policy/tee-v1.json`. A Linux x86_64 build currently gives a different hash: not yet reproducible across platforms |
 | The registry can't be changed | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
 ## The problem
