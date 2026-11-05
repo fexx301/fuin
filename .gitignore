@@ -9,3 +9,4 @@ private/
 
 # TEE scorer build output
 tee/target/
+tee/dist/

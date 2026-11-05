@@ -22,6 +22,7 @@ hex = "0.4"
 base64 = "0.22"
 num-bigint = "0.4"
 k256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+bs58 = "0.5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 outlayer = { version = "=0.2.1", features = ["encryption-keys"] }

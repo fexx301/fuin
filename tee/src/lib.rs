@@ -24,6 +24,7 @@ pub struct Row {
 pub struct Round {
     pub model: String,
     pub policy_jcs: String,
+    pub seal_block_hash: Option<String>, // base58, for request template v2 (nonces bound to the seal block)
     pub items: Vec<Item>,
     pub rows: Vec<Row>,
 }
@@ -37,14 +38,19 @@ pub struct Outcome {
     pub policy_hash: String,
     pub run_root: String,
     pub signer: String,
+    pub seal_block_hash: Option<String>,
 }
 
 impl Outcome {
     /// The attested output: keys sort the same way OutLayer's worker hashes them; well under its 900-byte cap.
     pub fn to_json(&self, blob_sha256: &str) -> Value {
-        serde_json::json!({"v": "fuin-tee-score-v1", "model": self.model, "n": self.n, "total": self.total,
+        let mut v = serde_json::json!({"v": "fuin-tee-score-v1", "model": self.model, "n": self.n, "total": self.total,
             "benchmark_root": self.benchmark_root, "policy_hash": self.policy_hash, "run_root": self.run_root,
-            "signer": self.signer, "blob_sha256": blob_sha256})
+            "signer": self.signer, "blob_sha256": blob_sha256});
+        if let Some(h) = &self.seal_block_hash {
+            v["seal_block_hash"] = h.clone().into(); // the verifier compares it with the chain's block at the seal height
+        }
+        v
     }
 }
 
@@ -85,7 +91,8 @@ pub fn round_from_json(v: &Value) -> Result<Round, String> {
         Ok(Row { request: b64.decode(s(x, "request_b64")?).map_err(|_| "request_b64")?,
                  response: b64.decode(s(x, "response_b64")?).map_err(|_| "response_b64")?, sig: x["signature"].clone() })
     }).collect::<Result<Vec<_>, String>>()?;
-    Ok(Round { model: s(v, "model")?, policy_jcs: s(v, "policy_jcs")?, items, rows })
+    let seal_block_hash = v["seal_block_hash"].as_str().map(str::to_string);
+    Ok(Round { model: s(v, "model")?, policy_jcs: s(v, "policy_jcs")?, seal_block_hash, items, rows })
 }
 
 /// inference.build_request: json.dumps(ensure_ascii=False, separators=(",", ":")) of model, messages, stream, user, then
@@ -222,7 +229,8 @@ fn answer_decimal(s: &str) -> Result<(BigInt, i64), String> {
     let t: String = chars.iter().enumerate()
         .filter(|(j, c)| !(**c == '_' && *j > 0 && *j + 1 < chars.len() && chars[j - 1].is_ascii_digit() && chars[j + 1].is_ascii_digit()))
         .map(|(_, c)| *c).collect();
-    parse_decimal(&t, false).ok_or_else(|| format!("unsupported decimal {s:?}"))
+    // never echo the value: an error leaves the enclave as public on-chain output, and this is a sealed answer
+    parse_decimal(&t, false).ok_or_else(|| "unsupported decimal in a sealed answer or tolerance".to_string())
 }
 
 /// scorer.score_text (v2) / scorer_v1.score_text: 1 or 0.
@@ -273,8 +281,20 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
     if s("/protocol") != Some("fuin-v1") {
         return Err("unsupported protocol".into());
     }
-    if s("/request/template") != Some("fuin-request-v1") || s("/request/privacy_profile") != Some("nonce-in-user-field-v1") {
-        return Err("unsupported request template".into());
+    // v1: the sealed item nonce rides in `user`; v2: sha256("fuin-nonce-v2" ‖ item nonce ‖ seal block hash), so no request
+    // (and no signed answer) can predate the seal
+    let v2_nonce = match (s("/request/template"), s("/request/privacy_profile")) {
+        (Some("fuin-request-v1"), Some("nonce-in-user-field-v1")) => false,
+        (Some("fuin-request-v2"), Some("nonce-in-user-field-v1")) => true,
+        _ => return Err("unsupported request template".into()),
+    };
+    let seal_hash = match (v2_nonce, &r.seal_block_hash) {
+        (false, _) => None,
+        (true, Some(h)) => Some(bs58::decode(h).into_vec().map_err(|_| "seal_block_hash is not base58")?),
+        (true, None) => return Err("request template v2 needs the seal block hash".into()),
+    };
+    if seal_hash.as_ref().is_some_and(|h| h.len() != 32) {
+        return Err("seal block hash must be 32 bytes".into());
     }
     let scorer = (s("/scorer/name").unwrap_or(""), s("/scorer/sha256").unwrap_or(""));
     if !pytables::SCORERS.iter().any(|(a, b)| (*a, *b) == scorer) {
@@ -293,7 +313,14 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         let bleaf = sha256(&[&[0u8], &idx, &it.salt, it.item_jcs.as_bytes()]);
         let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| at(e.to_string()))?;
         let q = |k: &str| item[k].as_str().ok_or_else(|| at(format!("item {k}")));
-        let expected = build_request(&r.model, q("question")?, q("request_nonce")?, settings).map_err(at)?;
+        let nonce = match &seal_hash {
+            None => q("request_nonce")?.to_string(),
+            Some(h) => {
+                let item_nonce = hex::decode(q("request_nonce")?).map_err(|_| at("request_nonce not hex".into()))?;
+                hex::encode(sha256(&[b"fuin-nonce-v2", &item_nonce, h]))
+            }
+        };
+        let expected = build_request(&r.model, q("question")?, &nonce, settings).map_err(at)?;
         if expected.as_bytes() != row.request.as_slice() {
             return Err(at("request_policy_mismatch".into()));
         }
@@ -326,5 +353,6 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         policy_hash: hex::encode(sha256(&[r.policy_jcs.as_bytes()])),
         run_root: hex::encode(merkle_root(rleaves)?),
         signer: signer.unwrap_or_default(),
+        seal_block_hash: if v2_nonce { r.seal_block_hash.clone() } else { None },
     })
 }

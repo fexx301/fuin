@@ -1,0 +1,26 @@
+{
+  "version": "tee-v2",
+  "note": "The verifier's pins for TEE scores. v2 is the canonical build (tee/build-docker.sh: Linux x86_64 in a digest-pinned Rust image; identical on macOS through Docker and on Linux); it adds request template v2 (seal-bound nonces) and never echoes sealed values in errors. v1 stays pinned for the six existing TEE scores.",
+  "current": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
+  "scorers": [
+    {
+      "wasm_sha256": "a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7.wasm",
+      "bytes": 688048,
+      "build": "scorer v1: tee/build.sh at commit f9bbbe9 on macOS arm64; tee/build.sh reproduces this sha256 on macOS arm64 with Rust 1.95.0, including from a fresh clone at another path. A Linux x86_64 build of the same commit gave 3266d4393ce7fe07486636a18ca667e7bbae98673191869e0051eef4283753d9 (2026-11-05): builds are not yet identical across platforms."
+    },
+    {
+      "wasm_sha256": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973.wasm",
+      "bytes": 690954,
+      "build": "scorer v2: tee/build-docker.sh (canonical; reproduced natively on Linux x86_64 with the container's paths)"
+    }
+  ],
+  "outlayer": {
+    "network": "testnet",
+    "contract": "outlayer.testnet",
+    "register": "worker.outlayer.testnet",
+    "api": "https://testnet-api.outlayer.ai",
+    "task_hash_format": "V1 (timestamp >= 1769784939)"
+  }
+}
