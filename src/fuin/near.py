@@ -1,18 +1,22 @@
 """NEAR access: reads over JSON-RPC (finalized), owner writes through near-cli-rs (keys stay in the OS keychain)."""
 
 import base64
+import hashlib
 import json
 import os
 import re
 import subprocess
 import time
+from pathlib import Path
 
 import requests
 
 # rpc.testnet.near.org rate-limits hard (HTTP 429 after ~15 calls); FastNEAR's public testnet RPC did not, Nov 3
 # Archival endpoints: a certificate cites blocks and transactions older than a regular node keeps (about two days on
 # testnet; seen Nov 5: Nov 3 transactions already gone from the regular endpoints). FUIN_TESTNET_RPC pins one endpoint.
-ARCHIVAL = ["https://archival-rpc.testnet.fastnear.com", "https://archival-rpc.testnet.near.org"]
+# NEAR's own archival-rpc.testnet.near.org answers every call with a deprecation notice (HTTP 429) since Nov 2026, and
+# NEAR's provider list names no other keyless archival testnet endpoint, so FastNEAR's is the only default.
+ARCHIVAL = ["https://archival-rpc.testnet.fastnear.com"]
 NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", ARCHIVAL[0])}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
@@ -23,12 +27,27 @@ class RpcError(RuntimeError):
     pass
 
 
+def _cached(method: str, params, network: str) -> Path | None:
+    """With FUIN_CACHE_DIR set (scripts/review.sh sets it), answers that can never change are kept on disk: finalized
+    transactions and anything asked at a fixed block. One review verifies 35 certificates and fixtures that share most of
+    the same transactions, and the public RPC rate-limits the repeats. A plain `fuin verify` asks the network every time."""
+    d = os.environ.get("FUIN_CACHE_DIR")
+    fixed = method == "EXPERIMENTAL_tx_status" or (method in ("block", "query") and isinstance(params, dict) and params.get("block_id") is not None)
+    if not d or not fixed:
+        return None
+    key = hashlib.sha256(json.dumps([NETWORKS.get(network, network), method, params], sort_keys=True).encode()).hexdigest()
+    return Path(d) / "rpc" / f"{key}.json"
+
+
 def rpc(method: str, params, network: str = "testnet") -> dict:
-    attempts = 7  # public RPCs rate-limit (HTTP 429); back off ~1 minute in total before giving up
+    cache = _cached(method, params, network)
+    if cache is not None and cache.exists():
+        return json.loads(cache.read_text())
+    attempts = 8  # public RPCs rate-limit (HTTP 429); back off about 1.5 minutes in total before giving up
     pinned = network != "testnet" or "FUIN_TESTNET_RPC" in os.environ
     urls = [NETWORKS[network]] + ([] if pinned else [u for u in ARCHIVAL if u != NETWORKS[network]])  # alternate on retries
     for attempt in range(attempts):
-        wait = min(2 ** attempt, 20)
+        wait = min(2 ** attempt, 30)
         try:
             r = requests.post(urls[attempt % len(urls)], json={"jsonrpc": "2.0", "id": "fuin", "method": method, "params": params}, timeout=30)
             if r.status_code in (429, 502, 503, 504):
@@ -43,6 +62,12 @@ def rpc(method: str, params, network: str = "testnet") -> dict:
             continue
         if "error" in d:
             raise RpcError(json.dumps(d["error"])[:300])
+        if cache is not None:
+            try:
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_text(json.dumps(d["result"]))
+            except OSError:
+                pass
         return d["result"]
     raise AssertionError("unreachable")
 
@@ -100,7 +125,8 @@ def check_seed_block(hdr: dict, threshold: int, network: str = "testnet") -> boo
 
 
 def tx_receipt(tx_hash: str, sender: str, executor: str, method: str, network: str = "testnet") -> dict:
-    """The successful receipt that executed `method` on `executor`: {block_height, block_hash, value}."""
+    """The successful receipt that executed `method` on `executor`: {block_height, block_hash, value, receipt_id, args},
+    where args are the function call's own JSON arguments as signed."""
     res = rpc("EXPERIMENTAL_tx_status", {"tx_hash": tx_hash, "sender_account_id": sender, "wait_until": "FINAL"}, network)
     actions = {r["receipt_id"]: r.get("receipt", {}).get("Action", {}).get("actions", []) for r in res.get("receipts", [])}
     actions[res["transaction_outcome"]["outcome"]["receipt_ids"][0]] = res["transaction"]["actions"]  # first receipt
@@ -109,15 +135,20 @@ def tx_receipt(tx_hash: str, sender: str, executor: str, method: str, network: s
         if out["executor_id"] != executor:
             continue
         rc = actions.get(ro["id"], [])
-        names = [a["FunctionCall"]["method_name"] for a in rc if isinstance(a, dict) and "FunctionCall" in a]
-        if method not in names:
+        calls = [a["FunctionCall"] for a in rc if isinstance(a, dict) and "FunctionCall" in a]
+        call = next((c for c in calls if c.get("method_name") == method), None)
+        if call is None:
             continue
         st = out["status"]
         if "SuccessValue" not in st:
             raise RpcError(f"{method} receipt failed: {json.dumps(st)[:200]}")
         hdr = rpc("block", {"block_id": ro["block_hash"]}, network)["header"]
         val = base64.b64decode(st["SuccessValue"]).decode() if st["SuccessValue"] else ""
-        return {"block_height": hdr["height"], "block_hash": ro["block_hash"], "value": val, "receipt_id": ro["id"]}
+        try:
+            args = json.loads(base64.b64decode(call.get("args") or ""))
+        except ValueError:
+            args = None
+        return {"block_height": hdr["height"], "block_hash": ro["block_hash"], "value": val, "receipt_id": ro["id"], "args": args}
     raise RpcError(f"no {method} receipt on {executor} in {tx_hash}")
 
 

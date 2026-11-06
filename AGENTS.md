@@ -6,7 +6,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 - Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 16 minutes (allow 30), so run it in the background: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit (a retried line says so; a verdict is never retried). It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
 - No account, API key or hidden test set is needed. The script unsets `NEARAI_API_KEY`.
-- The default RPC is FastNEAR's archival testnet endpoint (NEAR's archival endpoint as fallback): certificates cite blocks and transactions older than regular nodes keep. If you set `FUIN_TESTNET_RPC`, use an archival endpoint.
+- The default RPC is FastNEAR's archival testnet endpoint (NEAR's own archival endpoint is deprecated and only returns a deprecation notice): certificates cite blocks and transactions older than regular nodes keep. If you set `FUIN_TESTNET_RPC`, use an archival endpoint.
 - `fuin verify` exit codes:
   - `0`: every certificate VERIFIED;
   - `1`: at least one REFUSED (invalid evidence);
