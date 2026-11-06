@@ -1,6 +1,7 @@
 """fuin run --parallel: rows saved in index order despite out-of-order completion; failures keep earlier rows; resumable."""
 import json
 import random
+import threading
 import time
 
 import pytest
@@ -21,13 +22,18 @@ def make_state(tmp_path, n):
 def fake(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     state = {"fail_at": None, "flaky": set()}
+    asked, cv = set(), threading.Condition()
 
     def complete(req, extra=None):
         q = json.loads(req)["messages"][0]["content"]; i = int(q[1:q.index("?")])
+        with cv:
+            asked.add(i); cv.notify_all()
         time.sleep(random.random() * 0.02)  # finish out of order
         if i in state["flaky"]:
             state["flaky"].discard(i); raise requests.ConnectionError("blip")
         if i == state["fail_at"]:
+            with cv:  # fail only once the next item is in flight; otherwise the test raced the rolling window (about 1 run in 12)
+                cv.wait_for(lambda: i + 1 in asked, timeout=5)
             raise requests.ConnectionError("down")
         body = json.dumps({"id": f"c{i}", "choices": [{"finish_reason": "stop", "message": {"content": str(i)}}]}).encode()
         return body, json.loads(body)
