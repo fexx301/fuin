@@ -293,9 +293,15 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             ok("deployment trace", f"compose-manager log (quote {tr['cm_quote_status']}) → {tr['repo']}: "
                + "; ".join(f"{x['service']} @{x['tag']} {x['file']} image …{x['image'][-12:]} weights {x['model_path'].split('/')[-1] if x['model_path'] else '?'}"
                            + (f" rev {x['model_revision'][:10]}" if x['model_revision'] else "")
+                           + ((f" + LoRA adapter {x['adapter']['weights'] or x['adapter']['path']}"
+                               + (f" rev {x['adapter']['revision'][:10]}" if x['adapter']['revision'] else "")) if x.get("adapter") else "")
                            + (f" (same instance also serves LoRA adapters under other names: {', '.join(x['lora_modules'])})"
                               if x.get("lora_modules") else "") for x in svc[:2])
                + (f" (+{len(svc) - 2} more replicas)" if len(svc) > 2 else ""))
+            for x in svc[:1]:
+                if x.get("adapter") and not x["adapter"]["revision"]:
+                    warnings.append(f"{r['model_id']} is a LoRA adapter loaded from {x['adapter']['path']} on the traced base weights; "
+                                    "the adapter is not pinned to a published revision")
             built = []  # SLSA v1 provenance where NEAR publishes it; its absence or an outage is a warning, never a verdict
             for img in sorted({x["image"] for x in svc}):
                 short = f"{img.split('@')[0].removeprefix('docker.io/')}@…{img[-8:]}"  # e.g. lmsysorg/sglang@…d85856b1

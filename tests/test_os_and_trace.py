@@ -95,6 +95,18 @@ def test_broken_certificate_chain_with_intel_reachable_is_invalid(monkeypatch):
     assert A.check_report(REPORT, NONCE, POLICY, use_nras=False)["outcome"] == ("refused", "attestation_invalid")
 
 
+SERVED_AS = {"vllm base": {"adapter": None},
+             "vllm adapter": {"adapter": {"path": "/root/.cache/huggingface/hub/models--U--L/snapshots/196c06e3", "weights": "U/L", "revision": "196c06e3"}},
+             "sglang adapter": {"adapter": {"path": "/adapters/abliterated", "weights": None, "revision": None}},
+             "sglang prefix": None, "not served": None}
+
+
+def test_a_model_served_as_a_lora_adapter_is_traced_with_its_adapter():
+    # NEAR serves the abliterated Qwen and DeepSeek as LoRA adapters on the base weights, not under --served-model-name
+    for name, cmd, model in json.loads((Path(__file__).parent / "fixtures/served-as-cases.json").read_text()):
+        assert provenance.served_as(cmd, model) == SERVED_AS[name], name
+
+
 def test_missing_deployment_attestation_is_untraced():
     rep = {k: v for k, v in REPORT.items() if k != "compose_manager_attestation"}
     with pytest.raises(provenance.TraceUnavailable):

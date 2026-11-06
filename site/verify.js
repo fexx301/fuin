@@ -218,6 +218,20 @@
 
   // ---- deployment trace: port of fuin/provenance.py trace(). NEAR's compose-manager attests its own action log with a
   // second TDX quote on the same machine; the log names each deployed compose file by repo commit and sha256. ----
+  // as fuin.provenance.served_as: under its own name, as a LoRA adapter on the service's base weights (vLLM --lora-modules
+  // JSON or SGLang --lora-paths name=path), or not at all
+  function servedAs(cmd, model) {
+    if (new RegExp('--served-model-name\\s+' + escRe(model) + '(\\s|$)').test(cmd)) return { adapter: null };
+    let path = null;
+    const after = cmd.split('--lora-modules').slice(1).join('--lora-modules');
+    for (const obj of after.match(/\{[^{}]*\}/g) || []) {
+      if (new RegExp('"name"\\s*:\\s*"' + escRe(model) + '"').test(obj)) { const pm = obj.match(/"path"\s*:\s*"([^"]+)"/); path = pm ? pm[1] : '?'; break; }
+    }
+    if (path === null) { const m = cmd.match(new RegExp('--lora-paths\\s+(?:\\S+=\\S+\\s+)*?' + escRe(model) + '=(\\S+)')); path = m ? m[1] : null; }
+    if (path === null) return null;
+    const hub = path.match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/);
+    return { adapter: { path, weights: hub ? `${hub[1]}/${hub[2]}` : null, revision: hub ? hub[3] : null } };
+  }
   class Untraced extends Error {}  // no log, or no deployed service serves the model: CAN'T CERTIFY deployment_untraced
   const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   async function traceDeployment(rep, nonce, tdModel, cfg) {
@@ -258,14 +272,14 @@
       if (a.action !== 'compose_up') continue;
       const svc = ((await compose(a)).services || {})[name]; if (!svc) continue;
       const cmd = Array.isArray(svc.command) ? svc.command.join(' ') : String(svc.command ?? '');
-      if (!new RegExp('--served-model-name\\s+' + escRe(rep.model_name) + '(\\s|$)').test(cmd)) continue;
+      const how = servedAs(cmd, rep.model_name); if (!how) continue;
       const img = String(svc.image ?? ''), m = img.match(/([a-z0-9][\w./-]*@sha256:[0-9a-f]{64})/), path = cmd.match(/--model-path\s+(\S+)/);
       const cut = cmd.indexOf('--lora-modules'), base = cut < 0 ? cmd : cmd.slice(0, cut), lora = cut < 0 ? '' : cmd.slice(cut);
       const hub = (path ? path[1] : base).match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/);
       serving.push({ service: name, tag: a.tag, file: a.file, image: m ? m[1] : img, weights: hub ? `${hub[1]}/${hub[2]}` : (path ? path[1] : '?'),
-        loras: [...lora.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((x) => x[1]) });
+        loras: [...lora.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((x) => x[1]).filter((n) => n !== rep.model_name), adapter: how.adapter });
     }
-    if (!serving.length) throw new Untraced(`no deployed service declares --served-model-name ${rep.model_name}`);
+    if (!serving.length) throw new Untraced(`no deployed service serves ${rep.model_name}, by --served-model-name or as a LoRA adapter`);
     serving.sort((p, q) => (p.service < q.service ? -1 : p.service > q.service ? 1 : 0));
     return { repo, status: res.status, services: serving };
   }
@@ -529,6 +543,7 @@
         try {
           const tr = await traceDeployment(rep0, r.preflight_nonce, tdModel, cfg); traceMode = 'live';
           await pass(`compose-manager log (quote ${tr.status}) → ${tr.repo}: ` + tr.services.slice(0, 2).map((x) => `${x.service} @${x.tag} ${x.file} image …${x.image.slice(-12)} weights ${x.weights.split('/').pop()}`
+            + (x.adapter ? ` + LoRA adapter ${x.adapter.weights || x.adapter.path}${x.adapter.revision ? ' rev ' + x.adapter.revision.slice(0, 10) : ''}` : '')
             + (x.loras.length ? ` (same instance also serves LoRA adapters under other names: ${x.loras.join(', ')})` : '')).join('; ')
             + (tr.services.length > 2 ? ` (+${tr.services.length - 2} more replicas)` : ''));
         } catch (e) {
@@ -612,5 +627,5 @@
     return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, trace: traceMode, scope };
   }
 
-  root.FuinVerify = { verify, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };
+  root.FuinVerify = { verify, servedAs, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };
 })(typeof window !== 'undefined' ? window : globalThis);

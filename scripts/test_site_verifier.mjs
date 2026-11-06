@@ -15,6 +15,13 @@ const pinsNow = JSON.parse(fs.readFileSync('policy/tee-v2.json', 'utf8')).scorer
 const pinsOk = JSON.stringify(pinsNow) === JSON.stringify([...F.tee.pins].sort());
 console.log(`${pinsOk ? 'ok  ' : 'FAIL'} page data carries policy/tee-v2.json's scorer pins${pinsOk ? '' : ' (stale site/data.js: run scripts/build_page.py)'}`);
 let fails = pinsOk ? 0 : 1;
+// LoRA-served models: the page's trace matcher agrees with fuin.provenance.served_as on the shared cases (expected values in tests/test_os_and_trace.py)
+const SERVED = { 'vllm base': null, 'vllm adapter': ['U/L', '196c06e3'], 'sglang adapter': [null, null], 'sglang prefix': 'none', 'not served': 'none' };
+for (const [name, cmd, model] of JSON.parse(fs.readFileSync('tests/fixtures/served-as-cases.json', 'utf8'))) {
+  const got = V.servedAs(cmd, model), want = SERVED[name];
+  const ok = want === 'none' ? got === null : want === null ? got && got.adapter === null : got && got.adapter && got.adapter.weights === want[0] && got.adapter.revision === want[1];
+  fails += !ok; console.log(`${ok ? 'ok  ' : 'FAIL'} served as: ${name}`);
+}
 const check = async (name, cert, want, net = true, over = {}) => {
   const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   // a certificate carrying a TEE score must have had it checked here whenever the verdict is VERIFIED

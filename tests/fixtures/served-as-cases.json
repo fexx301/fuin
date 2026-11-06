@@ -1,0 +1,7 @@
+[
+  ["vllm base", "--served-model-name deepseek-ai/D --enable-lora --lora-modules '{\"name\":\"deepseek-ai/D-abl\",\"path\":\"/root/.cache/huggingface/hub/models--U--L/snapshots/196c06e3\",\"base_model_name\":\"deepseek-ai/D\"}' --port 9100", "deepseek-ai/D"],
+  ["vllm adapter", "--served-model-name deepseek-ai/D --enable-lora --lora-modules '{\"name\":\"deepseek-ai/D-abl\",\"path\":\"/root/.cache/huggingface/hub/models--U--L/snapshots/196c06e3\",\"base_model_name\":\"deepseek-ai/D\"}' --port 9100", "deepseek-ai/D-abl"],
+  ["sglang adapter", "--model-path Qwen/Q-FP8 --served-model-name Qwen/Q --enable-lora --lora-paths Qwen/Q-abl=/adapters/abliterated --max-loras-per-batch 2", "Qwen/Q-abl"],
+  ["sglang prefix", "--model-path Qwen/Q-FP8 --served-model-name Qwen/Q --enable-lora --lora-paths Qwen/Q-abl=/adapters/abliterated --max-loras-per-batch 2", "Qwen/Q-ab"],
+  ["not served", "--model-path Qwen/Q-FP8 --served-model-name Qwen/Q-abl --port 8000", "Qwen/Q"]
+]
