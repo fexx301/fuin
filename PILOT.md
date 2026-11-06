@@ -6,10 +6,14 @@ Please time each step and note anything confusing. The report at the end is the 
 
 ## 1. What you need
 
-- macOS or Linux with [uv](https://docs.astral.sh/uv/) and [Rust](https://rustup.rs) (for `near-cli-rs`).
+- macOS or Linux (on Windows, WSL; see the note below) with [uv](https://docs.astral.sh/uv/) and [Rust](https://rustup.rs) (for `near-cli-rs`). `cargo install` puts `near` in `~/.cargo/bin`, which must be on your `PATH` (open a new shell, or run `source "$HOME/.cargo/env"`).
+- A keychain for the testnet key: macOS Keychain works as is; on Linux, `near-cli-rs` saves keys to the Secret Service (GNOME Keyring or KWallet), which must be running.
+- Network access to: NEAR AI Cloud (`cloud-api.near.ai` and the models' `*.completions.near.ai`), Intel's attestation service (`api.trustedservices.intel.com`), NVIDIA's (`nras.attestation.nvidia.com`), FastNEAR's testnet RPC (`archival-rpc.testnet.fastnear.com`), OutLayer (`testnet-api.outlayer.ai`, `test.fastfs.io`), and GitHub (`api.github.com`, `raw.githubusercontent.com`, gists). If `fuin run` stops at the preflight with `cant_certify/evidence_unavailable`, one of these was unreachable; the message names the error.
 - A NEAR AI Cloud account and API key (cloud.near.ai). A dollar of credit is plenty for 40–60 questions.
 - The [GitHub CLI](https://cli.github.com), logged in (`gh auth login`). The private round below hosts its encrypted run on a secret gist only while the TEE scorer fetches it, then deletes it.
 - 40 or more questions **only you have**, each with one exact answer: a number, or a short name or term. Do **not** reuse anything public; that defeats the purpose. Don't use anything confidential to your employer either: certificates are public, and a sampled round (4B) publishes a sample of its questions.
+
+**Windows (WSL):** WSL's DNS can fail to resolve `api.trustedservices.intel.com`, which sits behind a long CNAME chain, even when Windows resolves it. Point WSL at a public resolver: put `[network]` and `generateResolvConf = false` in `/etc/wsl.conf`, write `nameserver 1.1.1.1` (or `8.8.8.8`) to `/etc/resolv.conf`, then run `wsl --shutdown` from Windows and reopen WSL.
 
 ## 2. Set up (about 15 minutes)
 
