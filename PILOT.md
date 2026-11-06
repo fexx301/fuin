@@ -7,7 +7,7 @@ Please time each step and note anything confusing. The report at the end is the 
 ## 1. What you need
 
 - macOS or Linux (on Windows, WSL; see the note below) with [uv](https://docs.astral.sh/uv/) and [Rust](https://rustup.rs) (for `near-cli-rs`). `cargo install` puts `near` in `~/.cargo/bin`, which must be on your `PATH` (open a new shell, or run `source "$HOME/.cargo/env"`).
-- A keychain for the testnet key: macOS Keychain works as is; on Linux, `near-cli-rs` saves keys to the Secret Service (GNOME Keyring or KWallet), which must be running.
+- Somewhere for the testnet key. macOS Keychain works as is. On Linux, `near-cli-rs` uses the Secret Service (GNOME Keyring or KWallet) if one is running; if not (as on WSL), it prints `Failed to save the access key ... to the keychain` and saves the key to `~/.near-credentials/testnet/YOURNAME.testnet.json` instead, in plain text. Fūin signs with either.
 - Network access to: NEAR AI Cloud (`cloud-api.near.ai` and the models' `*.completions.near.ai`), Intel's attestation service (`api.trustedservices.intel.com`), NVIDIA's (`nras.attestation.nvidia.com`), FastNEAR's testnet RPC (`archival-rpc.testnet.fastnear.com`), OutLayer (`testnet-api.outlayer.ai`, `test.fastfs.io`), and GitHub (`api.github.com`, `raw.githubusercontent.com`, gists). If `fuin run` stops at the preflight with `cant_certify/evidence_unavailable`, one of these was unreachable; the message names the error.
 - A NEAR AI Cloud account and API key (cloud.near.ai). A dollar of credit is plenty for 40–60 questions.
 - The [GitHub CLI](https://cli.github.com), logged in (`gh auth login`). The private round below hosts its encrypted run on a secret gist only while the TEE scorer fetches it, then deletes it.
@@ -19,6 +19,7 @@ Please time each step and note anything confusing. The report at the end is the 
 
 ```sh
 git clone https://github.com/fexx301/fuin && cd fuin     # or, if you were sent fuin.zip: unzip fuin.zip -d fuin && cd fuin
+sudo apt-get install -y build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev   # Debian or Ubuntu (WSL too) only: near-cli-rs needs them to build
 cargo install --locked near-cli-rs
 near account create-account sponsor-by-faucet-service YOURNAME.testnet autogenerate-new-keypair save-to-keychain network-config testnet create
 printf 'NEARAI_API_KEY=%s\n' 'paste-your-key-here' > .env      # .env is gitignored; never commit it
@@ -65,7 +66,7 @@ Skip `--tee --e2ee` and the two `tee-` steps. After `close`, run `uv run fuin re
 
 **Either way:**
 - **Back up `private/pilot-1/`.** Without it the round can't be finished.
-- Signing on testnet uses the key in your OS keychain. The faucet's testnet NEAR covers everything (each TEE score attaches 0.1 NEAR). The registry contract is shared, and your benchmark ID is scoped to your account.
+- Signing on testnet uses the key `near-cli-rs` saved (OS keychain or `~/.near-credentials`). The faucet's 10 testnet NEAR covers everything: an outside pilot's whole private round spent about 0.012. The registry contract is shared, and your benchmark ID is scoped to your account.
 
 ## 5. Hand over for verification
 
@@ -73,6 +74,8 @@ Send the two `pilot-certs/cert-pilot-1-*.json` files, and nothing else, to someo
 
 - **Browser:** open the Fūin page (`site/index.html`), choose "Drop or choose your own cert.json", and pick the file.
 - **Command line:** `env -u NEARAI_API_KEY uv run fuin verify pilot-certs/cert-pilot-1-*.json`
+
+The browser checks everything except the GPU attestation (NVIDIA's service doesn't answer browsers), so a sound certificate shows PARTLY CHECKED there; the command line checks that too and shows VERIFIED. `CAN'T CERTIFY` with `evidence_unavailable` means a service didn't answer, which is an outage, not a fault in the certificate: run it again.
 
 ## 6. Pilot report (please fill in and send back)
 
