@@ -151,6 +151,7 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .split ul { margin: 8px 0 0; padding-left: 18px; color: #c9c5bd; font-size: 14.5px; }
 pre.cmd { background: #111; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow: auto; font-size: 13.5px; color: #e9e5dc; position: relative; }
 pre.cmd .c { color: var(--dim); }
+#repro p.cite { font: 15px/1.5 var(--sans); color: var(--muted); margin: 20px 0 0; max-width: 80ch; }  /* the outside pilot: body font, like the hero citation */
 .copy { position: absolute; top: 10px; right: 10px; }
 footer { padding: 40px 0 60px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
 footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
