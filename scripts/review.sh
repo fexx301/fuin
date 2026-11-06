@@ -12,7 +12,17 @@ step() { printf '\n== %s\n' "$1"; }
 
 step "1/5 verify the real certificates (expect VERIFIED for each)"
 tmp=$(mktemp -d)
-for c in examples/cert-*.json; do  # independent network-bound checks: run them together, print in order
+workers=${FUIN_REVIEW_WORKERS:-4}  # independent network-bound checks, a batch at a time: public RPCs throttle bursts
+started=0; printed=0; certs=(examples/cert-*.json)
+flush() {  # wait for the running batch, then print its results in order
+  wait
+  while [ $printed -lt $started ]; do
+    c=${certs[$printed]}; head -1 "$tmp/$(basename "$c").out"
+    [ "$(cat "$tmp/$(basename "$c").rc")" -eq 0 ] || fail=1
+    printed=$((printed + 1))
+  done
+}
+for c in "${certs[@]}"; do
   # a public service's rate limit is an outage, not a verdict: CAN'T CERTIFY evidence_unavailable is retried after a pause
   ( out="$tmp/$(basename "$c").out"
     for try in 1 2 3; do
@@ -21,13 +31,10 @@ for c in examples/cert-*.json; do  # independent network-bound checks: run them 
       break
     done
     echo $rc > "$tmp/$(basename "$c").rc" ) &
-  sleep 2  # stagger the starts: public RPCs throttle bursts
+  started=$((started + 1))
+  if [ $((started % workers)) -eq 0 ]; then flush; else sleep 2; fi  # stagger the starts within a batch
 done
-wait
-for c in examples/cert-*.json; do
-  head -1 "$tmp/$(basename "$c").out"
-  [ "$(cat "$tmp/$(basename "$c").rc")" -eq 0 ] || fail=1
-done
+flush
 rm -rf "$tmp"
 
 step "2/5 tamper fixtures (expect every line 'ok')"

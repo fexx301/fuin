@@ -15,10 +15,10 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
 **Human reviewers (2 minutes):**
 1. Read [the problem](#the-problem) and [the result](#result-which-near-ai-cloud-model-answers-near-developer-questions-correctly).
-2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 23 cases (18 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
+2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 24 cases (19 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
-- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later.
+- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later. `FUIN_REVIEW_WORKERS` (default 4) sets how many certificates verify at once.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:
@@ -44,11 +44,11 @@ A benchmark owner has two bad options:
 - **Publish the test set.** It leaks into the next model's training data, and the benchmark stops measuring anything.
 - **Keep it private.** Then everyone has to take the owner's word for the scores: which model ran, whether answers were edited, and whether the grading was honest.
 
-Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample, and on every answer inside a TEE. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them.
+Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample and, when the owner adds a TEE score (every published certificate has one), on every answer. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them.
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Five independent rounds of private questions (60, 60, 300, 155 and 96), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Rounds 4 and 5 reveal nothing; their scores are checked only inside the TEE. Round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict about form: the answer must be the number or term alone. It ignores surrounding quotes, backticks and markdown emphasis and one trailing period, and compares exact answers case-insensitively, so `u128::MAX` counts as `U128::MAX`.
+Five independent rounds of private questions (60, 60, 300, 155 and 96), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run: for rounds 4 and 5, each request's nonce is bound to the seal block, so no answer can predate the seal; for rounds 1–3 the public checks show only that the seal preceded the committed results, and the run's timing is the owner's word. Every model ran with reasoning on and temperature 0. Rounds 4 and 5 reveal nothing; their scores are checked only inside the TEE. Round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict about form: the answer must be the number or term alone. It ignores surrounding quotes, backticks and markdown emphasis and one trailing period, and compares exact answers case-insensitively, so `u128::MAX` counts as `U128::MAX`.
 
 | Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
@@ -109,7 +109,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    uv run python scripts/check_fixtures.py examples/tampered/manifest.json
    ```
 
-   You see 23 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
+   You see 24 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
 
    | Fixture | What changed | Verdict |
    |---|---|---|
@@ -125,6 +125,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    | emptied-deployment-quote | the deployment log's TDX quote replaced with an empty string | REFUSED `attestation_invalid` |
    | malformed-evidence | the attempt log's container replaced with a string | REFUSED `certificate_invalid` |
    | changed-audit | the owner cherry-picks a different sample | REFUSED `audit_sample_mismatch` |
+   | swapped-commit | the commit transaction pointed at another model's real commit in the same round, height included | REFUSED `record_mismatch` |
    | answer-hint | a real round where the owner put the answer in the prompt; signed and committed | REFUSED `request_policy_mismatch` |
    | external-model | relabelled as a non-TEE gateway model | CAN'T CERTIFY `model_not_tee` |
    | deployment-untraced | NEAR's deployment attestation removed, so the serving container can't be traced | CAN'T CERTIFY `deployment_untraced` |

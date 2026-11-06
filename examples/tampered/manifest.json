@@ -72,6 +72,11 @@
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"
   },
   {
+   "file": "swapped-commit.json",
+   "expected": "REFUSED record_mismatch",
+   "mutation": "commit transaction and height replaced by another model's real commit in the same round"
+  },
+  {
    "file": "external-model.json",
    "expected": "CANT_CERTIFY model_not_tee",
    "mutation": "run relabelled as an external (non-TEE) gateway model"

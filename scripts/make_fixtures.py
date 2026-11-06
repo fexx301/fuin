@@ -117,6 +117,19 @@ def _(c):
     c["audit"]["indices"] = list(range(k)) if c["audit"]["indices"] != list(range(k)) else list(range(1, k + 1))
 
 
+def _sibling_run():  # another model's run in the base's round (examples/ holds every model of each round)
+    for p in sorted(Path(sys.argv[1]).parent.glob("cert-*.json")):
+        o = json.loads(p.read_text())
+        if o["benchmark"]["id"] == base["benchmark"]["id"] and o["run"]["model_id"] != base["run"]["model_id"]:
+            return o["run"]
+
+
+@fixture("swapped-commit", "REFUSED record_mismatch", "commit transaction and height replaced by another model's real commit in the same round")
+def _(c):
+    o = _sibling_run()
+    c["run"]["commit_tx"], c["run"]["commit_height"] = o["commit_tx"], o["commit_height"]
+
+
 @fixture("external-model", "CANT_CERTIFY model_not_tee", "run relabelled as an external (non-TEE) gateway model")
 def _(c):
     c["run"]["model_id"] = "openai/gpt-5.5"

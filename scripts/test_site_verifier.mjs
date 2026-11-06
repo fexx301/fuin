@@ -84,7 +84,7 @@ let parity = 0, total = 0;
 for (const r of F.rounds) for (const e of r.certs) { const sc = e.cert.benchmark.policy.scorer.name; const scores = Object.fromEntries(e.cert.run.items.map((i) => [i.i, i.score]));
   for (const x of e.cert.audit.reveals) { total++; if (V.scoreResponse(x.item, V.b64(x.response_b64), sc) === scores[x.i]) parity++; } }
 console.log(`scorer parity on revealed answers: ${parity}/${total}`); fails += parity !== total;
-// scorer parity with Python on 3,000 generated edge cases (Unicode case folding, whitespace, digits): scripts/make_scorer_parity.py
+// scorer parity with Python on 3,600 generated edge cases (Unicode case folding, whitespace, digits): scripts/make_scorer_parity.py
 const gen = JSON.parse(fs.readFileSync('tests/fixtures/scorer-parity.json', 'utf8')).cases;
 let genOk = 0; for (const c of gen) genOk += V.scoreText(c.item, c.content, false) === c.v1 && V.scoreText(c.item, c.content, true) === c.v2;
 console.log(`scorer parity on generated edge cases: ${genOk}/${gen.length}`); fails += genOk !== gen.length;
