@@ -8,12 +8,13 @@ Please time each step and note anything confusing. The report at the end is the 
 
 - macOS or Linux with [uv](https://docs.astral.sh/uv/) and [Rust](https://rustup.rs) (for `near-cli-rs`).
 - A NEAR AI Cloud account and API key (cloud.near.ai). A dollar of credit is plenty for 40–60 questions.
-- 40 or more questions **only you have**, each with one exact answer: a number, or a short name or term. Do **not** reuse anything public; that defeats the purpose. Small suites reveal most of their items: 20 questions reveal 16, 40 reveal 21, 60 reveal 23.
+- The [GitHub CLI](https://cli.github.com), logged in (`gh auth login`). The private round below hosts its encrypted run on a secret gist only while the TEE scorer fetches it, then deletes it.
+- 40 or more questions **only you have**, each with one exact answer: a number, or a short name or term. Do **not** reuse anything public; that defeats the purpose. Don't use anything confidential to your employer either: certificates are public, and a sampled round (4B) publishes a sample of its questions.
 
 ## 2. Set up (about 15 minutes)
 
 ```sh
-git clone https://github.com/fexx301/fuin && cd fuin
+git clone https://github.com/fexx301/fuin && cd fuin     # or, if you were sent fuin.zip: unzip fuin.zip -d fuin && cd fuin
 cargo install --locked near-cli-rs
 near account create-account sponsor-by-faucet-service YOURNAME.testnet autogenerate-new-keypair save-to-keychain network-config testnet create
 printf 'NEARAI_API_KEY=%s\n' 'paste-your-key-here' > .env      # .env is gitignored; never commit it
@@ -24,34 +25,43 @@ printf 'NEARAI_API_KEY=%s\n' 'paste-your-key-here' > .env      # .env is gitigno
 One JSON object per line in a file outside git, for example `private/suites/mine.jsonl` (`private/` is gitignored):
 
 ```json
-{"question": "How many shards did our staging network run in March? Answer with the number only.", "answer": "6", "answer_type": "numeric"}
-{"question": "Which internal service owns invoice retries? Answer with the name only.", "answer": "ledgerd", "answer_type": "exact", "accept": ["ledgerd service"]}
+{"question": "How many legs does a spider have? Answer with the number only.", "answer": "8", "answer_type": "numeric"}
+{"question": "Which planet is closest to the sun? Answer with the name only.", "answer": "Mercury", "answer_type": "exact", "accept": ["planet Mercury"]}
 ```
+
+(These two are public knowledge, only to show the format. Yours must not be.)
 
 - Tell the model what form to answer in ("Answer with the number only"). The scorer is strict.
 - `numeric` answers are decimal strings, and an optional `tolerance` (also a string) allows a margin.
 - `exact` compares case-insensitively; list alternatives in `accept`.
 - An optional `source` (for example `{"url": "..."}`) is revealed only for audited items.
 
-## 4. Check, seal, run, commit, close, reveal
+## 4A. A private round (recommended): nothing revealed
+
+Every question and answer is encrypted end to end between you and each model's attested TEE key, so NEAR's gateway never sees them. Every answer is then re-scored inside OutLayer's TEE, and no question is revealed. The trade-off is that only you can see whether your questions and answers are any good.
 
 ```sh
-uv run --env-file .env fuin check private/suites/mine.jsonl --owner YOURNAME.testnet \
-    --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash
-uv run --env-file .env fuin seal private/suites/mine.jsonl --id pilot-1 --owner YOURNAME.testnet \
-    --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash
-uv run --env-file .env fuin run --id pilot-1 --model Qwen/Qwen3.8-27B        # resumable if interrupted
-uv run --env-file .env fuin run --id pilot-1 --model z-ai/glm-5.3-flash
-uv run --env-file .env fuin commit --id pilot-1 --model Qwen/Qwen3.8-27B
-uv run --env-file .env fuin commit --id pilot-1 --model z-ai/glm-5.3-flash
+M1=Qwen/Qwen3.8-27B; M2=z-ai/glm-5.3-flash
+uv run --env-file .env fuin check private/suites/mine.jsonl --owner YOURNAME.testnet --model $M1 --model $M2 --tee
+uv run --env-file .env fuin seal private/suites/mine.jsonl --id pilot-1 --owner YOURNAME.testnet --model $M1 --model $M2 --tee --e2ee
+uv run --env-file .env fuin run --id pilot-1 --model $M1        # resumable if interrupted
+uv run --env-file .env fuin run --id pilot-1 --model $M2
+uv run --env-file .env fuin commit --id pilot-1 --model $M1
+uv run --env-file .env fuin commit --id pilot-1 --model $M2
 uv run --env-file .env fuin close --id pilot-1
-uv run fuin reveal --id pilot-1 --out pilot-certs
+uv run --env-file .env fuin tee-key --owner YOURNAME.testnet    # once
+uv run --env-file .env fuin tee-score --id pilot-1 --model $M1 --host gist --out pilot-certs
+uv run --env-file .env fuin tee-score --id pilot-1 --model $M2 --host gist --out pilot-certs   # writes both certificates
 uv run fuin status --id pilot-1        # at any point: what's done and the next command
 ```
 
-- **Back up `private/pilot-1/`.** Without it the round can't be revealed.
-- `fuin check` tells you, before sealing, how many questions the audit will reveal (40 → 21, 60 → 23). Questions the audit picks become public; the rest stay private.
-- Signing on testnet uses the key in your OS keychain. The registry contract is shared, and your benchmark ID is scoped to your account.
+## 4B. A sampled round: a sample of the questions revealed
+
+Skip `--tee --e2ee` and the two `tee-` steps. After `close`, run `uv run fuin reveal --id pilot-1 --out pilot-certs`. A future NEAR block picks the audited items, and their questions and answers become public; `fuin check` says how many before you seal (40 reveal 21, 60 reveal 23).
+
+**Either way:**
+- **Back up `private/pilot-1/`.** Without it the round can't be finished.
+- Signing on testnet uses the key in your OS keychain. The faucet's testnet NEAR covers everything (each TEE score attaches 0.1 NEAR). The registry contract is shared, and your benchmark ID is scoped to your account.
 
 ## 5. Hand over for verification
 
@@ -64,10 +74,10 @@ Send the two `pilot-certs/cert-pilot-1-*.json` files, and nothing else, to someo
 
 | Item | Your answer |
 |---|---|
-| Number of questions | |
+| Round type (4A private or 4B sampled) and number of questions | |
 | Setup time (step 2) | |
 | Writing the suite (step 3) | |
-| Check → reveal, your hands-on time (step 4) | |
+| Check → certificates, your hands-on time (step 4) | |
 | Waiting for model runs | |
 | NEAR AI cost (dashboard before/after) | |
 | Testnet NEAR spent (wallet before/after) | |
