@@ -21,8 +21,15 @@ LIMITS = [
     "Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.",
     "Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.",
     "The seal precedes the result commitment; this does not prove when inference happened.",
+    "The registry contract is locked (no access keys) but wasn't built reproducibly, so its code isn't tied to this repository: "
+    "the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on "
+    "the deployed code.",
+    "Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model "
+    "answered correctly, though not what they ask.",
 ]
 LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
+ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is "
+                     "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
 SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the "
                     "seal and the commitment are not individually timestamped.")
 E2EE_LIMIT = ("Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, "
@@ -323,9 +330,15 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             _req(len(mine) == 1 and (mine[0]["run_root"], mine[0]["total_score"], mine[0]["commit_height"]) ==
                  (r["run_root"], r["total_score"], r["commit_height"]), "record_mismatch")
             _req(got["close_height"] == a["close_height"], "record_mismatch")
+            # the signed transactions' own arguments, not only the contract's state: the contract wasn't built reproducibly,
+            # so the values the owner committed are read from what the owner signed
+            signed = {"seal": {"benchmark_id": b["id"], "root": b["root"], "n": b["n"], "policy_hash": b["policy_hash"], "models": b["models"]},
+                      "commit_run": {"benchmark_id": b["id"], "model_id": r["model_id"], "run_root": r["run_root"], "total_score": r["total_score"]},
+                      "close_round": {"benchmark_id": b["id"]}}
             for tx, method, h in ((b["seal_tx"], "seal", b["seal_height"]), (r["commit_tx"], "commit_run", r["commit_height"]),
                                   (a["close_tx"], "close_round", a["close_height"])):
-                _req(near.tx_receipt(tx, reg["owner"], reg["account"], method)["block_height"] == h, "record_mismatch")
+                rc = near.tx_receipt(tx, reg["owner"], reg["account"], method)
+                _req(rc["block_height"] == h and rc["args"] == signed[method], "record_mismatch")
             _req(got["seal_height"] < r["commit_height"] < got["close_height"], "commit_order_invalid")
             seal_hdr = near.block(b["seal_height"])
             _req(seal_hdr is not None and seal_hdr["hash"] == b["seal_block_hash"], "record_mismatch")
@@ -333,7 +346,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 warnings.append(f"{reg['account']} still has an access key: its code can be replaced, so records are not guaranteed append-only")
             history = sorted(x["run_index"] for x in got["runs"] if x["model_id"] == r["model_id"])
             rec = got
-            ok("registry", f"{reg['account']} code {near.REGISTRY['code_hash'][:10]}…; seal {b['seal_height']} < commit {r['commit_height']} < close {a['close_height']}; committed runs for this model: {history}")
+            ok("registry", f"{reg['account']} code {near.REGISTRY['code_hash'][:10]}…; seal {b['seal_height']} < commit {r['commit_height']} < close {a['close_height']}; "
+                          f"the signed seal and commit arguments match; committed runs for this model: {history}")
 
         def sample():
             if rec is None:  # registry unavailable: already deferred
@@ -405,7 +419,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                       "exact, not statistical, under the TEE trust assumptions")
     v2 = P.is_seal_bound(b["policy"])
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
-    limits += ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
+    limits += ([ZERO_REVEAL_LIMIT] if tee_round else []) + ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

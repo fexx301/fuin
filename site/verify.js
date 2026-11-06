@@ -186,18 +186,19 @@
     try { return (await rpc(url, 'block', height == null ? { finality: 'final' } : { block_id: height })).header; }
     catch (e) { if (e.rpc && /UNKNOWN_BLOCK/.test(e.message)) return null; throw e; }
   }
-  async function txReceiptHeight(url, tx, sender, executor, method) {
+  async function txReceipt(url, tx, sender, executor, method) {  // {height, args} of the call's successful receipt, or null
     const r = await rpc(url, 'EXPERIMENTAL_tx_status', { tx_hash: tx, sender_account_id: sender, wait_until: 'FINAL' });
     const acts = {}; for (const x of r.receipts || []) acts[x.receipt_id] = ((x.receipt || {}).Action || {}).actions || [];
     acts[r.transaction_outcome.outcome.receipt_ids[0]] = r.transaction.actions;
     for (const ro of r.receipts_outcome) {
       if (ro.outcome.executor_id !== executor) continue;
-      const names = (acts[ro.id] || []).filter((a) => a && a.FunctionCall).map((a) => a.FunctionCall.method_name);
-      if (!names.includes(method)) continue;
-      if (!('SuccessValue' in ro.outcome.status)) return -1;
-      return (await rpc(url, 'block', { block_id: ro.block_hash })).header.height;
+      const call = (acts[ro.id] || []).filter((a) => a && a.FunctionCall).map((a) => a.FunctionCall).find((c) => c.method_name === method);
+      if (!call) continue;
+      if (!('SuccessValue' in ro.outcome.status)) return null;
+      let args = null; try { args = JSON.parse(dec.decode(b64(call.args))); } catch { /* unreadable arguments match nothing */ }
+      return { height: (await rpc(url, 'block', { block_id: ro.block_hash })).header.height, args };
     }
-    return -1;
+    return null;
   }
 
   // ---- Intel TDX quote: collateral from the PCCS mirror, then Intel's chain. dcap-qvl reports a network failure and an
@@ -547,14 +548,19 @@
         const mine = got.runs.filter((x) => x.model_id === r.model_id && x.run_index === r.run_index);
         req(mine.length === 1 && mine[0].run_root === r.run_root && mine[0].total_score === r.total_score && mine[0].commit_height === r.commit_height, 'record_mismatch');
         req(got.close_height === a.close_height, 'record_mismatch');
-        for (const [tx, m, h] of [[b.seal_tx, 'seal', b.seal_height], [r.commit_tx, 'commit_run', r.commit_height], [a.close_tx, 'close_round', a.close_height]])
-          req((await txReceiptHeight(url, tx, reg.owner, reg.account, m)) === h, 'record_mismatch');
+        // the signed transactions' own arguments, not only the contract's state (its code isn't built reproducibly)
+        const signed = { seal: { benchmark_id: b.id, root: b.root, n, policy_hash: b.policy_hash, models: b.models },
+          commit_run: { benchmark_id: b.id, model_id: r.model_id, run_root: r.run_root, total_score: r.total_score }, close_round: { benchmark_id: b.id } };
+        for (const [tx, m, h] of [[b.seal_tx, 'seal', b.seal_height], [r.commit_tx, 'commit_run', r.commit_height], [a.close_tx, 'close_round', a.close_height]]) {
+          const rc = await txReceipt(url, tx, reg.owner, reg.account, m);
+          req(rc && rc.height === h && jcs(rc.args) === jcs(signed[m]), 'record_mismatch');
+        }
         req(got.seal_height < r.commit_height && r.commit_height < got.close_height, 'commit_order_invalid');
         const sealHdr = await block(url, b.seal_height);  // the hash a v2 template binds every request nonce to
         req(sealHdr && sealHdr.hash === b.seal_block_hash, 'record_mismatch');
         const keys = (await rpc(url, 'query', { request_type: 'view_access_key_list', finality: 'final', account_id: reg.account })).keys.length;
         rec = got;
-        return `seal ${b.seal_height} < commit ${r.commit_height} < close ${a.close_height} on ${reg.account}; ${keys === 0 ? 'locked (0 access keys)' : keys + ' access key(s): code replaceable'}`;
+        return `seal ${b.seal_height} < commit ${r.commit_height} < close ${a.close_height} on ${reg.account}; signed seal and commit arguments match; ${keys === 0 ? 'locked (0 access keys)' : keys + ' access key(s): code replaceable'}`;
       });
       await online('sample', async () => {
         if (!rec) throw new Unavailable('registry unavailable');

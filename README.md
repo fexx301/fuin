@@ -18,7 +18,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 23 cases (18 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
-- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`.
+- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:
@@ -35,7 +35,7 @@ Every claim below maps to a command:
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
 | Questions and answers can stay end-to-end encrypted, so NEAR's gateway never sees them | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r5-glm-5.3-flash.json` | `VERIFIED`; the policy line ends `fuin-request-v3 (end-to-end encrypted)`, and the limits print the end-to-end-encryption line; probe: `evidence/2026-11-05-e2ee-probe/` |
 | The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `86db8213…`, the current pin in `policy/tee-v2.json` (scorer v5). The earlier accepted builds rebuild the same way from their recorded commits: v2 `dabae968…` (rounds 1–4, `6381ee9`), v3 `2614ddaa…` (round 5, `907aec0`), v4 `cd36c486…` (the v4 rehearsal, `54a5b6e`) |
-| The registry can't be changed | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
+| The registry's code can't be replaced (its seal and commit values are also checked against the owner's signed transactions) | `curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"registry.fuin.testnet"}}'` | `"keys":[]` |
 
 ## The problem
 
@@ -44,11 +44,11 @@ A benchmark owner has two bad options:
 - **Publish the test set.** It leaks into the next model's training data, and the benchmark stops measuring anything.
 - **Keep it private.** Then everyone has to take the owner's word for the scores: which model ran, whether answers were edited, and whether the grading was honest.
 
-Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before the sample was drawn, and correct on the revealed sample.
+Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample, and on every answer inside a TEE. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them.
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Five independent rounds of private questions (60, 60, 300, 155 and 96), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Rounds 4 and 5 reveal nothing; their scores are checked only inside the TEE. Round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict: the answer must be the number or term alone.
+Five independent rounds of private questions (60, 60, 300, 155 and 96), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run. Every model ran with reasoning on and temperature 0. Rounds 4 and 5 reveal nothing; their scores are checked only inside the TEE. Round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict about form: the answer must be the number or term alone. It ignores surrounding quotes, backticks and markdown emphasis and one trailing period, and compares exact answers case-insensitively, so `u128::MAX` counts as `U128::MAX`.
 
 | Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
@@ -92,7 +92,7 @@ DeepSeek-V4.1-Flash, added in round 4, leads both rounds it ran: 84 of 155 and 4
 
 ## Try it (no account, no API key, no test set)
 
-You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, an archival NEAR testnet RPC (FastNEAR's by default, NEAR's as fallback; set `FUIN_TESTNET_RPC` to pin another archival endpoint, since certificates cite blocks older than regular nodes keep), the NEAR AI model catalog, raw.githubusercontent.com and Docker Hub (for image build provenance; if it is unreachable, the verifier says it didn't check). One verification takes about 40 seconds.
+You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, FastNEAR's archival NEAR testnet RPC (certificates cite blocks older than regular nodes keep; NEAR's own archival endpoint now only returns a deprecation notice, so set `FUIN_TESTNET_RPC` to use another archival endpoint you have access to), the NEAR AI model catalog, raw.githubusercontent.com and Docker Hub (for image build provenance; if it is unreachable, the verifier says it didn't check). One verification takes about 40 seconds.
 
 1. **Verify a real certificate.**
 
@@ -101,7 +101,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json
    ```
 
-   You see `VERIFIED` with ten passing checks (rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample, TEE score; a certificate whose serving image NEAR built adds an eleventh, build provenance), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (two models × three rounds).
+   You see `VERIFIED` with ten passing checks (rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample, TEE score; a certificate whose serving image NEAR built adds an eleventh, build provenance), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (twelve: two models in each of the three sampled rounds, three models in each of the two zero-reveal rounds).
 
 2. **Watch tampering get refused.**
 
@@ -144,7 +144,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (104 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
+4. **Run the tests.** `uv run pytest` (105 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none).
 
 ## How it works
 
@@ -164,7 +164,7 @@ Flow: **seal → run → commit → close → sample → reveal → verify.**
 
 The audit checks a sample; a TEE score checks every answer. The owner encrypts one run (each item's sealed bytes and salt, the sealed policy, the signed requests and responses) to a key that exists only inside Fūin's TEE scorer, which runs in an Intel TDX enclave on OutLayer. The scorer (`tee/`) rebuilds every benchmark leaf from the sealed bytes, rebuilds every request from the sealed template and requires it to equal the signed bytes, recovers every signature, scores every answer with the sealed scorer's exact rules, and returns only the two roots, the total and the signer. `fuin verify` then checks the OutLayer attestation (the Intel quote, OutLayer's task hash, the worker's approval at the execution's block, and the request and result on chain) and that the output equals the certificate's own roots, total, model and signer.
 
-Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21078–21084; rounds 4 and 5 scored only this way, tasks 21125–21127 and 21373–21375), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. It doesn't make rounds 1–3's audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. The scores were first computed on a build that reproduced only on macOS, then re-done on the canonical build, which reproduces on any host; the first build is no longer accepted. Details: `evidence/2026-11-05-reverify-tee-score/` and `evidence/2026-11-05-reverify-tee-v2/`.
+Every certificate carries a TEE score (rounds 1–3 re-scored, OutLayer tasks 21078–21084; rounds 4 and 5 scored only this way, tasks 21125–21127 and 21373–21375), so every hidden score is checked exactly rather than by sample, under the TEE trust assumptions in the limits. Round 5's scorer (v3) predates the count of unreadable answers, so its certificates print the limit that a total could be lowered unseen. It doesn't make rounds 1–3's audited items private again. Each encrypted run was hosted on a secret gist for the run and deleted afterwards; the attestation binds only its hash. The scores were first computed on a build that reproduced only on macOS, then re-done on the canonical build, which reproduces on any host; the first build is no longer accepted. Details: `evidence/2026-11-05-reverify-tee-score/` and `evidence/2026-11-05-reverify-tee-v2/`.
 
 ### Zero-reveal rounds
 
@@ -231,12 +231,18 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
 - The seal precedes the result commitment; this does not prove when inference happened.
+- The registry contract is locked (no access keys) but wasn't built reproducibly, so its code isn't tied to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+- Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
 
 Printed as well when a certificate carries a TEE score:
 
 - A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.
 
-For a zero-reveal round, the sampling and reveal limits are not printed. With a seal-bound request template (v2 or v3), the timing limit is replaced by:
+For a zero-reveal round, the sampling and reveal limits are not printed, and this one is:
+
+- Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.
+
+With a seal-bound request template (v2 or v3), the timing limit is replaced by:
 
 - Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
 

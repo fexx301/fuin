@@ -36,6 +36,8 @@ await check('changed leaf', mut((c) => { c.run.items[3].benchmark_leaf = '00'.re
 await check('changed revealed question', mut((c) => { c.audit.reveals[0].item.question += ' '; }), 'REFUSED reveal_mismatch');
 await check('altered policy', mut((c) => { c.benchmark.policy.audit.k = 5; }), 'REFUSED policy_mismatch');
 await check('wrong key', mut((c) => { const it = c.run.items[0]; const s = ctx.Noble.signText(it.signature.text); it.signature.signature = s.signature; it.signature.signing_address = s.address; }), 'REFUSED signer_not_attested_for_model');
+const other = F.rounds.find((r) => r.id === 'near-dev-60-r1').certs.find((e) => !/qwen/i.test(e.cert.run.model_id)).cert.run;
+await check('commit pointed at another model\'s real commit (height too)', mut((c) => { c.run.commit_tx = other.commit_tx; c.run.commit_height = other.commit_height; }), 'REFUSED record_mismatch');
 await check('cherry-picked sample', mut((c) => { c.audit.indices = [...Array(c.audit.k).keys()]; }), 'REFUSED audit_sample_mismatch');
 await check('answer hint (real round)', F.hint.cert, 'REFUSED request_policy_mismatch');
 await check('relabelled as GPT', mut((c) => { c.run.model_id = 'openai/gpt-5.5'; }), "CANT_CERTIFY model_not_tee");
