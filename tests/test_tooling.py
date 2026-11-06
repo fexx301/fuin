@@ -48,3 +48,11 @@ def test_status_unsealed(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = tooling.status("nope")
     assert "not sealed" in out[0] and out[-1].startswith("next: uv run fuin check")
+
+
+def test_an_accepted_answer_that_trims_to_nothing_is_an_error(tmp_path):
+    ex = {"question": "Name it. Answer with the name only.", "answer": "ft_on_transfer", "answer_type": "exact"}
+    for accept in ([""], [" "], ["**"], ["."]):
+        r = tooling.check_suite(write(tmp_path, [{**ex, "accept": accept}]))
+        assert any("empty once the scorer trims it" in e for e in r["errors"]), accept
+    assert not tooling.check_suite(write(tmp_path, [{**ex, "accept": ["ft on transfer"]}]))["errors"]

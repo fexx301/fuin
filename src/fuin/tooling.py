@@ -7,7 +7,7 @@ import shutil
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from fuin import core, near, owner
+from fuin import core, near, owner, scorer
 
 ITEM_KEYS = {"question", "answer", "answer_type", "accept", "tolerance", "source"}
 
@@ -57,6 +57,8 @@ def check_suite(path: str) -> dict:
                 errors.append(f"{where}: tolerance must be a non-negative decimal string")
         if "accept" in it and not (isinstance(it["accept"], list) and all(isinstance(x, str) for x in it["accept"])):
             errors.append(f"{where}: accept must be a list of strings")
+        elif t == "exact" and any(isinstance(x, str) and not scorer.extract(x) for x in [a, *it.get("accept", [])]):
+            errors.append(f"{where}: an accepted answer is empty once the scorer trims it, so an empty answer would score 1")
         offered = isinstance(q, str) and isinstance(a, str) and re.search(rf"\b{re.escape(a)}\b or |\bor {re.escape(a)}\b", q, re.I)
         if isinstance(q, str) and isinstance(a, str) and len(a) >= 3 and _norm(a) and not offered and f" {_norm(a)} " in f" {_norm(q)} ":
             warnings.append(f"{where}: the answer {a!r} appears in the question text")

@@ -75,15 +75,16 @@ def decrypt(blob_hex: str, salt: bytes, model: str) -> str | None:
 
 
 def decrypted_response(resp: bytes, salt: bytes, model: str) -> bytes:
-    """The response with its answer decrypted, for the scorer: content becomes the plaintext, or "" when the content
-    can't be decrypted (an unreadable answer scores 0). Anything that isn't a chat completion passes through unchanged."""
+    """The response with its answer decrypted, for the scorer: content becomes the plaintext, or null when the content
+    can't be decrypted, so an unreadable answer scores 0 whatever the item accepts (as "" it would match an accepted "").
+    Anything that isn't a chat completion passes through unchanged."""
     try:
         j = json.loads(resp)
         msg = j["choices"][0]["message"]
     except (ValueError, KeyError, IndexError, TypeError):
         return resp
     if isinstance(msg, dict) and isinstance(msg.get("content"), str) and msg["content"]:
-        msg["content"] = decrypt(msg["content"], salt, model) or ""
+        msg["content"] = decrypt(msg["content"], salt, model)
     return json.dumps(j, ensure_ascii=False, separators=(",", ":")).encode()
 
 

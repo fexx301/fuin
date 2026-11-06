@@ -359,14 +359,15 @@ pub fn score_response(item: &Value, response: &[u8], v2: bool) -> Result<u8, Str
 }
 
 /// With `e2ee` (the item's salt and the model), the answer is decrypted first (e2ee.decrypted_response): a non-empty
-/// content string that doesn't decrypt reads as "", so an unreadable answer scores 0. Returns (score, unreadable).
+/// content string that doesn't decrypt scores 0 whatever the item accepts (as "" it would match an accepted ""; scorer v6).
+/// Returns (score, unreadable).
 fn score_response_e2ee(item: &Value, response: &[u8], v2: bool, e2ee: Option<(&[u8; 32], &str)>) -> Result<(u8, bool), String> {
     let Ok(v) = serde_json::from_slice::<Value>(response) else { return Ok((0, false)) };
     match v.get("choices").and_then(|c| c.get(0)).and_then(|c| c.get("message")).and_then(|m| m.get("content")).and_then(Value::as_str) {
         Some(content) => match e2ee {
             Some((salt, model)) if !content.is_empty() => match e2ee::decrypt(content, salt, model) {
                 Some(plain) => Ok((score_text(item, &plain, v2)?, false)),
-                None => Ok((score_text(item, "", v2)?, true)),
+                None => Ok((0, true)),
             },
             _ => Ok((score_text(item, content, v2)?, false)),
         },

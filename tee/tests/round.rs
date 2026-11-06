@@ -126,3 +126,15 @@ fn template_v3_without_the_model_key_is_refused() {
     round.as_object_mut().unwrap().remove("model_pub");
     assert!(score(&round).unwrap_err().contains("model's key"));
 }
+
+#[test]
+fn an_unreadable_answer_scores_0_even_when_the_item_accepts_an_empty_answer() {
+    // blind-review probe: before scorer v6 an undecryptable answer read as "" and matched an accepted "" (total 3/3)
+    let (mut round, _) = fixture_v3();
+    let mut item: Value = serde_json::from_str(round["items"][2]["item_jcs"].as_str().unwrap()).unwrap();
+    item["answer_type"] = "exact".into();
+    item["accept"] = serde_json::json!([""]);
+    round["items"][2]["item_jcs"] = serde_json::to_string(&item).unwrap().into();
+    let got = score(&round).unwrap();
+    assert_eq!((got["total"].clone(), got["unreadable"].clone()), (2.into(), 1.into()));
+}

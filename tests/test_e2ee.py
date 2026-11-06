@@ -42,10 +42,13 @@ def test_the_answer_decrypts_with_the_items_client_key():
     assert json.loads(e2ee.decrypted_response(resp, SALT, MODEL))["choices"][0]["message"]["content"] == "42"
 
 
-def test_an_unreadable_answer_becomes_empty():
+def test_an_unreadable_answer_scores_0_whatever_the_item_accepts():
+    from fuin import scorer
     for content in ("42", "zz", model_encrypts("42", e2ee.client_pub(bytes(32), MODEL))):  # plaintext, not hex, another key
         resp = json.dumps({"choices": [{"message": {"content": content}}]}).encode()
-        assert json.loads(e2ee.decrypted_response(resp, SALT, MODEL))["choices"][0]["message"]["content"] == ""
+        readable = e2ee.decrypted_response(resp, SALT, MODEL)
+        assert json.loads(readable)["choices"][0]["message"]["content"] is None
+        assert scorer.score_response({"answer": "x", "answer_type": "exact", "accept": [""]}, readable) == 0  # not "" == ""
 
 
 def test_the_model_key_must_be_the_attested_signers():
