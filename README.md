@@ -44,7 +44,7 @@ A benchmark owner has two bad options:
 - **Publish the test set.** It leaks into the next model's training data, and the benchmark stops measuring anything.
 - **Keep it private.** Then everyone has to take the owner's word for the scores: which model ran, whether answers were edited, and whether the grading was honest.
 
-A live example: NEAR's Delta League ranks improved versions of Qwen 3.5 0.8B by their score on a private eval set, designed so progress doesn't map onto standard benchmarks ([Illia Polosukhin's thread, Nov 6, 2026](https://x.com/ilblackdragon/status/2118587268776829036)).
+A live example: NEAR's Delta League ranks improved versions of Qwen 3.5 0.8B by their score on a private eval set, designed so progress doesn't map onto standard benchmarks (Illia Polosukhin, Nov 6, 2026: [results](https://x.com/ilblackdragon/status/2118587268776829036), [the private eval set](https://x.com/ilblackdragon/status/2118591003368296561)).
 
 Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample and, when the owner adds a TEE score (every published certificate has one), on every answer. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them. Fūin certifies models that NEAR AI Cloud serves in an attested TEE; certifying fine-tuned submissions like Delta League's would need them served the same way.
 
