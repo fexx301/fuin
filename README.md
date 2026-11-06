@@ -11,6 +11,10 @@ Fūin publishes a private benchmark result that a stranger can check **without a
 
 Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
+![The browser verifier refusing a real round-3 certificate whose revealed answer was edited after signing: REFUSED signature_text_mismatch](assets/verify-refused.png)
+
+*The browser verifier on a real round-3 certificate after "Edit an answer": the checks pass until the revealed sample is re-scored, where the edited answer no longer matches what the model signed.*
+
 ## For judges
 
 **Human reviewers (2 minutes):**
