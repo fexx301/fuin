@@ -121,6 +121,11 @@ def check_report(report: dict, nonce_hex: str, policy: dict, *, use_nras: bool =
 
     outcome: "accepted", "accepted_with_warning", ("refused", code) or ("cant_certify", code).
     """
+    if not all(isinstance(report.get(k), str) for k in ("model_name", "signing_address", "intel_quote")):
+        # NEAR also serves models from partners' own TEEs (Chutes, Tinfoil) with their own evidence format; Fūin checks only NEAR's
+        return {"model": report.get("model_name") or report.get("model"), "signing_address": str(report.get("signing_address", "")).lower(),
+                "error": f"attested by {report.get('provider') or 'another scheme'}, in a format Fūin doesn't verify",
+                "outcome": ("cant_certify", "policy_unsupported")}
     checks: dict = {"model": report["model_name"], "signing_address": report["signing_address"].lower()}
     nonce = nonce_hex.lower()
     try:

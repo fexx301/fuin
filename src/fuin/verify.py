@@ -265,7 +265,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
 
         def attest():
             nonlocal trace
-            results = [attestation.check_report(c, r["preflight_nonce"], pol_att) for c in reports if c["signing_address"].lower() in used]
+            results = [attestation.check_report(c, r["preflight_nonce"], pol_att) for c in reports if str(c.get("signing_address", "")).lower() in used]
             for x in results:
                 if x["outcome"][0] == "refused":
                     raise Refused(x["outcome"][1])

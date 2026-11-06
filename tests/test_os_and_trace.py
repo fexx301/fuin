@@ -78,6 +78,13 @@ def test_a_dropped_request_to_intel_is_retried_once(monkeypatch):
     assert len(calls) == 2
 
 
+def test_a_partner_tee_report_is_unsupported_not_a_crash():
+    # NEAR serves some models from Chutes' or Tinfoil's TEEs, whose reports have no intel_quote or model_name
+    chutes = {"provider": "chutes", "model": "moonshotai/kimi-k2.6", "quote_b64": "AA==", "verified": True}
+    res = A.check_report(chutes, NONCE, POLICY, use_nras=False)
+    assert res["outcome"] == ("cant_certify", "policy_unsupported") and "chutes" in res["error"]
+
+
 def test_broken_certificate_chain_with_intel_reachable_is_invalid(monkeypatch):
     def broken(raw):
         raise ValueError("Failed to get collateral: Failed to extract certificates from PEM chain")

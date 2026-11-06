@@ -30,7 +30,7 @@ def propose(models: list[str]) -> tuple[dict | None, list[str]]:
                 notes.append(f"{model}: {res['compose_hash'][:12]}… already approved")
                 continue
             if outcome != ("cant_certify", "measurement_unapproved"):  # bad or unavailable evidence is never proposed
-                notes.append(f"{model}: {str(c.get('signing_address'))[:10]}… not proposed: {' '.join(outcome)}")
+                notes.append(f"{model}: {str(c.get('signing_address'))[:10]}… not proposed: {' '.join(outcome)}" + (f" ({res['error']})" if res.get("error") else ""))
                 continue
             status, _adv, td = A.verify_quote(c["intel_quote"])
             if not A.nras_verdict(c["nvidia_payload"]):
