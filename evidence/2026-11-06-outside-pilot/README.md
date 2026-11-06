@@ -11,7 +11,7 @@ A fellow builder ([github.com/JUICEWRLD998](https://github.com/JUICEWRLD998)) ra
 | Results | Qwen/Qwen3.8-27B 37/46 (OutLayer task 23445); z-ai/glm-5.3-flash 41/46 (task 23451). Seal at block 276494895, commits at 276504615 and 276504646, close at 276504674. |
 | His time (wall clock) | Setup 1 h 20 min, including installs, a 19-minute `near-cli-rs` compile and GitHub sign-in retries. Seal to both certificates 1 h 44 min, including a 16-minute DNS outage and 28 minutes waiting for him. The model runs took 28 min (Qwen) and 26 min (GLM). Hands-on time wasn't recorded. |
 | Testnet NEAR | 10.000 at the start, 9.988 after: about 0.012 spent |
-| NEAR AI cost | Not recorded |
+| NEAR AI cost | $0.0921 for the whole pilot, from his NEAR AI Cloud dashboard |
 
 ## Verification
 
@@ -45,9 +45,12 @@ Not changed:
 - uv warns that the build backend's version range doesn't include uv 0.13.7. The warning is harmless.
 - The GitHub sign-in retries and the taken testnet name came from his setup, not the kit.
 
+## His verdict
+
+Asked whether he'd use Fūin for a real benchmark, he said yes: with the test set kept private, it can hardly be gamed. His report left that row and the cost row open, and he answered both by message on Nov 6.
+
 ## What this pilot doesn't show
 
 - **The questions were synthetic.** No one wrote a real private suite.
 - **The independent verifier was Fūin's builder,** on a different machine, OS and network from the owner's, not a third party.
-- **Two answers are still pending from him:** his NEAR AI cost, and whether he'd use Fūin for a real benchmark.
 - **Privacy:** the certificates name his testnet account. Through the scorer's request URL, they also name the GitHub account that hosted the gists (`JUICEWRLD998`).
