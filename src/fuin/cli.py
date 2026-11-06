@@ -49,6 +49,7 @@ def main(argv=None) -> int:
     p.add_argument("--owner"); p.add_argument("--model", action="append", default=None)
     p.add_argument("--tee", action="store_true", help="state the disclosure for a zero-reveal (TEE-scored) round")
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
+    p.add_argument("--out", default="examples", help="where the round's certificates were written (the --out of reveal or tee-score)")
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
     p = sub.add_parser("policy-update", help="draft the next attestation policy from fresh reports when NEAR redeploys a model "
                        "(needs a key; writes policy/attestation-v<N+1>.json for review, approves nothing)")
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
     if a.cmd == "check":
         return tooling.print_check(a.suite, a.owner, a.model or [QWEN], tee=a.tee)
     if a.cmd == "status":
-        print("\n".join(tooling.status(a.id)))
+        print("\n".join(tooling.status(a.id, a.out)))
         return 0
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)

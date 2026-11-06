@@ -1,6 +1,7 @@
 import json
 
-from fuin import tooling
+from fuin import owner, tooling
+from fuin import policy as P
 
 
 def write(tmp_path, rows):
@@ -48,6 +49,26 @@ def test_status_unsealed(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = tooling.status("nope")
     assert "not sealed" in out[0] and out[-1].startswith("next: uv run fuin check")
+
+
+def test_status_private_round_points_to_tee_score_then_the_certificates(tmp_path, monkeypatch):
+    # the pilot's `fuin status` looked only in examples/ and said `reveal` on a private (TEE-scored) round
+    monkeypatch.chdir(tmp_path)
+    st = {"owner": "a.testnet", "items": [{}] * 3, "policy": {"audit": {"mode": P.TEE_AUDIT, "k": 0}, "models": ["x/A", "x/B"]},
+          "seal": {"height": 1, "tx": "s"}, "close": {"height": 9, "tx": "c"},
+          "runs": {m: {"rows": [{}] * 3, "commit": {"run_index": 0, "total_score": 2, "tx": "t"}} for m in ("x/A", "x/B")}}
+    st["runs"]["x/A"]["tee_score"] = {"output": {}}
+    monkeypatch.setattr(owner, "_path", lambda bid: tmp_path)
+    monkeypatch.setattr(owner, "load", lambda bid: st)
+    out = tooling.status("p", "pc")
+    assert "nothing revealed" in out[0] and "x/B" in out[3] and "not TEE-scored yet" in out[3]
+    assert out[-1] == "next: uv run --env-file .env fuin tee-score --id p --model x/B --host gist --out pc"
+    st["runs"]["x/B"]["tee_score"] = {"output": {}}
+    assert "reveals nothing" in tooling.status("p", "pc")[-1]
+    (tmp_path / "pc").mkdir()
+    (tmp_path / "pc" / "cert-p-a.json").write_text("{}")
+    out = tooling.status("p", "pc")
+    assert "certificates in pc/: cert-p-a.json" in out[-2] and out[-1] == "next: env -u NEARAI_API_KEY uv run fuin verify pc/cert-p-a.json"
 
 
 def test_an_accepted_answer_that_trims_to_nothing_is_an_error(tmp_path):

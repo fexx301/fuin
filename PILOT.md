@@ -56,7 +56,7 @@ uv run --env-file .env fuin close --id pilot-1
 uv run --env-file .env fuin tee-key --owner YOURNAME.testnet    # once
 uv run --env-file .env fuin tee-score --id pilot-1 --model $M1 --host gist --out pilot-certs
 uv run --env-file .env fuin tee-score --id pilot-1 --model $M2 --host gist --out pilot-certs   # writes both certificates
-uv run fuin status --id pilot-1        # at any point: what's done and the next command
+uv run fuin status --id pilot-1 --out pilot-certs   # at any point: what's done and the next command
 ```
 
 ## 4B. A sampled round: a sample of the questions revealed

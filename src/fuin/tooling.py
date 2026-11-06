@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from fuin import core, near, owner, scorer
+from fuin import policy as P
 
 ITEM_KEYS = {"question", "answer", "answer_type", "accept", "tolerance", "source"}
 
@@ -122,8 +123,9 @@ def status(bid: str, examples: str = "examples") -> list[str]:
         return [f"{bid}: not sealed yet (no private/{bid}/state.json).",
                 f"next: uv run fuin check SUITE.jsonl --owner YOU.testnet, then uv run --env-file .env fuin seal SUITE.jsonl --id {bid} --owner YOU.testnet --model MODEL"]
     st = owner.load(bid)
-    n, lines, nxt = len(st["items"]), [], None
-    lines.append(f"{bid}: {n} items, owner {st['owner']}, audit k={st['policy']['audit']['k']}")
+    n, lines, nxt, tee_round = len(st["items"]), [], None, P.is_tee_round(st["policy"])
+    lines.append(f"{bid}: {n} items, owner {st['owner']}, "
+                 + ("private round (TEE-scored, nothing revealed)" if tee_round else f"audit k={st['policy']['audit']['k']}"))
     if "seal" in st:
         lines.append(f"  ✓ sealed at height {st['seal']['height']} (tx {st['seal']['tx']})")
     else:
@@ -134,7 +136,8 @@ def status(bid: str, examples: str = "examples") -> list[str]:
         if rn is None:
             lines.append(f"  · {m}: not run"); nxt = nxt or f"uv run --env-file .env fuin run --id {bid} --model {m}"
         elif "commit" in rn:
-            c = rn["commit"]; lines.append(f"  ✓ {m}: committed run {c['run_index']}, {c['total_score']}/{n} (tx {c['tx']})")
+            c = rn["commit"]; lines.append(f"  ✓ {m}: committed run {c['run_index']}, {c['total_score']}/{n} (tx {c['tx']})"
+                                           + (", TEE-scored" if rn.get("tee_score") else ", not TEE-scored yet" if tee_round else ""))
         elif len(rn["rows"]) < n:
             lines.append(f"  … {m}: {len(rn['rows'])}/{n} answered, {len(rn.get('attempt_log', []))} retries logged (resumable)")
             nxt = nxt or f"uv run --env-file .env fuin run --id {bid} --model {m}"
@@ -145,11 +148,16 @@ def status(bid: str, examples: str = "examples") -> list[str]:
     elif not nxt:
         nxt = f"uv run --env-file .env fuin close --id {bid}   (after this no more runs can join; do it once every model you want is committed)"
     certs = sorted(Path(examples).glob(f"cert-{bid}-*.json"))
+    unscored = [m for m, rn in st["runs"].items() if tee_round and "commit" in rn and not rn.get("tee_score")]
     if certs:
-        lines.append(f"  ✓ revealed: {', '.join(c.name for c in certs)}")
+        lines.append(f"  ✓ certificates in {examples}/: {', '.join(c.name for c in certs)}")
         nxt = nxt or f"env -u NEARAI_API_KEY uv run fuin verify {' '.join(str(c) for c in certs)}"
-    elif "close" in st and not nxt:
-        nxt = f"uv run fuin reveal --id {bid} --out {examples}   (waits for a finalized block ≥ close+2)"
+    elif "close" in st:
+        lines.append(f"  · no certificates in {examples}/ (if they were written elsewhere, add --out DIR)")
+        if unscored:  # a private round's certificates are written once every run is re-scored in the TEE
+            nxt = nxt or f"uv run --env-file .env fuin tee-score --id {bid} --model {unscored[0]} --host gist --out {examples}"
+        nxt = nxt or f"uv run fuin reveal --id {bid} --out {examples}   " + (
+            "(writes the certificates; a TEE-scored round reveals nothing)" if tee_round else "(waits for a finalized block ≥ close+2)")
     lines.append(f"next: {nxt or 'nothing: the round is complete'}")
     return lines
 

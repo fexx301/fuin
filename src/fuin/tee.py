@@ -220,7 +220,12 @@ def gist_host(blob: bytes):
     raw = json.loads(subprocess.run(["gh", "api", f"gists/{gid}"], capture_output=True, text=True, check=True).stdout)
     raw_url = next(iter(raw["files"].values()))["raw_url"]
     Path(f.name).unlink()
-    return raw_url, "base64", lambda: subprocess.run(["gh", "gist", "delete", gid, "--yes"], capture_output=True, text=True)
+
+    def delete():  # the round promises the gist is deleted, so a failed delete must not pass silently
+        r = subprocess.run(["gh", "gist", "delete", gid, "--yes"], capture_output=True, text=True)
+        if r.returncode:
+            print(f"warning: secret gist {gid} was not deleted ({r.stderr.strip()[:200]}); delete it with: gh gist delete {gid} --yes")
+    return raw_url, "base64", delete
 
 
 def score(st: dict, model: str, owner: str, host) -> dict:
