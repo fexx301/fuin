@@ -203,6 +203,12 @@
     const ch = Object.fromEntries((entry.recorded.checks || []).map(([n, , d]) => [n, d]));
     return ch.attestation && ch['deployment trace'] ? `${ch.attestation.replace(/ under attestation-v\d+/, '')}; deployment traced${ch['build provenance'] ? ((entry.recorded.warnings || []).some((w) => /build provenance/.test(w)) ? '; build provenance verified for some serving images (SLSA)' : '; serving image build provenance verified (SLSA)') : ''}${ch['tee score'] ? '; every answer scored in a TEE' : ''}` : null;
   }
+  function head(entry, cert) {  // title and evidence links, shown before the first check runs so the panel has no empty band
+    const r = cert.run || {}, b = cert.benchmark || {};
+    $('#certTitle').textContent = `${short(r.model_id || '?')} · ${b.id || 'uploaded certificate'}`;
+    const meta = $('#certMeta'); meta.innerHTML = '';
+    meta.append(`committed ${r.total_score}/${b.n} · run ${r.run_index} · `, ...evidenceLinks(entry, cert));
+  }
   async function run(entry, mutate) {
     const id = ++running;
     gpuRecorded = !!recordedLine(entry, !!mutate);
@@ -211,10 +217,7 @@
     let note = '';
     if (mutate) note = mutate(cert);
     const diff = $('#diff'); diff.classList.toggle('show', !!note); diff.textContent = note ? 'Tampered: ' + note : '';
-    const r = cert.run || {}, b = cert.benchmark || {};
-    $('#certTitle').textContent = `${short(r.model_id || '?')} · ${b.id || 'uploaded certificate'}`;
-    const meta = $('#certMeta'); meta.innerHTML = '';
-    meta.append(`committed ${r.total_score}/${b.n} · run ${r.run_index} · `, ...evidenceLinks(entry, cert));
+    head(entry, cert);
     renderChecks(); $('#stamp').className = 'stamp';
     const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
@@ -248,7 +251,7 @@
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); });
     // start verifying the headline certificate when the console scrolls into view
     current = all[0][1]; all[0][0].classList.add('on'); fit(current); renderChecks();
-    $('#certTitle').textContent = `${short(current.cert.run.model_id)} · ${current.cert.benchmark.id}`;
+    head(current, current.cert);
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); run(current); } }, ONSCREEN).observe($('.stage'));
   }
 
@@ -351,7 +354,7 @@
     F = window.FUIN; V = window.FuinVerify;
     const vl = $('#verifyLoading'); if (vl) vl.remove();
     picker(); results(); explorer(); refusals();
-    $('#buildInfo').textContent = `Page data from commit ${F.commit} · ${F.generated_utc}`;
+    $('#buildInfo').append('Page data from commit ', h('a', { href: 'https://github.com/fexx301/fuin/tree/' + F.commit }, F.commit), ` · ${F.generated_utc}`);
     // the TDX verifier (1.4 MB of WASM) is only needed partway through a run; verify.js waits on this promise
     window.DcapReady = load('vendor/dcap.js', 'Intel TDX verifier');
   }
