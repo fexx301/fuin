@@ -17,8 +17,9 @@ started=0; printed=0; certs=(examples/cert-*.json)
 flush() {  # wait for the running batch, then print its results in order
   wait
   while [ $printed -lt $started ]; do
-    c=${certs[$printed]}; head -1 "$tmp/$(basename "$c").out"
-    [ "$(cat "$tmp/$(basename "$c").rc")" -eq 0 ] || fail=1
+    c=${certs[$printed]}
+    if [ "$(cat "$tmp/$(basename "$c").rc")" -eq 0 ]; then head -1 "$tmp/$(basename "$c").out"
+    else cat "$tmp/$(basename "$c").out"; fail=1; fi  # the whole report, so an outage names the service that failed
     printed=$((printed + 1))
   done
 }
