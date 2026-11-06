@@ -12,6 +12,7 @@ from fuin import policy as P  # noqa: E402
 import argparse  # noqa: E402
 args = argparse.ArgumentParser(); args.add_argument("--v2", action="store_true", help="request template v2 (seal-bound nonces)")
 args.add_argument("--v3", action="store_true", help="request template v3 (v2 plus end-to-end encrypted questions and answers)")
+args.add_argument("--empty-accept", action="store_true", help="with --v3: item 2 (the unreadable one) accepts an empty answer")
 A = args.parse_args()
 V3 = A.v3
 V2 = A.v2 or V3  # v3 is seal-bound too
@@ -21,6 +22,8 @@ acct = Account.from_key(bytes([7]) * 32)  # throwaway, not attested anywhere
 items = [{"question": "Synthetic: what is 6 x 7? Answer with the number only.", "answer": "42", "answer_type": "numeric", "request_nonce": "11" * 32},
          {"question": "Synthetic: name the colour of a clear daytime sky. One word.", "answer": "blue", "answer_type": "exact", "accept": ["light blue"], "request_nonce": "22" * 32},
          {"question": "Synthetic: 1,000 plus 2,500? Number only.", "answer": "3500", "answer_type": "numeric", "tolerance": "0", "request_nonce": "33" * 32}]
+if A.empty_accept:  # blind-review probe: an unreadable answer must still score 0 (scorer v6)
+    items[2] = {k: v for k, v in items[2].items() if k != "tolerance"} | {"answer_type": "exact", "accept": [""]}
 answers = ["**42**", "Blue.", "3,500"]
 pol = P.make_policy(3, {model: {"max_tokens": 64, "temperature": 0}}, tee_wasm=("ab" * 32 if V2 else None), e2ee=V3)
 st = {"policy": pol, "items": [{"item": it, "salt": f"{i + 1:02x}" * 32} for i, it in enumerate(items)], "runs": {model: {"rows": []}},
@@ -56,6 +59,6 @@ for i, (r, ans) in enumerate(zip(st["items"], answers)):
 expected = {"model": model, "n": 3, "total": total, "benchmark_root": core.merkle_root(bleaves).hex(), "policy_hash": P.policy_hash(pol),
             "run_root": core.merkle_root(rleaves).hex(), "signer": acct.address.lower(), **({"seal_block_hash": SEAL_HASH} if V2 else {}),
             **({"unreadable": 1} if V3 else {})}  # item 2's answer is encrypted to another key (scorer v4 counts it)
-out = Path(__file__).resolve().parents[1] / f"tests/fixtures/tee-synthetic-round{'-v3' if V3 else '-v2' if V2 else ''}.json"
+out = Path(__file__).resolve().parents[1] / f"tests/fixtures/tee-synthetic-round{'-v3' if V3 else '-v2' if V2 else ''}{'-empty-accept' if A.empty_accept else ''}.json"
 out.write_text(json.dumps({"round": tee.plaintext(st, model), "expected": expected}, ensure_ascii=False, indent=1) + "\n")
 print(f"wrote {out.name}: total {total}/3, signer {acct.address.lower()}")

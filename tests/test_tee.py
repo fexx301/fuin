@@ -115,3 +115,12 @@ def test_an_unreadable_count_on_a_round_without_encryption_is_refused():
     fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v4.json").read_text())
     with pytest.raises(tee.TeeRefused, match="tee_score_mismatch"):
         tee.check_local(copy.deepcopy(fx["evidence"]), _v3_cert(fx, template="fuin-request-v2"))
+
+
+def test_scorer_v6_scores_an_unreadable_answer_0_even_when_the_item_accepts_an_empty_answer():
+    """Scorer v6 inside OutLayer on the blind review's probe (task 22597): item 2 accepts "" and its answer doesn't decrypt.
+    Before v6 the TEE scored that answer 1 (total 3/3); now 0, as Python's owner path does."""
+    fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v6-empty-accept.json").read_text())
+    assert '"accept":[""]' in json.loads((Path(__file__).parent / "fixtures/tee-synthetic-round-v3-empty-accept.json").read_text())["round"]["items"][2]["item_jcs"]
+    got = tee.check_local(copy.deepcopy(fx["evidence"]), _v3_cert(fx))
+    assert (fx["evidence"]["output"]["total"], got["unreadable"], got["pin"]) == (2, 1, tee.current_scorer()["wasm_sha256"])

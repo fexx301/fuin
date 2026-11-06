@@ -28,4 +28,22 @@ A second blind review (Codex, model gpt-6-astra, fresh clone of `d144258`, the n
 
 **Scorer v5.** The Rust change is a new build. `tee/build-docker.sh` at commit `170c488` gives `86db82137a8da1c6095a95339848572cdd1e08e4962eb2296a072af7d3f7e35b` (742,076 bytes), served from FastFS. It is now the current pin; v2–v4 stay accepted for the rounds and rehearsal that sealed them. Inside OutLayer it scored the synthetic encrypted round 2/3 with `unreadable` 1, matching Python (task 22288, `tests/fixtures/tee-synthetic-evidence-v5.json`).
 
-The reviewer's verdict is pending: the session resumes after the usage limit resets.
+## The verdicts
+
+Both reviewers scored a fresh clone of `d144258` against the event's five criteria, equal weights (the organizers publish none).
+
+| Reviewer | Overall | Technical | Design | Impact | Originality | Sustainability |
+|---|---|---|---|---|---|---|
+| Codex (gpt-6-astra), resumed after its usage limit | 7.0 | 8 | 7 | 6 | 8 | 6 |
+| Claude Code | 7.5 | 9 | 8 | 6 | 8 | 6 |
+
+Codex verified all twelve certificates (after rate-limit retries), all 23 fixtures, 103 Python, 15 contract and 14 TEE scorer tests, and rebuilt v2–v4 to their pins. The two findings above are from its notes.
+
+**Fixed after the verdicts:**
+- **An unreadable answer could score 1 (Codex).** It read as `""`, which matched an item that accepts `""`: Codex's probe raised the synthetic encrypted round from 2/3 to 3/3 with `unreadable` 1. The TEE scorer now scores it 0 outright: scorer v6, `67c2292e…` from `tee/build-docker.sh` at `6b0705c`, served from FastFS, now the current pin. Inside OutLayer it scored the standard synthetic encrypted round 2/3 (task 22595, `tests/fixtures/tee-synthetic-evidence-v6.json`) and the reviewer's probe round, where the unreadable item accepts `""`, also 2/3 with `unreadable` 1 (task 22597, `tests/fixtures/tee-synthetic-evidence-v6-empty-accept.json`), matching Python both times. The owner's Python path passes `null` content (which the sealed scorer scores 0), and suite checking rejects an accepted answer that trims to nothing. No published suite has one.
+- **The registry step checked only receipt heights (Claude).** It now also compares the owner's signed seal, commit and close arguments with the certificate. Fixture `swapped-commit` (the commit pointed at another model's real commit in the same round, height included) is REFUSED `record_mismatch` in the CLI and the browser.
+- **Unstated limits (Claude).** Printed now, and on the page: the registry wasn't built reproducibly; each item's 0/1 score is public; a zero-reveal round's answer key and choice of questions are unchecked.
+- **Review fragility (both).** NEAR's archival endpoint now only returns a deprecation notice, so the dead fallback is gone; `review.sh` caches answers that can't change (finalized transactions, queries at a fixed block) and verifies certificates in batches (`FUIN_REVIEW_WORKERS`, default 4), printing each batch as it finishes.
+- **README wording (both).** Rounds 1–3's timing is qualified (the seal preceded the committed results; the run's timing is the owner's word); the TEE-score claim is scoped to certificates that carry one; the certificate count, the scorer's exact strictness and round 5's v3 caveat are stated.
+
+**Still open:** no outside benchmark owner has used Fūin yet (both reviewers' impact and sustainability deduction). The pilot needs the repository public first.
