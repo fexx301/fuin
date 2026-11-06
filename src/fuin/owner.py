@@ -76,10 +76,14 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
     if rn is None:  # fresh run: preflight report with a new nonce
         nonce = os.urandom(32).hex()
         report = inference.model_report(model, nonce)
-        accepted = [c for c in report["model_attestations"]
-                    if attestation.check_report(c, nonce, attestation_policy())["outcome"][0].startswith("accepted")]
-        if len(accepted) != 1:
-            raise SystemExit(f"{model}: need exactly one accepted attestation candidate, got {len(accepted)}")
+        checked = [(c, attestation.check_report(c, nonce, attestation_policy())) for c in report["model_attestations"]]
+        accepted = [c for c, res in checked if res["outcome"][0].startswith("accepted")]
+        if len(accepted) != 1:  # say why for each candidate: an unreachable Intel or NVIDIA service looks nothing like a bad quote
+            why = "; ".join(f"{str(c.get('signing_address', '?'))[:12]}: {'/'.join(res['outcome'])}" + (f" ({res['error'][:300]})" if res.get("error") else "")
+                            for c, res in checked) or "the report lists no candidates"
+            hint = (" A service the check needs was unreachable: see the network list in PILOT.md section 1."
+                    if any(res["outcome"][-1] == "evidence_unavailable" for _, res in checked) else "")
+            raise SystemExit(f"{model}: need exactly one accepted attestation candidate, got {len(accepted)} ({why}).{hint}")
         rn = st["runs"][model] = {"preflight_nonce": nonce, "model_report": report, "policy_version": attestation_policy()["version"],
                                   "signer": accepted[0]["signing_address"].lower(), "rows": [], "attempt_log": []}
         save(st)
