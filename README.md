@@ -223,7 +223,7 @@ To reveal nothing, seal with `--tee` (every item scored inside the TEE by the se
 
 When NEAR redeploys a model, a run's preflight stops with no accepted attestation. `uv run --env-file .env fuin policy-update` fetches fresh reports. For any configuration whose evidence holds (Intel quote, nonce binding, RTMR3, NVIDIA's verdict) but isn't approved yet, it drafts `policy/attestation-v<N+1>.json` with the measurements and deployment trace for review. It approves nothing itself: the verifier keeps its current policy until a person points `owner.ATTESTATION_POLICY` at the reviewed file.
 
-For a second person trying Fūin on their own private questions, [PILOT.md](PILOT.md) is a step-by-step kit with a report form.
+For a second person trying Fūin on their own private questions, [PILOT.md](PILOT.md) is a step-by-step kit with a report form. A fellow builder ([JUICEWRLD998](https://github.com/JUICEWRLD998)) ran it unmodified on Nov 6, on Windows 11 under WSL2: a private round of 46 script-generated questions on two models. Both certificates verify on another machine. Each problem he hit (WSL's DNS, build packages, the keychain, two unclear messages, a dropped request to Intel) is now fixed or documented: [evidence/2026-11-06-outside-pilot](evidence/2026-11-06-outside-pilot/).
 
 `fuin check` catches malformed items, duplicate questions, answers that appear in their own question, questions that don't say what form to answer in, and two items citing the same source line (revealing one can disclose the other). It also states the disclosure for your suite size, for example "60 items → reveals 23 (38.3%)" or "1,000 items → reveals 29 (2.9%)". `fuin seal` runs the same suite check and refuses a suite with errors, because a seal can't be undone.
 

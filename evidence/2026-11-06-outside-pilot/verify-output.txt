@@ -1,0 +1,61 @@
+Keyless verification of the pilot's two certificates by Fūin's builder, on macOS (Apple silicon), independent of the owner's machine.
+Verifier: fexx301/fuin at 274bb43. Command: env -u NEARAI_API_KEY uv run fuin verify cert-pilot-1-qwen3.8-27b.json cert-pilot-1-glm-5.3-flash.json
+Started 2026-11-06T16:25:04Z; the timing and exit code follow the output.
+
+cert-pilot-1-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 46 items, scores in {0,1}, total 37/46
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; TEE-scored by scorer 67c2292e21d2…, nothing revealed; fuin-request-v3 (end-to-end encrypted)
+  [pass] signatures: 46/46 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose 5e513dbd72e1… under attestation-v6
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.539 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276494895 < commit 276504615 < close 276504674; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] round closed: closed at 276504674; no sample: a TEE-scored round reveals nothing
+  [pass] tee score: all 46 items rebuilt and re-scored inside an OutLayer TDX enclave by scorer 67c2292e21d2… (task 23445): total 37/46 and both roots match; 0 unreadable answers (counted inside the TEE); quote UpToDate, task hash bound, worker approved at block 276504791, request and result on chain
+  scope: signature evidence verified; commitments and total consistent (37/46); every item rebuilt and re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE trust assumptions; nothing revealed: all 46 items stay private
+  warning: image lmsysorg/sglang@…d85856b1: no published build provenance (SLSA)
+  warning: owner-reported failed inference attempts: 1 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - The registry contract is locked (no access keys), but its code rebuilds byte for byte from contract/ only on the macOS machine that built it, not on Linux, so others can't tie it to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
+   - Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.
+   - Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
+   - Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
+   - The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0); the TEE scorer counts such answers, and the count is printed with the TEE score.
+   - A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.
+cert-pilot-1-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 46 items, scores in {0,1}, total 41/46
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; TEE-scored by scorer 67c2292e21d2…, nothing revealed; fuin-request-v3 (end-to-end encrypted)
+  [pass] signatures: 46/46 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose a0e3c6f4f21a… under attestation-v6
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r2 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+4 more replicas)
+  [pass] build provenance: nearaidev/sglang@…21f133cc built by github.com/nearai/cvm-compose-files .github/workflows/publish-glm53-admission-reserve.yaml @7c473970 (SLSA v1, sigstore); nearaidev/sglang@…f033d681 built by github.com/nearai/cvm-compose-files .github/workflows/publish-glm53-admission-reserve.yaml @79de066b (SLSA v1, sigstore)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 276494895 < commit 276504646 < close 276504674; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] round closed: closed at 276504674; no sample: a TEE-scored round reveals nothing
+  [pass] tee score: all 46 items rebuilt and re-scored inside an OutLayer TDX enclave by scorer 67c2292e21d2… (task 23451): total 41/46 and both roots match; 0 unreadable answers (counted inside the TEE); quote UpToDate, task hash bound, worker approved at block 276504874, request and result on chain
+  scope: signature evidence verified; commitments and total consistent (41/46); every item rebuilt and re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE trust assumptions; nothing revealed: all 46 items stay private
+  warning: owner-reported failed inference attempts: 4 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - The registry contract is locked (no access keys), but its code rebuilds byte for byte from contract/ only on the macOS machine that built it, not on Linux, so others can't tie it to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
+   - Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.
+   - Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
+   - Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
+   - The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0); the TEE scorer counts such answers, and the count is printed with the TEE score.
+   - A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.
+real 80.71
+user 3.39
+sys 0.33
+exit=0
+2026-11-06T16:26:25Z

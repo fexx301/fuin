@@ -1,0 +1,83 @@
+The same two files checked by the Fūin page's own verifier (site/ at 274bb43, served locally, Chrome), each chosen with
+'Drop or choose your own cert.json' as a visitor would, 2026-11-06 16:26 UTC. Text of the verdict and of each check row:
+
+== cert-pilot-1-qwen3.8-27b.json: PARTLY CHECKED: GPU not checked in a browser  (18 s in the browser)
+Qwen3.8-27B · pilot-1
+committed 37/46 · run 0 · seal tx · commit tx · close tx
+✓
+Certificate shapelocalchecked now
+every field has the right type and form
+✓
+Model is attestedlocalchecked now
+Qwen/Qwen3.8-27B is a TEE model in the verifier's attestation policy
+✓
+Rows and totallocalchecked now
+46 items, scores in {0,1}, total 37/46
+✓
+Merkle commitmentslocalchecked now
+benchmark root 4ee43eea0e03… and run root a48ecea1c113… rebuilt from all 46 rows
+✓
+Sealed policylocalchecked now
+fuin-v1; fuin-scorer-v2 (sha256 1061f6714e11…); TEE-scored by scorer 67c2292e21d2…, nothing revealed; fuin-request-v3 (end-to-end encrypted)
+✓
+Every model signaturelocalchecked now
+46/46 provider_tee signatures recover to 0x835ab53d…
+✓
+Revealed sample re-scoredlocalchecked now
+none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+✓
+Intel TDX quote (+ GPU, recorded)Intel via PCCSTDX checked now · GPU not checked
+TDX checked in your browser: quote UpToDate, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose 5e513dbd72… and OS df4d77c857… approved by attestation-v6. GPU (NVIDIA NRAS blocks browsers): not checked here; run fuin verify
+✓
+Serving container traced to NEAR's repoIntel via PCCS · GitHubchecked now
+compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.539 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8
+✓
+NEAR registry recordNEAR RPCchecked now
+seal 276494895 < commit 276504615 < close 276504674 on registry.fuin.testnet; signed seal and commit arguments match; locked (0 access keys)
+✓
+Round close and audit sampleNEAR RPCchecked now
+closed at 276504674 with 2 runs; no sample: a TEE-scored round reveals nothing
+✓
+Every answer re-scored in a TEEOutLayer quote via PCCS · NEAR RPCchecked now
+all 46 items rebuilt and re-scored inside an OutLayer TDX enclave by scorer 67c2292e21d2… (task 23445): total 37/46 and both roots match; 0 unreadable answers (counted inside the TEE); quote UpToDate, task hash bound, worker approved at block 276504791, request and result on chain
+
+== cert-pilot-1-glm-5.3-flash.json: PARTLY CHECKED: GPU not checked in a browser  (13 s in the browser)
+glm-5.3-flash · pilot-1
+committed 41/46 · run 0 · seal tx · commit tx · close tx
+✓
+Certificate shapelocalchecked now
+every field has the right type and form
+✓
+Model is attestedlocalchecked now
+z-ai/glm-5.3-flash is a TEE model in the verifier's attestation policy
+✓
+Rows and totallocalchecked now
+46 items, scores in {0,1}, total 41/46
+✓
+Merkle commitmentslocalchecked now
+benchmark root 4ee43eea0e03… and run root 344b13f8ce67… rebuilt from all 46 rows
+✓
+Sealed policylocalchecked now
+fuin-v1; fuin-scorer-v2 (sha256 1061f6714e11…); TEE-scored by scorer 67c2292e21d2…, nothing revealed; fuin-request-v3 (end-to-end encrypted)
+✓
+Every model signaturelocalchecked now
+46/46 provider_tee signatures recover to 0x3b753b44…
+✓
+Revealed sample re-scoredlocalchecked now
+none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+✓
+Intel TDX quote (+ GPU, recorded)Intel via PCCSTDX checked now · GPU not checked
+TDX checked in your browser: quote UpToDate, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose a0e3c6f4f2… and OS df4d77c857… approved by attestation-v6. GPU (NVIDIA NRAS blocks browsers): not checked here; run fuin verify
+✓
+Serving container traced to NEAR's repoIntel via PCCS · GitHubchecked now
+compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8; model-sg-glm53-w4afp8-tp2-r2 @v0.0.521 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 (+4 more replicas)
+✓
+NEAR registry recordNEAR RPCchecked now
+seal 276494895 < commit 276504646 < close 276504674 on registry.fuin.testnet; signed seal and commit arguments match; locked (0 access keys)
+✓
+Round close and audit sampleNEAR RPCchecked now
+closed at 276504674 with 2 runs; no sample: a TEE-scored round reveals nothing
+✓
+Every answer re-scored in a TEEOutLayer quote via PCCS · NEAR RPCchecked now
+all 46 items rebuilt and re-scored inside an OutLayer TDX enclave by scorer 67c2292e21d2… (task 23451): total 41/46 and both roots match; 0 unreadable answers (counted inside the TEE); quote UpToDate, task hash bound, worker approved at block 276504874, request and result on chain
+
