@@ -55,10 +55,27 @@ def test_intel_outage_is_an_outage_not_a_forgery(monkeypatch):
     def unreachable(raw):
         raise ValueError("Failed to get collateral: error sending request for url (https://api.trustedservices.intel.com/...)")
     monkeypatch.setattr(A, "_collateral", unreachable)
+    monkeypatch.setattr(A.time, "sleep", lambda s: None)
     with pytest.raises(RuntimeError):
         A.verify_quote(REPORT["intel_quote"])
     res = A.check_report(REPORT, NONCE, POLICY, use_nras=False)
     assert res["outcome"] == ("cant_certify", "evidence_unavailable")
+
+
+def test_a_dropped_request_to_intel_is_retried_once(monkeypatch):
+    # the pilot's first verify lost one request to Intel's PCS and printed CAN'T CERTIFY; a rerun minutes later passed
+    calls = []
+
+    def flaky(raw):
+        calls.append(1)
+        raise ValueError("Failed to get collateral: error sending request for url (https://api.trustedservices.intel.com/...)"
+                         if len(calls) == 1 else "Failed to get collateral: Failed to extract certificates from PEM chain")
+    monkeypatch.setattr(A, "_collateral", flaky)
+    monkeypatch.setattr(A, "_pcs_reachable", lambda: True)
+    monkeypatch.setattr(A.time, "sleep", lambda s: None)
+    with pytest.raises(ValueError, match="quote rejected"):  # the second answer decides, so a real fault is still refused
+        A.verify_quote(REPORT["intel_quote"])
+    assert len(calls) == 2
 
 
 def test_broken_certificate_chain_with_intel_reachable_is_invalid(monkeypatch):

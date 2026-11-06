@@ -79,12 +79,18 @@ def verify_quote(quote_hex: str):
     for both, so an Intel outage was refused as an invalid quote.)"""
     raw = bytes.fromhex(quote_hex)
     dcap_qvl.parse_quote(raw)
-    try:
-        collateral = asyncio.run(_collateral(raw))
-    except ValueError as e:  # an outage only if the request failed or Intel doesn't answer; otherwise the quote is at fault
-        if any(m in str(e) for m in ("error sending request", "timed out", "dns error")) or not _pcs_reachable():
-            raise RuntimeError(f"Intel collateral unavailable: {str(e)[:160]}") from e
-        raise ValueError(f"quote rejected at the collateral step: {str(e)[:160]}") from e
+    for attempt in (1, 2):  # one retry: a single dropped request to Intel would otherwise read as an outage (the pilot hit one)
+        try:
+            collateral = asyncio.run(_collateral(raw))
+            break
+        except ValueError as e:  # an outage only if the request failed or Intel doesn't answer; otherwise the quote is at fault
+            dropped = any(m in str(e) for m in ("error sending request", "timed out", "dns error"))
+            if dropped and attempt == 1:
+                time.sleep(3)
+                continue
+            if dropped or not _pcs_reachable():
+                raise RuntimeError(f"Intel collateral unavailable: {str(e)[:160]}") from e
+            raise ValueError(f"quote rejected at the collateral step: {str(e)[:160]}") from e
     res = dcap_qvl.verify(raw, collateral, int(time.time()))
     rep = json.loads(res.to_json())["report"]
     td = rep.get("TD10") or rep.get("TD15")
