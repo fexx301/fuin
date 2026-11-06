@@ -232,7 +232,7 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
 - The seal precedes the result commitment; this does not prove when inference happened.
-- The registry contract is locked (no access keys) but wasn't built reproducibly, so its code isn't tied to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+- The registry contract is locked (no access keys), but its code rebuilds byte for byte from contract/ only on the macOS machine that built it, not on Linux, so others can't tie it to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
 - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
 
 Printed as well when a certificate carries a TEE score:
