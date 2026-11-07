@@ -287,7 +287,8 @@
 
   // ---- TEE score: ports of fuin/tee.py check_local (no network) and check_remote ----
   class TeeUnapproved extends Error {}  // genuine-looking evidence the verifier's pins don't cover: CAN'T CERTIFY, after later checks
-  const isTee = (policy, S) => !!(policy && policy.audit && policy.audit.mode === S.tee_audit);
+  const isTee = (policy, S) => !!(policy && policy.audit && [S.tee_audit, S.tee_asked].includes(policy.audit.mode));  // zero-reveal
+  const isAsked = (policy, S) => !!(policy && policy.audit && policy.audit.mode === S.tee_asked);
   const leInt = (v, signed) => { const b = new Uint8Array(8), d = new DataView(b.buffer); signed ? d.setBigInt64(0, BigInt(v), true) : d.setBigUint64(0, BigInt(v), true); return b; };
   async function taskHashV1(rec) {  // OutLayer's V1 preimage: fixed field order, UTF-8 strings, little-endian integers, absent optional fields omitted
     const s = (x) => enc.encode(x), parts = [s(rec.task_type), leInt(rec.task_id, true)];
@@ -323,16 +324,40 @@
   async function teeLocal(ev, cert, cfg) {
     const need = (c, code = 'tee_score_invalid') => req(c, code), b = cert.benchmark, r = cert.run;
     const { rec, out } = await teeRecord(ev, cert, 'fuin-tee-evidence-v1', 'score');
-    if (isTee(b.policy, cfg.supported) && rec.wasm_hash !== b.policy.audit.scorer_wasm_sha256) throw new Refused('tee_score_mismatch');  // the sealed build
-    const signers = new Set(r.items.map((it) => it.signature.signing_address.toLowerCase()));
+    if (b.policy.audit.mode === cfg.supported.tee_audit && rec.wasm_hash !== b.policy.audit.scorer_wasm_sha256) throw new Refused('tee_score_mismatch');  // the sealed build
     need(out.v === 'fuin-tee-score-v1', 'tee_score_mismatch');
-    need(out.model === r.model_id && out.n === b.n && out.total === r.total_score && out.benchmark_root === b.root && out.policy_hash === b.policy_hash
-      && out.run_root === r.run_root && signers.size === 1 && signers.has(out.signer), 'tee_score_mismatch');
-    const v2 = [cfg.supported.template_v2, cfg.supported.template_v3].includes(b.policy.request.template);  // nonces rebuilt from this block hash
-    need((out.seal_block_hash ?? null) === (v2 ? b.seal_block_hash : null), 'tee_score_mismatch');
-    if ('unreadable' in out)  // scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
-      need(b.policy.request.template === cfg.supported.template_v3 && Number.isInteger(out.unreadable) && out.unreadable >= 0 && out.unreadable <= b.n, 'tee_score_mismatch');
+    runFields(out, cert, cfg, 'tee_score_mismatch');
     return { task: rec.task_id, pin: tPinned(rec, cfg.tee.pins), unreadable: out.unreadable };
+  }
+  function runFields(out, cert, cfg, code) {  // fuin/tee.py _run_fields: a TEE result for one run equals the certificate's run
+    const b = cert.benchmark, r = cert.run, need = (c) => req(c, code);
+    const signers = new Set(r.items.map((it) => it.signature.signing_address.toLowerCase()));
+    need(out.model === r.model_id && out.n === b.n && out.total === r.total_score && out.benchmark_root === b.root && out.policy_hash === b.policy_hash
+      && out.run_root === r.run_root && signers.size === 1 && signers.has(out.signer));
+    const v2 = [cfg.supported.template_v2, cfg.supported.template_v3].includes(b.policy.request.template);  // nonces rebuilt from this block hash
+    need((out.seal_block_hash ?? null) === (v2 ? b.seal_block_hash : null));
+    if ('unreadable' in out)  // only end-to-end-encrypted rounds have answers that can fail to decrypt
+      need(b.policy.request.template === cfg.supported.template_v3 && Number.isInteger(out.unreadable) && out.unreadable >= 0 && out.unreadable <= b.n);
+  }
+  async function askedLocal(ev, cert, cfg) {  // fuin/tee.py check_asked_local
+    const { rec, out } = await teeRecord(ev, cert, 'fuin-tee-asked-evidence-v1', 'aggregate'), a = cert.benchmark.policy.audit;
+    if (rec.wasm_hash !== a.asker_wasm_sha256 || rec.project_id !== a.asker_project) throw new Refused('tee_asked_mismatch');
+    req(out.v === 'fuin-tee-asked-v1' && Number.isInteger(out.retried) && out.retried >= 0, 'tee_asked_mismatch');
+    runFields(out, cert, cfg, 'tee_asked_mismatch');
+    const pinned = (cfg.tee.askers || []).some((x) => x.wasm_sha256 === rec.wasm_hash && x.project === rec.project_id);
+    if (!pinned || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : rec.wasm_hash) !== rec.wasm_hash) throw new TeeUnapproved('tee_unapproved');
+    return { task: rec.task_id, pin: rec.wasm_hash, project: rec.project_id, unreadable: out.unreadable, retried: out.retried };
+  }
+  async function askedLock(cert, cfg) {  // fuin/tee.py check_asked_lock: the project was locked at the seal block
+    const a = cert.benchmark.policy.audit, h = cert.benchmark.seal_height, proj = a.asker_project, acct = proj.split('/')[0];
+    const q = (kind, extra) => rpc(cfg.rpc, 'query', { request_type: kind, block_id: h, account_id: acct, ...extra });
+    const keys = (await q('view_access_key_list')).keys, code = (await q('view_account')).code_hash;
+    req(Array.isArray(keys) && keys.length === 0 && code === '11111111111111111111111111111111', 'tee_asked_unlocked');
+    const project = await viewCall(cfg.rpc, cfg.tee.outlayer.contract, 'get_project', { project_id: proj }, h);
+    const versions = await viewCall(cfg.rpc, cfg.tee.outlayer.contract, 'list_versions', { project_id: proj, from_index: 0, limit: 10 }, h);
+    req(project && project.owner === acct && project.active_version === a.asker_wasm_sha256 && Array.isArray(versions)
+      && versions.length === 1 && versions[0].wasm_hash === a.asker_wasm_sha256, 'tee_asked_unlocked');
+    return `${proj} was locked at the seal (block ${h}): its owner had no keys and no code, and its only version was the sealed asker`;
   }
   async function groundLocal(ev, cert, cfg) {  // fuin/tee.py check_ground_local
     const need = (c) => req(c, 'tee_ground_mismatch'), b = cert.benchmark, n = b.n;
@@ -362,7 +387,9 @@
     const tx = st.transaction, call = (tx.actions && tx.actions[0] && tx.actions[0].FunctionCall) || {};
     req(tx.signer_id === owner && tx.receiver_id === T.outlayer.contract && call.method_name === 'request_execution', 'tee_score_invalid');
     let args; try { args = JSON.parse(dec.decode(b64(call.args))); } catch { throw new Refused('tee_score_invalid'); }
-    req(args.input_data === ev.input_data && ((args.source || {}).WasmUrl || {}).hash === rec.wasm_hash, 'tee_score_invalid');
+    const src = args.source || {}, pj = src.Project || {};  // by URL, or a project's exact version (the asker): the build the record attests
+    const byUrl = (src.WasmUrl || {}).hash === rec.wasm_hash && rec.project_id == null, byProject = pj.project_id === rec.project_id && pj.version_key === rec.wasm_hash;
+    req(args.input_data === ev.input_data && (byUrl || byProject), 'tee_score_invalid');
     const outs = [];
     for (const x of st.receipts_outcome) {
       const v = x.outcome.status.SuccessValue; if (!v) continue;
@@ -410,11 +437,12 @@
     });
   }
 
-  function makePolicy(n, models, S, scorerName, teeWasm, e2ee) {  // teeWasm: a zero-reveal round's sealed scorer build
+  function makePolicy(n, models, S, scorerName, teeWasm, e2ee, asker) {  // teeWasm: a zero-reveal round's sealed scorer; asker: [build, project]
     const { d, k } = auditSize(n);
-    return { protocol: S.protocol, models, request: { template: e2ee ? S.template_v3 : teeWasm ? S.template_v2 : S.template, privacy_profile: S.privacy },
+    return { protocol: S.protocol, models, request: { template: e2ee ? S.template_v3 : teeWasm || asker ? S.template_v2 : S.template, privacy_profile: S.privacy },
       scorer: { name: scorerName, sha256: S.scorers[scorerName] }, score: { values: [0, 1], aggregate: 'sum', denominator: n },
-      audit: teeWasm ? { mode: S.tee_audit, k: 0, scorer_wasm_sha256: teeWasm } : { D: d, target: { numerator: 95, denominator: 100 }, k, sampler: S.sampler } };
+      audit: asker ? { mode: S.tee_asked, k: 0, asker_wasm_sha256: asker[0], asker_project: asker[1] }
+        : teeWasm ? { mode: S.tee_audit, k: 0, scorer_wasm_sha256: teeWasm } : { D: d, target: { numerator: 95, denominator: 100 }, k, sampler: S.sampler } };
   }
 
   /* verify(cert, cfg, onStep) → {outcome, code, detail, steps}. cfg: {supported, attested, registry, rpc, pccs, attestationPolicy, tee, recorded?}.
@@ -457,17 +485,20 @@
       });
       await local('policy', async () => {
         req(hex(await sha256(enc.encode(jcs(b.policy)))) === b.policy_hash, 'policy_mismatch');
-        const sn = b.policy.scorer && b.policy.scorer.name, tw = tr ? b.policy.audit.scorer_wasm_sha256 : undefined;
+        const ak = isAsked(b.policy, S), sn = b.policy.scorer && b.policy.scorer.name, tw = tr && !ak ? b.policy.audit.scorer_wasm_sha256 : undefined;
+        const asker = ak ? [b.policy.audit.asker_wasm_sha256, b.policy.audit.asker_project] : undefined;
         const e3 = !!b.policy.request && b.policy.request.template === S.template_v3;
-        req(sn in S.scorers && (!tr || isHex32(tw)) && jcs(b.policy) === jcs(makePolicy(n, b.policy.models, S, sn, tw, e3)), 'policy_mismatch');
+        req(sn in S.scorers && (!tr || ak || isHex32(tw)) && (!ak || (isHex32(asker[0]) && typeof asker[1] === 'string'))
+          && jcs(b.policy) === jcs(makePolicy(n, b.policy.models, S, sn, tw, e3, asker)), 'policy_mismatch');
         // a sampled v3 round's reveals must be re-encrypted (secp256k1 ECDH), which this page doesn't do yet: say so
         if (e3 && !tr) throw new CantCertify('policy_unsupported');
         req(jcs(Object.keys(b.policy.models).sort()) === jcs([...b.models].sort()) && r.model_id in b.policy.models, 'policy_mismatch');
         req(Object.values(b.policy.models).every((s) => Object.keys(s).every((x) => S.allowed_settings.includes(x))), 'policy_mismatch');
         if (tr) {  // zero-reveal: no sample at all; every item is re-scored in the TEE instead
           k = 0;
-          req(a.mode === S.tee_audit && a.k === 0 && a.indices.length === 0 && a.reveals.length === 0, 'audit_sample_mismatch');
-          return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); TEE-scored by scorer ${tw.slice(0, 12)}…, nothing revealed; ${b.policy.request.template}${e3 ? ' (end-to-end encrypted)' : ''}`;
+          req(a.mode === b.policy.audit.mode && a.k === 0 && a.indices.length === 0 && a.reveals.length === 0, 'audit_sample_mismatch');
+          const how = ak ? `asked once per item inside the TEE by asker ${asker[0].slice(0, 12)}… in ${asker[1]}` : `TEE-scored by scorer ${tw.slice(0, 12)}…`;
+          return `${S.protocol}; ${sn} (sha256 ${S.scorers[sn].slice(0, 12)}…); ${how}, nothing revealed; ${b.policy.request.template}${e3 ? ' (end-to-end encrypted)' : ''}`;
         }
         const au = auditSize(n); k = au.k;
         req(a.D === au.d && a.k === au.k && a.target && a.target.numerator === 95 && a.target.denominator === 100, 'audit_sample_mismatch');
@@ -507,7 +538,15 @@
       // TEE score, local half first: a later outage can't hide evidence that contradicts the certificate
       const teeEv = (r.evidence || {}).tee_score;
       let teeInfo = null;
-      if (tr && teeEv == null) deferred.push(['tee_score_missing', 'the sealed policy promises a TEE score and the certificate carries none']);
+      const asked = isAsked(b.policy, S), askedEv = (r.evidence || {}).tee_asked;
+      if (tr && !asked && teeEv == null) deferred.push(['tee_score_missing', 'the sealed policy promises a TEE score and the certificate carries none']);
+      if (asked && askedEv == null) deferred.push(['tee_asked_missing', 'the sealed policy promises enclave-asked answers and the certificate carries no aggregate']);
+      let askedInfo = null;
+      if (asked && askedEv != null) {
+        await start('asked');
+        try { askedInfo = await askedLocal(askedEv, cert, cfg); await onStep('asked', 'running', 'aggregate matches the run; checking its quote, the chain and the project lock…'); }
+        catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the asker build or its project is not one this verifier pins']); await onStep('asked', 'fail', 'tee_unapproved'); }
+      }
       if (teeEv != null) {
         await start('tee');
         try { teeInfo = await teeLocal(teeEv, cert, cfg); await onStep('tee', 'running', 'record matches the certificate; checking its quote and the chain…'); }
@@ -639,6 +678,21 @@
           else throw e;
         }
       }
+      if (askedInfo && !root.Dcap) await onStep('asked', 'skip', 'aggregate matches the run, but its quote is not checked here: the Intel TDX verifier did not load. Run fuin verify.');
+      else if (askedInfo) {
+        await start('asked');
+        try {
+          const detail = await teeRemote(askedEv, cert, cfg), lock = await askedLock(cert, cfg), rt = askedInfo.retried, u = askedInfo.unreadable;
+          teeMode = 'live';  // the aggregate is this round's TEE score
+          await pass(`all ${n} answers asked once inside an OutLayer TDX enclave by asker ${askedInfo.pin.slice(0, 12)}… in ${askedInfo.project} (aggregate task ${askedInfo.task}): `
+            + `total ${r.total_score}/${n} and both roots match; ${rt} retried ask${rt === 1 ? '' : 's'} (no answer had left the enclave)`
+            + (u == null ? '' : `; ${u} unreadable answer${u === 1 ? '' : 's'}`) + `; ${lock}; ${detail}`);
+        } catch (e) {
+          if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the aggregate's block, or legacy format"]); await onStep('asked', 'fail', 'tee_unapproved'); }
+          else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('asked', 'skip', 'unavailable: ' + e.message); }
+          else throw e;
+        }
+      }
       if (groundInfo && !root.Dcap) await onStep('ground', 'skip', 'record matches the sealed root, but its quote is not checked here: the Intel TDX verifier did not load. Run fuin verify.');
       else if (groundInfo) {
         await start('ground');
@@ -664,7 +718,9 @@
     if (zeroReveal && teeMode !== 'live') return { outcome: 'PARTIAL', code: 'TEE score not checked in this browser', attestation: attMode, tee: teeMode };
     if (!cfg.recorded) return { outcome: 'PARTIAL', code: traceMode === 'live' ? 'GPU not checked in a browser' : 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked', trace: traceMode };
     const tee = `every item rebuilt and re-scored inside an OutLayer TDX enclave (checked here)`;
-    const scope = zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
+    const askedRound = isAsked(cert.benchmark.policy, cfg.supported);
+    const scope = askedRound ? `every item asked once and scored inside an OutLayer TDX enclave (checked here): the total is exact and no answer was chosen among several, under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
+      : zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
       : `audit passed ${au.k}/${n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)${teeMode === 'live' ? '; ' + tee : ''}`;
     return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, ground: groundMode, trace: traceMode, scope };
   }

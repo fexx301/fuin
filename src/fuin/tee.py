@@ -522,7 +522,10 @@ def check_remote(ev, cert: dict) -> str:
     call = tx["actions"][0].get("FunctionCall", {}) if tx["actions"] else {}
     _need(call.get("method_name") == "request_execution")
     args = json.loads(base64.b64decode(call["args"]))
-    _need(args.get("input_data") == ev["input_data"] and args.get("source", {}).get("WasmUrl", {}).get("hash") == rec["wasm_hash"])
+    src = args.get("source", {})  # the build by URL, or a project's exact version (the asker): the one the record attests
+    by_url = src.get("WasmUrl", {}).get("hash") == rec["wasm_hash"] and rec.get("project_id") is None
+    by_project = (src.get("Project", {}).get("project_id"), src.get("Project", {}).get("version_key")) == (rec.get("project_id"), rec["wasm_hash"])
+    _need(args.get("input_data") == ev["input_data"] and (by_url or by_project))
     outs = []
     for x in st["receipts_outcome"]:
         val = x["outcome"]["status"].get("SuccessValue")

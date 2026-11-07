@@ -76,9 +76,10 @@ def main() -> None:
         "supported": {"protocol": P.PROTOCOL, "template": P.TEMPLATE, "privacy": P.PRIVACY, "sampler": P.SAMPLER,
                       "allowed_settings": sorted(P.ALLOWED_SETTINGS),
                       "scorers": {name: sha for (name, sha) in P.SCORERS},
-                      "template_v2": P.TEMPLATE_V2, "template_v3": P.TEMPLATE_V3, "tee_audit": P.TEE_AUDIT},
+                      "template_v2": P.TEMPLATE_V2, "template_v3": P.TEMPLATE_V3, "tee_audit": P.TEE_AUDIT, "tee_asked": P.TEE_ASKED},
         "tee": {"pins": sorted(tee.pinned()), "outlayer": tee.tee_policy()["outlayer"], "v1_cutoff": tee.V1_CUTOFF,
-                "grounders": tee.tee_policy()["grounders"], "ground_commits": tee.tee_policy()["ground_commits"], "ground_repo": tee.GROUND_REPO},
+                "grounders": tee.tee_policy()["grounders"], "ground_commits": tee.tee_policy()["ground_commits"], "ground_repo": tee.GROUND_REPO,
+                "askers": [{"wasm_sha256": x["wasm_sha256"], "project": x["project"]} for x in tee.tee_policy().get("askers", [])]},
         "attested_models": sorted(owner.attestation_policy()["models"]),
         "attestation_policy": {"version": owner.attestation_policy()["version"],
                                "models": {m: {ch: {"os_image_hash": e["os_image_hash"], "os_measurements": e["os_measurements"]}

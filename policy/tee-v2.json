@@ -53,5 +53,14 @@
   "ground_note": "A grounding is accepted from the builds in grounders, citing only the near/docs commits in ground_commits. GitHub serves a fork's commits under near/docs too (tested Nov 7), so each listed commit was checked to be on near/docs master (GitHub compare API).",
   "ground_commits": [
     "e2d2ea173cf462bcf518ecae5650984a221d5183"
+  ],
+  "askers": [
+    {
+      "wasm_sha256": "ca2bb88fae28f2eba8b830f68c877a46a2534503fa6c9cc7de1ed2afdf69791c",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/ca2bb88fae28f2eba8b830f68c877a46a2534503fa6c9cc7de1ed2afdf69791c.wasm",
+      "project": "fuin.testnet/fuin-ask-spike",
+      "bytes": 785661,
+      "build": "REHEARSAL ONLY (branch feat/enclave-asked): local cargo build of ask/, in the unlocked spike project; its certificates must be refused tee_asked_unlocked"
+    }
   ]
 }

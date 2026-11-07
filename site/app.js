@@ -147,6 +147,7 @@
     ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Round close and audit sample', 'NEAR RPC'],
     ['tee', 'Every answer re-scored in a TEE', 'OutLayer quote via PCCS · NEAR RPC'],
     ['ground', 'Answer keys checked against their source', 'OutLayer quote via PCCS · NEAR RPC'],
+    ['asked', 'Every answer asked once, in a TEE', 'OutLayer quote via PCCS · NEAR RPC'],
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const utf8b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
@@ -224,6 +225,7 @@
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
     if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', 'this certificate carries no TEE score');
     if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_ground)) await onStep('ground', 'skip', 'this certificate carries no answer-key check');
+    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_asked)) await onStep('asked', 'skip', 'this round was not asked inside a TEE');
     if (id === running) stamp(res);
   }
   function picker() {

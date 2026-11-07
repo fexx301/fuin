@@ -26,7 +26,7 @@ for (const [name, cmd, model] of JSON.parse(fs.readFileSync('tests/fixtures/serv
 const check = async (name, cert, want, net = true, over = {}) => {
   const c = { ...cfg('VERIFIED'), rpc: net ? F.rpc : 'http://127.0.0.1:9', rpcFallback: net ? F.rpc_fallback : [], pccs: net ? F.pccs : 'http://127.0.0.1:9', ...over };
   // a certificate carrying a TEE score must have had it checked here whenever the verdict is VERIFIED
-  const verdict = (res) => res.outcome + (res.code ? ' ' + res.code : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_score && res.tee !== 'live' ? ' (TEE not checked)' : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_ground && res.ground !== 'live' ? ' (answer keys not checked)' : '') + (res.outcome === 'VERIFIED' && res.trace !== 'live' ? ' (trace not checked)' : '');
+  const verdict = (res) => res.outcome + (res.code ? ' ' + res.code : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_score && res.tee !== 'live' ? ' (TEE not checked)' : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_ground && res.ground !== 'live' ? ' (answer keys not checked)' : '') + (res.outcome === 'VERIFIED' && cert.run.evidence && cert.run.evidence.tee_asked && res.tee !== 'live' ? ' (asked once not checked)' : '') + (res.outcome === 'VERIFIED' && res.trace !== 'live' ? ' (trace not checked)' : '');
   let got = verdict(await V.verify(cert, c)), retries = 0;
   // a public RPC's rate limit is an outage, not a verdict on the certificate: wait it out, at most twice
   while (net && got === 'CANT_CERTIFY evidence_unavailable' && want !== got && retries < 2) {

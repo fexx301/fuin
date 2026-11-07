@@ -58,7 +58,7 @@ mod asker {
         let eph: [u8; 32] = hex::decode(s(input, "eph_pub")?).map_err(|e| e.to_string())?.try_into().map_err(|_| "eph_pub length")?;
         let shared = StaticSecret::from(secret).diffie_hellman(&PublicKey::from(eph));
         let mut key = [0u8; 32];
-        hkdf::Hkdf::<Sha256>::new(None, shared.as_bytes()).expand(b"fuin-ask-round-v1", &mut key).map_err(|e| e.to_string())?;
+        hkdf::Hkdf::<Sha256>::new(None, shared.as_bytes()).expand(b"fuin-tee-round-v1", &mut key).map_err(|e| e.to_string())?;
         let nonce = hex::decode(s(input, "nonce")?).map_err(|e| e.to_string())?;
         if nonce.len() != 12 {
             return Err("nonce length".into());
