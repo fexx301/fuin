@@ -232,17 +232,7 @@ def score(st: dict, model: str, owner: str, host) -> dict:
     """Encrypt one run to the scorer's in-TEE key, host the ciphertext, have OutLayer re-score it, and return the
     evidence for the certificate. `host(bytes) -> (url, encoding, cleanup)`: fastfs_host (permanent) or gist_host (deleted)."""
     sc = scorer_for_round(st["policy"])
-    key = keygen(owner, sc)
-    plain = jdump(plaintext(st, model)).encode()
-    blob, eph_pub, nonce = encrypt(plain, key["pub"])
-    url, encoding, cleanup = host(blob)
-    try:
-        served = requests.get(url, timeout=120).content
-        tx, input_data, out = execute(owner, {"mode": "score", "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
-                                              "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce}, sc)
-    finally:
-        if cleanup:
-            cleanup()
+    tx, input_data, out = _sealed_task(owner, host, sc, "score", plaintext(st, model))
     want = expected(st, model)
     if "unreadable" in out:  # scorer v4+ counts answers that don't decrypt; the owner's own count must agree
         want["unreadable"] = unreadable(st, model)
@@ -250,6 +240,95 @@ def score(st: dict, model: str, owner: str, host) -> dict:
     if diff:
         raise RuntimeError(f"TEE outcome differs from the run's commitments: {diff}")
     return {"v": "fuin-tee-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
+            "record": fetch_record(tx), "scorer_url": sc["url"]}
+
+
+def _sealed_task(owner: str, host, sc: dict, mode: str, plain: dict) -> tuple[str, str, dict]:
+    """Encrypt a plaintext to the build's in-TEE key, host the ciphertext, run `mode` on it, clean up the host."""
+    key = keygen(owner, sc)
+    blob, eph_pub, nonce = encrypt(jdump(plain).encode(), key["pub"])
+    url, encoding, cleanup = host(blob)
+    try:
+        served = requests.get(url, timeout=120).content
+        return execute(owner, {"mode": mode, "url": url, "blob_sha256": hashlib.sha256(served).hexdigest(),
+                               "encoding": encoding, "sealed": key["sealed"], "eph_pub": eph_pub, "nonce": nonce}, sc)
+    finally:
+        if cleanup:
+            cleanup()
+
+
+# ---------------- answer-key grounding (mode `ground`; tee/src/lib.rs ground_round mirrors this exactly) ----------------
+
+GROUND_REPO = "near/docs"  # hard-coded in the enclave too; forks share GitHub's object store, so commits are pinned as well
+
+
+def ground_sources(items: list[dict]) -> tuple[str, list[str]]:
+    """The one commit a round cites and its distinct files in first-use order; refuses what can't be fetched safely."""
+    commit, paths = None, []
+    for i, it in enumerate(items):
+        src = it.get("source") if isinstance(it.get("source"), dict) else {}
+        c, p = src.get("commit"), src.get("path")
+        if not (isinstance(c, str) and re.fullmatch(r"[0-9a-f]{40}", c)):
+            raise ValueError(f"item {i}: source commit must be 40 lowercase hex")
+        if not (isinstance(p, str) and re.fullmatch(r"[A-Za-z0-9._/-]+", p) and not p.startswith("/") and ".." not in p):
+            raise ValueError(f"item {i}: unsupported source path")
+        if (commit := commit or c) != c:
+            raise ValueError("sources must cite one commit")
+        if p not in paths:
+            paths.append(p)
+    if commit is None:
+        raise ValueError("n must be >= 1")
+    return commit, paths
+
+
+def ground_round(items: list[dict], salts: list[str], files: dict[str, str]) -> dict:
+    """An item is grounded when its answer and every `accept` alternative appear in its cited line (split on \\n, a
+    trailing \\r dropped, ',' '`' '*' removed); otherwise it is flagged (bit i, most significant first), not refused."""
+    commit, _ = ground_sources(items)
+    flags, flagged = bytearray((len(items) + 7) // 8), 0
+    for i, it in enumerate(items):
+        lines = [x[:-1] if x.endswith("\r") else x for x in files[it["source"]["path"]].split("\n")]
+        k = it["source"].get("line")
+        line = re.sub(r"[,`*]", "", lines[k - 1]) if type(k) is int and 1 <= k <= len(lines) else ""
+        accept = [] if it.get("accept") is None else it["accept"]
+        if not isinstance(it.get("answer"), str) or not isinstance(accept, list) or not all(isinstance(a, str) for a in accept):
+            raise ValueError(f"item {i}: answer and accept must be strings")
+        if not all(a in line for a in [it["answer"], *accept]):
+            flags[i // 8] |= 0x80 >> (i % 8)
+            flagged += 1
+    leaves = [core.benchmark_leaf(i, bytes.fromhex(salt), it) for i, (it, salt) in enumerate(zip(items, salts))]
+    return {"v": "fuin-tee-ground-v1", "repo": GROUND_REPO, "commit": commit, "n": len(items),
+            "benchmark_root": core.merkle_root(leaves).hex(), "flagged": flagged, "flags": flags.hex()}
+
+
+def fetch_sources(items: list[dict]) -> dict[str, str]:
+    commit, paths = ground_sources(items)
+    out = {}
+    for p in paths:
+        r = requests.get(f"https://raw.githubusercontent.com/{GROUND_REPO}/{commit}/{p}", timeout=60)
+        r.raise_for_status()
+        out[p] = r.content.decode("utf-8")
+    return out
+
+
+def grounder() -> dict:
+    """The build answer keys are grounded with: the newest pinned build that has the ground mode."""
+    tp = tee_policy()
+    return next(x for x in reversed(tp["scorers"]) if x["wasm_sha256"] in tp["grounders"])
+
+
+def ground(st: dict, owner: str, host) -> dict:
+    """Have the enclave fetch every cited near/docs line and flag answer keys that don't appear in it. One task per round,
+    bound to the sealed benchmark root, so it can run after the round and leaves every sealed score untouched."""
+    items, salts = [r["item"] for r in st["items"]], [r["salt"] for r in st["items"]]
+    sc = grounder()
+    tx, input_data, out = _sealed_task(owner, host, sc, "ground",
+                                       {"v": "fuin-tee-items-v1", "items": [{"salt": s, "item_jcs": core.jcs(it).decode()}
+                                                                            for it, s in zip(items, salts)]})
+    want = {**ground_round(items, salts, fetch_sources(items)), "blob_sha256": out.get("blob_sha256")}
+    if out != want or want["benchmark_root"] != st["seal"]["root"]:
+        raise RuntimeError(f"TEE grounding differs from the owner's: {out} vs {want}")
+    return {"v": "fuin-tee-ground-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
             "record": fetch_record(tx), "scorer_url": sc["url"]}
 
 
@@ -299,18 +378,14 @@ def task_hash_v1(rec: dict) -> str:
     return h.hexdigest()
 
 
-def check_local(ev, cert: dict) -> dict:
-    """Every TEE check that needs no network. Raises TeeRefused / TeeUnapproved; returns details for the check line."""
-    _need(isinstance(ev, dict) and ev.get("v") == "fuin-tee-evidence-v1")
+def _check_record(ev, cert: dict, version: str, mode: str) -> tuple[dict, dict]:
+    """The checks a TEE score and a TEE grounding share: the record binds this input and output to this owner."""
+    _need(isinstance(ev, dict) and ev.get("v") == version)
     _need(all(isinstance(ev.get(k), str) for k in ("transaction_hash", "input_data", "scorer_url")))
     rec, out = ev.get("record"), ev.get("output")
     _need(isinstance(rec, dict) and isinstance(out, dict))
     _need(isinstance(rec.get("tdx_quote"), str) and isinstance(rec.get("task_id"), int) and isinstance(rec.get("timestamp"), int)
           and all(isinstance(rec.get(k), str) for k in ("task_type", "output_hash", "input_hash", "wasm_hash")))
-    pin = rec["wasm_hash"]
-    sealed_pin = cert["benchmark"]["policy"]["audit"].get("scorer_wasm_sha256") if P.is_tee_round(cert["benchmark"]["policy"]) else None
-    if sealed_pin is not None and pin != sealed_pin:  # a zero-reveal round sealed which scorer build scores it
-        raise TeeRefused("tee_score_mismatch")
     _need(rec["input_hash"] == hashlib.sha256(ev["input_data"].encode()).hexdigest())
     _need(rec["output_hash"] == hashlib.sha256(_sorted_compact(out).encode()).hexdigest())
     _need(rec.get("transaction_hash") == ev["transaction_hash"] and rec["task_type"] == "execute" and rec.get("build_target") == "wasm32-wasip2")
@@ -319,7 +394,24 @@ def check_local(ev, cert: dict) -> dict:
         inp = json.loads(ev["input_data"])
     except ValueError:
         raise TeeRefused("tee_score_invalid") from None
-    _need(isinstance(inp, dict) and inp.get("mode") == "score" and inp.get("blob_sha256") == out.get("blob_sha256"))
+    _need(isinstance(inp, dict) and inp.get("mode") == mode and inp.get("blob_sha256") == out.get("blob_sha256"))
+    return rec, out
+
+
+def _pinned(rec: dict, pins: set[str]) -> str:
+    # last, so tampered evidence is refused even when it also names an unpinned build
+    pin = rec["wasm_hash"]
+    if pin not in pins or rec.get("executed_wasm_sha256", pin) != pin:
+        raise TeeUnapproved("tee_unapproved")
+    return pin
+
+
+def check_local(ev, cert: dict) -> dict:
+    """Every TEE score check that needs no network. Raises TeeRefused / TeeUnapproved; returns details for the check line."""
+    rec, out = _check_record(ev, cert, "fuin-tee-evidence-v1", "score")
+    sealed_pin = cert["benchmark"]["policy"]["audit"].get("scorer_wasm_sha256") if P.is_tee_round(cert["benchmark"]["policy"]) else None
+    if sealed_pin is not None and rec["wasm_hash"] != sealed_pin:  # a zero-reveal round sealed which scorer build scores it
+        raise TeeRefused("tee_score_mismatch")
     b, r = cert["benchmark"], cert["run"]
     signers = {it["signature"]["signing_address"].lower() for it in r["items"]}
     _need(out.get("v") == "fuin-tee-score-v1", "tee_score_mismatch")
@@ -331,10 +423,26 @@ def check_local(ev, cert: dict) -> dict:
     if "unreadable" in out:  # scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
         u = out["unreadable"]
         _need(P.is_e2ee(b["policy"]) and type(u) is int and 0 <= u <= b["n"], "tee_score_mismatch")
-    # last, so tampered evidence is refused even when it also names an unpinned build
-    if pin not in pinned() or rec.get("executed_wasm_sha256", pin) != pin:
+    return {"task": rec["task_id"], "pin": _pinned(rec, pinned()), "unreadable": out.get("unreadable")}
+
+
+def check_ground_local(ev, cert: dict) -> dict:
+    """The offline half of a grounding: bound to this round's sealed root, a well-formed flag set, a pinned build and
+    a pinned near/docs commit (a fork's commit would be served under near/docs too)."""
+    rec, out = _check_record(ev, cert, "fuin-tee-ground-evidence-v1", "ground")
+    b, n = cert["benchmark"], cert["benchmark"]["n"]
+    _need(out.get("v") == "fuin-tee-ground-v1" and out.get("repo") == GROUND_REPO, "tee_ground_mismatch")
+    _need((out.get("n"), out.get("benchmark_root")) == (n, b["root"]), "tee_ground_mismatch")
+    f, flagged = out.get("flags"), out.get("flagged")
+    _need(isinstance(f, str) and re.fullmatch(r"[0-9a-f]*", f) is not None and len(f) == (n + 7) // 8 * 2 and type(flagged) is int,
+          "tee_ground_mismatch")
+    bits = int(f or "0", 16)
+    _need(bin(bits).count("1") == flagged and bits & ((1 << (len(f) * 4 - n)) - 1) == 0, "tee_ground_mismatch")
+    pin = _pinned(rec, set(tee_policy()["grounders"]))
+    if out.get("commit") not in tee_policy()["ground_commits"]:
         raise TeeUnapproved("tee_unapproved")
-    return {"task": rec["task_id"], "pin": pin, "unreadable": out.get("unreadable")}
+    flagged_at = [i for i in range(n) if bits >> (len(f) * 4 - 1 - i) & 1]
+    return {"task": rec["task_id"], "pin": pin, "commit": out["commit"], "flagged": flagged_at}
 
 
 def check_remote(ev, cert: dict) -> str:

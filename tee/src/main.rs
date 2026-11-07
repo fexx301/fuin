@@ -4,7 +4,10 @@
 //!         build's sha256 (`bind: "wasm"`), so only this exact scorer, called by the same account, can open it.
 //! score:  fetch the owner's encrypted round, check its hash, unseal the secret, decrypt, rebuild and score every answer
 //!         (fuin_tee::score_round) and return only the roots, the total and the signer.
-//! Native: `fuin-tee plain ROUND.json` scores a plaintext round without a TEE, for the parity tests.
+//! ground: decrypt the same way, fetch every cited near/docs file at the round's commit and report which answer keys
+//!         don't appear in their cited line (fuin_tee::ground_round), with the sealed benchmark root they belong to.
+//! Native: `fuin-tee plain ROUND.json` scores a plaintext round without a TEE, and `fuin-tee ground ITEMS.json DIR` grounds
+//!         one against files already in DIR, for the parity tests.
 
 #[cfg(target_arch = "wasm32")]
 #[used]
@@ -32,7 +35,7 @@ mod tee {
                 let sealed = outlayer::encryption_keys::encrypt(KEY_PATH, None, &b, AAD).map_err(|e| e.to_string())?;
                 Ok(json!({"v": "fuin-tee-key-v1", "pub": hex::encode(public.as_bytes()), "sealed": hex::encode(sealed)}))
             }
-            Some("score") => {
+            Some(mode @ ("score" | "ground")) => {
                 let blob = wasi_http_client::Client::new().get(&s("url")?).connect_timeout(Duration::from_secs(20)).send()
                     .and_then(|r| r.body()).map_err(|e| format!("fetch: {e}"))?;
                 let blob_sha256 = hex::encode(Sha256::digest(&blob));
@@ -62,10 +65,27 @@ mod tee {
                 }
                 let plain = ChaCha20Poly1305::new(&key.into()).decrypt(Nonce::from_slice(&nonce), blob.as_ref()).map_err(|_| "decrypt failed")?;
                 let round: Value = serde_json::from_slice(&plain).map_err(|e| format!("plaintext: {e}"))?;
-                let outcome = fuin_tee::score_round(&fuin_tee::round_from_json(&round)?)?;
-                Ok(outcome.to_json(&blob_sha256))
+                if mode == "score" {
+                    return Ok(fuin_tee::score_round(&fuin_tee::round_from_json(&round)?)?.to_json(&blob_sha256));
+                }
+                let items = fuin_tee::items_from_json(&round)?;
+                let (commit, paths) = fuin_tee::ground_sources(&items)?;
+                let mut files = std::collections::HashMap::new();
+                for (k, p) in paths.into_iter().enumerate() {  // errors name the file's position, never its sealed path
+                    let url = format!("https://raw.githubusercontent.com/{}/{commit}/{p}", fuin_tee::GROUND_REPO);
+                    let r = wasi_http_client::Client::new().get(&url).connect_timeout(Duration::from_secs(20)).send()
+                        .map_err(|_| format!("fetch source file {k} failed"))?;
+                    if r.status() != 200 {
+                        return Err(format!("source file {k}: HTTP {}", r.status()));
+                    }
+                    let body = r.body().map_err(|_| format!("source file {k}: body"))?;
+                    files.insert(p, String::from_utf8(body).map_err(|_| format!("source file {k} is not UTF-8"))?);
+                }
+                let mut out = fuin_tee::ground_round(&items, &files)?;
+                out["blob_sha256"] = blob_sha256.into();
+                Ok(out)
             }
-            _ => Err("mode must be keygen or score".into()),
+            _ => Err("mode must be keygen, score or ground".into()),
         }
     }
 }
@@ -86,8 +106,22 @@ fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let args: Vec<String> = std::env::args().collect();
+        if args.len() == 4 && args[1] == "ground" {
+            let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&args[2]).expect("read items")).expect("items json");
+            let res = fuin_tee::items_from_json(&v).and_then(|items| {
+                let (_, paths) = fuin_tee::ground_sources(&items)?;
+                let files = paths.into_iter().map(|p| {
+                    let text = std::fs::read_to_string(std::path::Path::new(&args[3]).join(&p)).map_err(|e| format!("{p}: {e}"))?;
+                    Ok((p, text))
+                }).collect::<Result<_, String>>()?;
+                fuin_tee::ground_round(&items, &files)
+            });
+            let out = res.unwrap_or_else(|e| serde_json::json!({"error": e}));
+            std::io::stdout().write_all(out.to_string().as_bytes()).ok();
+            return;
+        }
         if args.len() != 3 || args[1] != "plain" {
-            eprintln!("usage: fuin-tee plain ROUND.json");
+            eprintln!("usage: fuin-tee plain ROUND.json | fuin-tee ground ITEMS.json DIR");
             std::process::exit(2);
         }
         let mut raw = String::new();

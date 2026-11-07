@@ -83,6 +83,20 @@ pub fn merkle_root(mut level: Vec<[u8; 32]>) -> Result<[u8; 32], String> {
     Ok(level[0])
 }
 
+/// The sealed items of a plaintext (`fuin-tee-round-v1` or `fuin-tee-items-v1`): each salt and its exact sealed bytes.
+pub fn items_from_json(v: &Value) -> Result<Vec<Item>, String> {
+    let s = |x: &Value, k: &str| x[k].as_str().map(str::to_string).ok_or(format!("missing {k}"));
+    v["items"].as_array().ok_or("items")?.iter().map(|x| {
+        let salt: [u8; 32] = hex::decode(s(x, "salt")?).map_err(|_| "salt not hex")?.try_into().map_err(|_| "salt must be 32 bytes")?;
+        Ok(Item { salt, item_jcs: s(x, "item_jcs")? })
+    }).collect()
+}
+
+/// core.benchmark_leaf: sha256(0x00 ‖ index ‖ salt ‖ the item's sealed bytes).
+pub fn benchmark_leaf(i: usize, it: &Item) -> [u8; 32] {
+    sha256(&[&[0u8], &(i as u64).to_be_bytes(), &it.salt, it.item_jcs.as_bytes()])
+}
+
 /// The plaintext a benchmark owner encrypts to the TEE (see src/fuin/tee.py `plaintext`).
 pub fn round_from_json(v: &Value) -> Result<Round, String> {
     if v["v"] != "fuin-tee-round-v1" {
@@ -90,10 +104,7 @@ pub fn round_from_json(v: &Value) -> Result<Round, String> {
     }
     let b64 = base64::engine::general_purpose::STANDARD;
     let s = |x: &Value, k: &str| x[k].as_str().map(str::to_string).ok_or(format!("missing {k}"));
-    let items = v["items"].as_array().ok_or("items")?.iter().map(|x| {
-        let salt: [u8; 32] = hex::decode(s(x, "salt")?).map_err(|_| "salt not hex")?.try_into().map_err(|_| "salt must be 32 bytes")?;
-        Ok(Item { salt, item_jcs: s(x, "item_jcs")? })
-    }).collect::<Result<Vec<_>, String>>()?;
+    let items = items_from_json(v)?;
     let rows = v["rows"].as_array().ok_or("rows")?.iter().map(|x| {
         Ok(Row { request: b64.decode(s(x, "request_b64")?).map_err(|_| "request_b64")?,
                  response: b64.decode(s(x, "response_b64")?).map_err(|_| "response_b64")?, sig: x["signature"].clone() })
@@ -424,7 +435,7 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
     for (i, (it, row)) in r.items.iter().zip(&r.rows).enumerate() {
         let at = |e: String| format!("item {i}: {e}");
         let idx = (i as u64).to_be_bytes();
-        let bleaf = sha256(&[&[0u8], &idx, &it.salt, it.item_jcs.as_bytes()]);
+        let bleaf = benchmark_leaf(i, it);
         let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| at(e.to_string()))?;
         let q = |k: &str| item[k].as_str().ok_or_else(|| at(format!("item {k}")));
         let nonce = match &seal_hash {
@@ -480,4 +491,68 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         seal_block_hash: if v2_nonce { r.seal_block_hash.clone() } else { None },
         unreadable: v3.then_some(unreadable),
     })
+}
+
+// ---------------- answer-key grounding (mode `ground`, src/fuin/tee.py `ground` is the reference) ----------------
+
+/// The only repository a round may cite. Hard-coded: a fork's commits are also served under this path on GitHub, so the
+/// verifier also pins which commits it accepts (policy/tee-v2.json `ground_commits`).
+pub const GROUND_REPO: &str = "near/docs";
+
+fn safe_path(p: &str) -> bool {
+    !p.is_empty() && !p.starts_with('/') && !p.contains("..")
+        && p.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '/' | '-'))
+}
+
+/// The one commit a round cites and its distinct files in first-use order. Refuses what it can't fetch safely.
+pub fn ground_sources(items: &[Item]) -> Result<(String, Vec<String>), String> {
+    let (mut commit, mut paths) = (None::<String>, Vec::<String>::new());
+    for (i, it) in items.iter().enumerate() {
+        let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| format!("item {i}: {e}"))?;
+        let (c, p) = (item["source"]["commit"].as_str().unwrap_or(""), item["source"]["path"].as_str().unwrap_or(""));
+        if c.len() != 40 || !c.chars().all(|x| matches!(x, '0'..='9' | 'a'..='f')) {
+            return Err(format!("item {i}: source commit must be 40 lowercase hex"));
+        }
+        if !safe_path(p) {
+            return Err(format!("item {i}: unsupported source path"));
+        }
+        if commit.get_or_insert_with(|| c.to_string()) != c {
+            return Err("sources must cite one commit".into());
+        }
+        if !paths.iter().any(|x| x == p) {
+            paths.push(p.to_string());
+        }
+    }
+    Ok((commit.ok_or("n must be >= 1")?, paths))
+}
+
+/// An item is grounded when its answer and every `accept` alternative appear in its cited line (split on \n, a trailing
+/// \r dropped, ',' '`' '*' removed). Otherwise it is flagged, not refused: a derived answer (a unit conversion, a count)
+/// may be right, but nobody checked it. `flags` sets bit i (most significant bit first) for each flagged item.
+pub fn ground_round(items: &[Item], files: &std::collections::HashMap<String, String>) -> Result<Value, String> {
+    let (commit, _) = ground_sources(items)?;
+    let mut flags = vec![0u8; items.len().div_ceil(8)];
+    let mut flagged = 0u64;
+    for (i, it) in items.iter().enumerate() {
+        let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| format!("item {i}: {e}"))?;
+        let text = files.get(item["source"]["path"].as_str().unwrap_or("")).ok_or(format!("item {i}: source not fetched"))?;
+        let lines: Vec<&str> = text.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
+        let line = match item["source"]["line"].as_u64() {
+            Some(k) if k >= 1 && (k as usize) <= lines.len() => lines[k as usize - 1].replace([',', '`', '*'], ""),
+            _ => String::new(),
+        };
+        let answer = item["answer"].as_str().ok_or(format!("item {i}: answer must be a string"))?;
+        let accept = match &item["accept"] {
+            Value::Null => vec![],
+            Value::Array(a) => a.iter().map(|x| x.as_str().ok_or(format!("item {i}: accept must be strings"))).collect::<Result<_, _>>()?,
+            _ => return Err(format!("item {i}: accept must be a list")),
+        };
+        if !std::iter::once(answer).chain(accept).all(|a| line.contains(a)) {
+            flags[i / 8] |= 0x80 >> (i % 8);
+            flagged += 1;
+        }
+    }
+    let leaves = items.iter().enumerate().map(|(i, it)| benchmark_leaf(i, it)).collect();
+    Ok(serde_json::json!({"v": "fuin-tee-ground-v1", "repo": GROUND_REPO, "commit": commit, "n": items.len() as u64,
+        "benchmark_root": hex::encode(merkle_root(leaves)?), "flagged": flagged, "flags": hex::encode(flags)}))
 }

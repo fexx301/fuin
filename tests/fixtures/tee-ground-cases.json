@@ -1,0 +1,86 @@
+{
+ "files": {
+  "a.md": "first line\r\nThe method is `nft_transfer`, see below\r\nfee: 1,000 yocto\r\n",
+  "dir/b-1.mdx": "x\fstill line one with **storage_deposit** and more\nline two: ünïcödé ✓ 42\nlast"
+ },
+ "cases": [
+  {
+   "items": [
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000001",
+     "item_jcs": "{\"answer\":\"nft_transfer\",\"answer_type\":\"exact\",\"question\":\"q0\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":2,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000002",
+     "item_jcs": "{\"answer\":\"1000\",\"answer_type\":\"exact\",\"question\":\"q1\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":3,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000003",
+     "item_jcs": "{\"answer\":\"storage_deposit\",\"answer_type\":\"exact\",\"question\":\"q2\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000002\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"dir/b-1.mdx\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000004",
+     "item_jcs": "{\"answer\":\"and more\",\"answer_type\":\"exact\",\"question\":\"q3\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000003\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"dir/b-1.mdx\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000005",
+     "item_jcs": "{\"answer\":\"ünïcödé ✓\",\"answer_type\":\"exact\",\"question\":\"q4\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000004\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":2,\"path\":\"dir/b-1.mdx\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000006",
+     "item_jcs": "{\"answer\":\"nft_transfer\",\"answer_type\":\"exact\",\"question\":\"q5\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000005\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":3,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000007",
+     "item_jcs": "{\"answer\":\"x\",\"answer_type\":\"exact\",\"question\":\"q6\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000006\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":9,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000008",
+     "item_jcs": "{\"answer\":\"x\",\"answer_type\":\"exact\",\"question\":\"q7\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000007\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":0,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000009",
+     "item_jcs": "{\"accept\":[\"nft_transfer_call\"],\"answer\":\"nft_transfer\",\"answer_type\":\"exact\",\"question\":\"q8\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000008\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":2,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000a",
+     "item_jcs": "{\"accept\":[\"line\",\"first line\"],\"answer\":\"first\",\"answer_type\":\"exact\",\"question\":\"q9\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000009\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000b",
+     "item_jcs": "{\"answer\":\"\",\"answer_type\":\"exact\",\"question\":\"q10\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000a\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":4,\"path\":\"a.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000c",
+     "item_jcs": "{\"accept\":[],\"answer\":\"last\",\"answer_type\":\"exact\",\"question\":\"q11\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000b\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":3,\"path\":\"dir/b-1.mdx\",\"url\":\"ignored\"}}"
+    }
+   ],
+   "expected": {
+    "v": "fuin-tee-ground-v1",
+    "repo": "near/docs",
+    "commit": "e2d2ea173cf462bcf518ecae5650984a221d5183",
+    "n": 12,
+    "benchmark_root": "c26aeb0bf74f6de61a4fd677c0e6ea41c6828d81531559b1b38ab3d0a4b248f5",
+    "flagged": 4,
+    "flags": "0780"
+   }
+  },
+  {
+   "items": [
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000001",
+     "item_jcs": "{\"answer\":\"42\",\"answer_type\":\"exact\",\"question\":\"q0\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":2,\"path\":\"dir/b-1.mdx\",\"url\":\"ignored\"}}"
+    }
+   ],
+   "expected": {
+    "v": "fuin-tee-ground-v1",
+    "repo": "near/docs",
+    "commit": "e2d2ea173cf462bcf518ecae5650984a221d5183",
+    "n": 1,
+    "benchmark_root": "197f6653833d6d4abaf362f8342573ddb3a628870f949f90848ec3b19fd4bbde",
+    "flagged": 0,
+    "flags": "00"
+   }
+  }
+ ]
+}
