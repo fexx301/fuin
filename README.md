@@ -22,7 +22,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 24 cases (19 tampered or malformed certificates refused, 5 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
-- Run `scripts/review.sh` in the background. It takes about 16 minutes (allow 30), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later. `FUIN_REVIEW_WORKERS` (default 4) sets how many certificates verify at once.
+- Run `scripts/review.sh` in the background. It takes about 30 minutes (allow 45), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later. `FUIN_REVIEW_WORKERS` (default 4) sets how many certificates verify at once.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:
