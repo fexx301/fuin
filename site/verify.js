@@ -275,8 +275,8 @@
       const how = servedAs(cmd, rep.model_name); if (!how) continue;
       const img = String(svc.image ?? ''), m = img.match(/([a-z0-9][\w./-]*@sha256:[0-9a-f]{64})/), path = cmd.match(/--model-path\s+(\S+)/);
       const cut = cmd.indexOf('--lora-modules'), base = cut < 0 ? cmd : cmd.slice(0, cut), lora = cut < 0 ? '' : cmd.slice(cut);
-      const hub = (path ? path[1] : base).match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/);
-      serving.push({ service: name, tag: a.tag, file: a.file, image: m ? m[1] : img, weights: hub ? `${hub[1]}/${hub[2]}` : (path ? path[1] : '?'),
+      const hub = (path ? path[1] : base).match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/), pos = cmd.match(/^\s*(?:vllm\s+serve\s+)?([\w.-]+\/[\w.-]+)(\s|$)/);
+      serving.push({ service: name, tag: a.tag, file: a.file, image: m ? m[1] : img, weights: hub ? `${hub[1]}/${hub[2]}` : (path ? path[1] : (pos ? pos[1] : '?')),
         loras: [...lora.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((x) => x[1]).filter((n) => n !== rep.model_name), adapter: how.adapter });
     }
     if (!serving.length) throw new Untraced(`no deployed service serves ${rep.model_name}, by --served-model-name or as a LoRA adapter`);

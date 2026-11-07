@@ -130,10 +130,11 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
         base_cmd, _, lora_cmd = cmd.partition("--lora-modules")
         hub = re.search(r"models--([\w.-]+)--([\w.-]+)/snapshots/([0-9a-f]+)", path.group(1) if path else base_cmd)
         loras = [n for n in re.findall(r'"name"\s*:\s*"([^"]+)"', lora_cmd) if n != model]
-        rev = re.search(r"model_revision:([0-9a-f]{7,40})", json.dumps(svc.get("labels", {})))
+        rev = re.search(r"model_revision:([0-9a-f]{7,40})", json.dumps(svc.get("labels", {}))) or re.search(r"--revision\s+([0-9a-f]{7,40})", cmd)
+        pos = re.match(r"\s*(?:vllm\s+serve\s+)?([\w.-]+/[\w.-]+)(\s|$)", cmd)  # vLLM can also take the repo id as its first argument
         serving.append({"service": name, "tag": a["tag"], "commit": a["commit"], "file": a["file"],
                         "file_sha256_checked": f["sha_checked"], "image": m.group(1) if m else img,
-                        "model_path": f"{hub.group(1)}/{hub.group(2)}" if hub else (path.group(1) if path else None),
+                        "model_path": f"{hub.group(1)}/{hub.group(2)}" if hub else (path.group(1) if path else (pos.group(1) if pos else None)),
                         "model_revision": hub.group(3) if hub else (rev.group(1) if rev else None), "lora_modules": loras,
                         "adapter": how["adapter"]})
     if not serving:
