@@ -20,10 +20,10 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from fuin import core, near
+from fuin import POLICY, core, near
 from fuin import policy as P
 
-TEE_POLICY = Path(__file__).resolve().parents[2] / "policy" / "tee-v2.json"
+TEE_POLICY = POLICY / "tee-v2.json"
 
 
 def plaintext(st: dict, model: str) -> dict:

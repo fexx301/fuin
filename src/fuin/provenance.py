@@ -22,6 +22,7 @@ from pathlib import Path
 import requests
 import yaml
 
+from fuin import POLICY
 from fuin import attestation as A
 
 UP, DOWN = "compose_up", "compose_down"
@@ -150,7 +151,7 @@ NEAR_BUILDERS = "https://github.com/nearai/"  # NEAR AI's GitHub organisation
 BUNDLE_CACHE = Path(os.environ.get("FUIN_CACHE_DIR") or Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "fuin") / "slsa"
 # sigstore's public-good trusted root (Fulcio, Rekor, CT logs, TSA), pinned like the attestation policies: no TUF fetch and
 # no writes outside the clone. Source: tuf-repo-cdn.sigstore.dev, 2026-11-05.
-SIGSTORE_ROOT = Path(__file__).resolve().parents[2] / "policy" / "sigstore-trusted-root.json"
+SIGSTORE_ROOT = POLICY / "sigstore-trusted-root.json"
 
 
 _VERIFIER = None  # sigstore's trust root, fetched once per process
