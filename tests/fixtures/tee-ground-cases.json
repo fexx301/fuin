@@ -1,7 +1,8 @@
 {
  "files": {
   "a.md": "first line\r\nThe method is `nft_transfer`, see below\r\nfee: 1,000 yocto\r\n",
-  "dir/b-1.mdx": "x\fstill line one with **storage_deposit** and more\nline two: ünïcödé ✓ 42\nlast"
+  "dir/b-1.mdx": "x\fstill line one with **storage_deposit** and more\nline two: ünïcödé ✓ 42\nlast",
+  "num.md": "in 2024 the fee was 1.25 NEAR, 30 TGas, 100KiB, version 2.\n7\n0.5x and 12.5"
  },
  "cases": [
   {
@@ -80,6 +81,75 @@
     "benchmark_root": "197f6653833d6d4abaf362f8342573ddb3a628870f949f90848ec3b19fd4bbde",
     "flagged": 0,
     "flags": "00"
+   }
+  },
+  {
+   "items": [
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000001",
+     "item_jcs": "{\"answer\":\"2\",\"answer_type\":\"numeric\",\"question\":\"q0\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000002",
+     "item_jcs": "{\"answer\":\"202\",\"answer_type\":\"numeric\",\"question\":\"q1\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000003",
+     "item_jcs": "{\"answer\":\"2024\",\"answer_type\":\"numeric\",\"question\":\"q2\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000002\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000004",
+     "item_jcs": "{\"answer\":\"1.25\",\"answer_type\":\"numeric\",\"question\":\"q3\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000003\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000005",
+     "item_jcs": "{\"answer\":\"25\",\"answer_type\":\"numeric\",\"question\":\"q4\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000004\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000006",
+     "item_jcs": "{\"answer\":\"1\",\"answer_type\":\"numeric\",\"question\":\"q5\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000005\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000007",
+     "item_jcs": "{\"answer\":\"30\",\"answer_type\":\"numeric\",\"question\":\"q6\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000006\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000008",
+     "item_jcs": "{\"answer\":\"100\",\"answer_type\":\"numeric\",\"question\":\"q7\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000007\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "0000000000000000000000000000000000000000000000000000000000000009",
+     "item_jcs": "{\"answer\":\"7\",\"answer_type\":\"numeric\",\"question\":\"q8\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000008\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":2,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000a",
+     "item_jcs": "{\"answer\":\"0.5\",\"answer_type\":\"numeric\",\"question\":\"q9\",\"request_nonce\":\"0000000000000000000000000000000000000000000000000000000000000009\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":3,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000b",
+     "item_jcs": "{\"answer\":\"12\",\"answer_type\":\"numeric\",\"question\":\"q10\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000a\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":3,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000c",
+     "item_jcs": "{\"accept\":[\"2\"],\"answer\":\"2024\",\"answer_type\":\"numeric\",\"question\":\"q11\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000b\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000d",
+     "item_jcs": "{\"answer\":\"\",\"answer_type\":\"numeric\",\"question\":\"q12\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000c\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    },
+    {
+     "salt": "000000000000000000000000000000000000000000000000000000000000000e",
+     "item_jcs": "{\"answer\":\"2\",\"answer_type\":\"exact\",\"question\":\"q13\",\"request_nonce\":\"000000000000000000000000000000000000000000000000000000000000000d\",\"source\":{\"anchor\":\"ignored\",\"commit\":\"e2d2ea173cf462bcf518ecae5650984a221d5183\",\"line\":1,\"path\":\"num.md\",\"url\":\"ignored\"}}"
+    }
+   ],
+   "expected": {
+    "v": "fuin-tee-ground-v1",
+    "repo": "near/docs",
+    "commit": "e2d2ea173cf462bcf518ecae5650984a221d5183",
+    "n": 14,
+    "benchmark_root": "23d932e89d43af2146374d63830d0f65d38ffc29d91bb12c0632179aa12c5e10",
+    "flagged": 4,
+    "flags": "4c20"
    }
   }
  ]

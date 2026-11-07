@@ -12,11 +12,12 @@ C = "e2d2ea173cf462bcf518ecae5650984a221d5183"
 FILES = {
     "a.md": "first line\r\nThe method is `nft_transfer`, see below\r\nfee: 1,000 yocto\r\n",
     "dir/b-1.mdx": "x\x0cstill line one with **storage_deposit** and more\nline two: ünïcödé ✓ 42\nlast",
+    "num.md": "in 2024 the fee was 1.25 NEAR, 30 TGas, 100KiB, version 2.\n7\n0.5x and 12.5",
 }
 
 
-def item(i, answer, path, line, accept=None):
-    it = {"question": f"q{i}", "answer": answer, "answer_type": "exact",
+def item(i, answer, path, line, accept=None, kind="exact"):
+    it = {"question": f"q{i}", "answer": answer, "answer_type": kind,
           "source": {"url": "ignored", "commit": C, "path": path, "line": line, "anchor": "ignored"}, "request_nonce": f"{i:064x}"}
     if accept is not None:
         it["accept"] = accept
@@ -29,6 +30,11 @@ rounds = [
      item(6, "x", "a.md", 9), item(7, "x", "a.md", 0), item(8, "nft_transfer", "a.md", 2, ["nft_transfer_call"]),
      item(9, "first", "a.md", 1, ["line", "first line"]), item(10, "", "a.md", 4), item(11, "last", "dir/b-1.mdx", 3, [])],
     [item(0, "42", "dir/b-1.mdx", 2)],
+    [item(0, "2", "num.md", 1, kind="numeric"), item(1, "202", "num.md", 1, kind="numeric"), item(2, "2024", "num.md", 1, kind="numeric"),
+     item(3, "1.25", "num.md", 1, kind="numeric"), item(4, "25", "num.md", 1, kind="numeric"), item(5, "1", "num.md", 1, kind="numeric"),
+     item(6, "30", "num.md", 1, kind="numeric"), item(7, "100", "num.md", 1, kind="numeric"), item(8, "7", "num.md", 2, kind="numeric"),
+     item(9, "0.5", "num.md", 3, kind="numeric"), item(10, "12", "num.md", 3, kind="numeric"), item(11, "2024", "num.md", 1, ["2"], kind="numeric"),
+     item(12, "", "num.md", 1, kind="numeric"), item(13, "2", "num.md", 1)],
 ]
 cases = []
 for r in rounds:

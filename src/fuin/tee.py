@@ -283,7 +283,8 @@ def ground_sources(items: list[dict]) -> tuple[str, list[str]]:
 
 def ground_round(items: list[dict], salts: list[str], files: dict[str, str]) -> dict:
     """An item is grounded when its answer and every `accept` alternative appear in its cited line (split on \\n, a
-    trailing \\r dropped, ',' '`' '*' removed); otherwise it is flagged (bit i, most significant first), not refused."""
+    trailing \\r dropped, ',' '`' '*' removed; a numeric key must not touch another digit, from scorer v8); otherwise it
+    is flagged (bit i, most significant first), not refused."""
     commit, _ = ground_sources(items)
     flags, flagged = bytearray((len(items) + 7) // 8), 0
     for i, it in enumerate(items):
@@ -293,7 +294,9 @@ def ground_round(items: list[dict], salts: list[str], files: dict[str, str]) -> 
         accept = [] if it.get("accept") is None else it["accept"]
         if not isinstance(it.get("answer"), str) or not isinstance(accept, list) or not all(isinstance(a, str) for a in accept):
             raise ValueError(f"item {i}: answer and accept must be strings")
-        if not all(a in line for a in [it["answer"], *accept]):
+        found = (lambda a: a in line) if it.get("answer_type") != "numeric" else (  # from scorer v8: not inside a longer number
+            lambda a: re.search(r"(?<![0-9.])" + re.escape(a) + r"(?![0-9]|\.[0-9])", line) is not None)
+        if not all(found(a) for a in [it["answer"], *accept]):
             flags[i // 8] |= 0x80 >> (i % 8)
             flagged += 1
     leaves = [core.benchmark_leaf(i, bytes.fromhex(salt), it) for i, (it, salt) in enumerate(zip(items, salts))]

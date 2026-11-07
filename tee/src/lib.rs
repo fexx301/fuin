@@ -105,7 +105,8 @@ pub fn round_from_json(v: &Value) -> Result<Round, String> {
     let b64 = base64::engine::general_purpose::STANDARD;
     let s = |x: &Value, k: &str| x[k].as_str().map(str::to_string).ok_or(format!("missing {k}"));
     let items = items_from_json(v)?;
-    let rows = v["rows"].as_array().ok_or("rows")?.iter().map(|x| {
+    let no_rows = vec![];  // an asker's plaintext carries no rows: the enclave makes them
+    let rows = v["rows"].as_array().unwrap_or(&no_rows).iter().map(|x| {
         Ok(Row { request: b64.decode(s(x, "request_b64")?).map_err(|_| "request_b64")?,
                  response: b64.decode(s(x, "response_b64")?).map_err(|_| "response_b64")?, sig: x["signature"].clone() })
     }).collect::<Result<Vec<_>, String>>()?;
@@ -218,6 +219,11 @@ mod e2ee {
         let k = key(&secret(b"fuin-e2ee-client-v1", salt, model), &model_eph);
         let plain = Aes256Gcm::new(&k.into()).decrypt(Nonce::from_slice(&b[65..77]), &b[77..]).ok()?;
         String::from_utf8(plain).ok()
+    }
+
+    /// e2ee.client_pub: the item's client key, raw 64 bytes as hex (the X-Client-Pub-Key header)
+    pub fn client_pub_hex(salt: &[u8; 32], model: &str) -> String {
+        hex::encode(&secret(b"fuin-e2ee-client-v1", salt, model).public_key().to_encoded_point(false).as_bytes()[1..])
     }
 
     pub fn address(public: &PublicKey) -> String {
@@ -386,13 +392,22 @@ fn score_response_e2ee(item: &Value, response: &[u8], v2: bool, e2ee: Option<(&[
     }
 }
 
-/// Rebuild and score one run: every leaf from the sealed bytes, every request against the sealed template, every
-/// signature recovered to one signer, every answer scored. The verifier compares the result with the registry.
-pub fn score_round(r: &Round) -> Result<Outcome, String> {
+/// What every item of one run needs from the sealed round: the model's settings, the request template, the seal-bound
+/// nonce, the model's key (template v3) and the scorer. Validates the policy exactly as the scorer always has.
+pub struct Sealed {
+    settings: Map<String, Value>,
+    seal_hash: Option<Vec<u8>>,
+    model_pub: Option<k256::PublicKey>,
+    v2_scorer: bool,
+    v2_nonce: bool,
+    v3: bool,
+}
+
+pub fn sealed(r: &Round) -> Result<Sealed, String> {
     let policy: Value = serde_json::from_str(&r.policy_jcs).map_err(|e| format!("policy: {e}"))?;
     let n = r.items.len();
-    if n == 0 || r.rows.len() != n {
-        return Err("rows must match items one to one".into());
+    if n == 0 {
+        return Err("n must be >= 1".into());
     }
     let s = |p: &str| policy.pointer(p).and_then(Value::as_str);
     if s("/protocol") != Some("fuin-v1") {
@@ -424,58 +439,85 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
     if !pytables::SCORERS.iter().any(|(a, b)| (*a, *b) == scorer) {
         return Err("unsupported scorer".into());
     }
-    let v2 = scorer.0 == "fuin-scorer-v2";
     if policy.pointer("/score/values") != Some(&serde_json::json!([0, 1])) || s("/score/aggregate") != Some("sum")
         || policy.pointer("/score/denominator").and_then(Value::as_u64) != Some(n as u64) {
         return Err("unsupported score policy".into());
     }
-    let settings = policy["models"].get(&r.model).and_then(Value::as_object).ok_or("model not in the sealed policy")?;
-    let (mut bleaves, mut rleaves, mut total, mut signer) = (Vec::with_capacity(n), Vec::with_capacity(n), 0u64, None::<String>);
-    let mut unreadable = 0u64;
-    for (i, (it, row)) in r.items.iter().zip(&r.rows).enumerate() {
-        let at = |e: String| format!("item {i}: {e}");
-        let idx = (i as u64).to_be_bytes();
-        let bleaf = benchmark_leaf(i, it);
-        let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| at(e.to_string()))?;
-        let q = |k: &str| item[k].as_str().ok_or_else(|| at(format!("item {k}")));
-        let nonce = match &seal_hash {
-            None => q("request_nonce")?.to_string(),
-            Some(h) => {
-                let item_nonce = hex::decode(q("request_nonce")?).map_err(|_| at("request_nonce not hex".into()))?;
-                hex::encode(sha256(&[b"fuin-nonce-v2", &item_nonce, h]))
-            }
-        };
-        let question = match &model_pub {
-            None => q("question")?.to_string(),
-            Some(k) => e2ee::encrypt_question(q("question")?, &it.salt, &r.model, k),
-        };
-        let expected = build_request(&r.model, &question, &nonce, settings).map_err(at)?;
-        if expected.as_bytes() != row.request.as_slice() {
-            return Err(at("request_policy_mismatch".into()));
+    let settings = policy["models"].get(&r.model).and_then(Value::as_object).ok_or("model not in the sealed policy")?.clone();
+    Ok(Sealed { settings, seal_hash, model_pub, v2_scorer: scorer.0 == "fuin-scorer-v2", v2_nonce, v3 })
+}
+
+/// The exact request bytes the sealed template prescribes for item `i`, and the end-to-end-encryption headers (template v3).
+pub fn item_request(r: &Round, c: &Sealed, i: usize) -> Result<(String, Vec<(&'static str, String)>), String> {
+    let at = |e: String| format!("item {i}: {e}");
+    let it = r.items.get(i).ok_or("no such item")?;
+    let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| at(e.to_string()))?;
+    let q = |k: &str| item[k].as_str().ok_or_else(|| at(format!("item {k}")));
+    let nonce = match &c.seal_hash {
+        None => q("request_nonce")?.to_string(),
+        Some(h) => {
+            let item_nonce = hex::decode(q("request_nonce")?).map_err(|_| at("request_nonce not hex".into()))?;
+            hex::encode(sha256(&[b"fuin-nonce-v2", &item_nonce, h]))
         }
-        let (req_sha, resp_sha) = (sha256(&[&row.request]), sha256(&[&row.response]));
-        let sig = &row.sig;
-        if sig["signature_kind"] != "provider_tee" || !(sig["signing_algo"].is_null() || sig["signing_algo"] == "ecdsa") {
-            return Err(at("signature_text_mismatch".into()));
-        }
-        let text = format!("{}:{}:{}", r.model, hex::encode(req_sha), hex::encode(resp_sha));
-        if sig["text"].as_str() != Some(text.as_str()) {
-            return Err(at("signature_text_mismatch".into()));
-        }
-        let who = recover_eip191(&text, sig["signature"].as_str().unwrap_or("")).map_err(at)?;
-        if Some(who.as_str()) != sig["signing_address"].as_str().map(str::to_lowercase).as_deref() {
-            return Err(at("bad_signature".into()));
-        }
-        if signer.get_or_insert_with(|| who.clone()) != &who {
-            return Err(at("more than one signer".into()));
-        }
-        let (score, lost) = score_response_e2ee(&item, &row.response, v2, v3.then_some((&it.salt, r.model.as_str()))).map_err(at)?;
-        unreadable += u64::from(lost);
-        total += u64::from(score);
-        rleaves.push(sha256(&[&[2u8], &idx, &bleaf, &req_sha, &resp_sha, &[score]]));
-        bleaves.push(bleaf);
+    };
+    let (question, headers) = match &c.model_pub {
+        None => (q("question")?.to_string(), vec![]),
+        Some(k) => (e2ee::encrypt_question(q("question")?, &it.salt, &r.model, k),
+                    vec![("X-Signing-Algo", "ecdsa".to_string()), ("X-Client-Pub-Key", e2ee::client_pub_hex(&it.salt, &r.model)),
+                         ("X-Model-Pub-Key", hex::encode(&r.model_pub.unwrap()))]),
+    };
+    Ok((build_request(&r.model, &question, &nonce, &c.settings).map_err(at)?, headers))
+}
+
+/// One signed answer, checked and scored: the signature text binds this request and response, it recovers to the
+/// signing address, and the answer is scored with the sealed scorer's exact rules.
+pub struct ItemResult {
+    pub req_sha: [u8; 32],
+    pub resp_sha: [u8; 32],
+    pub score: u8,
+    pub unreadable: bool,
+    pub signer: String,
+}
+
+pub fn item_result(r: &Round, c: &Sealed, i: usize, request: &[u8], response: &[u8], sig: &Value) -> Result<ItemResult, String> {
+    let at = |e: String| format!("item {i}: {e}");
+    let it = r.items.get(i).ok_or("no such item")?;
+    let item: Value = serde_json::from_str(&it.item_jcs).map_err(|e| at(e.to_string()))?;
+    let (req_sha, resp_sha) = (sha256(&[request]), sha256(&[response]));
+    if sig["signature_kind"] != "provider_tee" || !(sig["signing_algo"].is_null() || sig["signing_algo"] == "ecdsa") {
+        return Err(at("signature_text_mismatch".into()));
     }
-    if let (Some(k), Some(who)) = (&model_pub, &signer) {
+    let text = format!("{}:{}:{}", r.model, hex::encode(req_sha), hex::encode(resp_sha));
+    if sig["text"].as_str() != Some(text.as_str()) {
+        return Err(at("signature_text_mismatch".into()));
+    }
+    let who = recover_eip191(&text, sig["signature"].as_str().unwrap_or("")).map_err(at)?;
+    if Some(who.as_str()) != sig["signing_address"].as_str().map(str::to_lowercase).as_deref() {
+        return Err(at("bad_signature".into()));
+    }
+    let (score, unreadable) = score_response_e2ee(&item, response, c.v2_scorer, c.v3.then_some((&it.salt, r.model.as_str()))).map_err(at)?;
+    Ok(ItemResult { req_sha, resp_sha, score, unreadable, signer: who })
+}
+
+/// The run's roots and total from every item's result, in index order: one signer, and in template v3 the questions
+/// went to that signer's key.
+pub fn outcome_from(r: &Round, c: &Sealed, results: &[ItemResult]) -> Result<Outcome, String> {
+    let n = r.items.len();
+    if results.len() != n {
+        return Err("rows must match items one to one".into());
+    }
+    let (mut bleaves, mut rleaves, mut total, mut signer, mut unreadable) = (Vec::with_capacity(n), Vec::with_capacity(n), 0u64, None::<String>, 0u64);
+    for (i, (it, x)) in r.items.iter().zip(results).enumerate() {
+        if signer.get_or_insert_with(|| x.signer.clone()) != &x.signer {
+            return Err(format!("item {i}: more than one signer"));
+        }
+        let bleaf = benchmark_leaf(i, it);
+        rleaves.push(sha256(&[&[2u8], &(i as u64).to_be_bytes(), &bleaf, &x.req_sha, &x.resp_sha, &[x.score]]));
+        bleaves.push(bleaf);
+        total += u64::from(x.score);
+        unreadable += u64::from(x.unreadable);
+    }
+    if let (Some(k), Some(who)) = (&c.model_pub, &signer) {
         if &e2ee::address(k) != who {  // the questions went to the key that signed every answer, nobody else's
             return Err("model_pub is not the signer's key".into());
         }
@@ -488,9 +530,33 @@ pub fn score_round(r: &Round) -> Result<Outcome, String> {
         policy_hash: hex::encode(sha256(&[r.policy_jcs.as_bytes()])),
         run_root: hex::encode(merkle_root(rleaves)?),
         signer: signer.unwrap_or_default(),
-        seal_block_hash: if v2_nonce { r.seal_block_hash.clone() } else { None },
-        unreadable: v3.then_some(unreadable),
+        seal_block_hash: if c.v2_nonce { r.seal_block_hash.clone() } else { None },
+        unreadable: c.v3.then_some(unreadable),
     })
+}
+
+/// Rebuild and score one run: every leaf from the sealed bytes, every request against the sealed template, every
+/// signature recovered to one signer, every answer scored. The verifier compares the result with the registry.
+pub fn score_round(r: &Round) -> Result<Outcome, String> {
+    let c = sealed(r)?;
+    if r.rows.len() != r.items.len() {
+        return Err("rows must match items one to one".into());
+    }
+    let mut results = Vec::with_capacity(r.rows.len());
+    for (i, row) in r.rows.iter().enumerate() {
+        let (expected, _) = item_request(r, &c, i)?;
+        if expected.as_bytes() != row.request.as_slice() {
+            return Err(format!("item {i}: request_policy_mismatch"));
+        }
+        let x = item_result(r, &c, i, &row.request, &row.response, &row.sig)?;
+        if let Some(first) = results.first().map(|f: &ItemResult| f.signer.clone()) {
+            if first != x.signer {
+                return Err(format!("item {i}: more than one signer"));
+            }
+        }
+        results.push(x);
+    }
+    outcome_from(r, &c, &results)
 }
 
 // ---------------- answer-key grounding (mode `ground`, src/fuin/tee.py `ground` is the reference) ----------------
@@ -502,6 +568,18 @@ pub const GROUND_REPO: &str = "near/docs";
 fn safe_path(p: &str) -> bool {
     !p.is_empty() && !p.starts_with('/') && !p.contains("..")
         && p.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '/' | '-'))
+}
+
+/// A numeric key counts only where it doesn't touch another digit: not after a digit or '.', not before a digit or '.'
+/// followed by a digit (tee.py: (?<![0-9.])KEY(?![0-9]|\.[0-9])), so "2" isn't found inside "2024" or "1.25".
+fn in_number_free(line: &str, key: &str) -> bool {
+    let b = line.as_bytes();  // non-ASCII bytes are never digits or '.', so byte checks match Python's code-point checks
+    line.match_indices(key).any(|(j, _)| {
+        let end = j + key.len();
+        let before = j > 0 && (b[j - 1].is_ascii_digit() || b[j - 1] == b'.');
+        let after = end < b.len() && (b[end].is_ascii_digit() || (b[end] == b'.' && end + 1 < b.len() && b[end + 1].is_ascii_digit()));
+        !before && !after
+    })
 }
 
 /// The one commit a round cites and its distinct files in first-use order. Refuses what it can't fetch safely.
@@ -547,7 +625,8 @@ pub fn ground_round(items: &[Item], files: &std::collections::HashMap<String, St
             Value::Array(a) => a.iter().map(|x| x.as_str().ok_or(format!("item {i}: accept must be strings"))).collect::<Result<_, _>>()?,
             _ => return Err(format!("item {i}: accept must be a list")),
         };
-        if !std::iter::once(answer).chain(accept).all(|a| line.contains(a)) {
+        let numeric = item["answer_type"] == "numeric";
+        if !std::iter::once(answer).chain(accept).all(|a| if numeric { in_number_free(&line, a) } else { line.contains(a) }) {
             flags[i / 8] |= 0x80 >> (i % 8);
             flagged += 1;
         }

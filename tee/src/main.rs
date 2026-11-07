@@ -98,8 +98,12 @@ fn main() {
         std::io::stdin().read_to_string(&mut raw).ok();
         let input: serde_json::Value = serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
         let out = tee::run(&input).unwrap_or_else(|e| serde_json::json!({"error": e.chars().take(400).collect::<String>()}));
+        // OutLayer carries an output of under 1,024 bytes in the receipt the verifier reads; a longer one would go through
+        // contract state, and a cut one would be attested but not JSON: refuse it instead
         let mut s = out.to_string();
-        s.truncate(900);
+        if s.len() >= 1024 {
+            s = serde_json::json!({"error": "output too large"}).to_string();
+        }
         std::io::stdout().write_all(s.as_bytes()).ok();
         std::io::stdout().flush().ok();
     }
