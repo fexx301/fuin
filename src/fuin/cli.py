@@ -155,7 +155,7 @@ def main(argv=None) -> int:
         o = ev["output"]
         print(f"answer keys grounded in the TEE: {o['n'] - o['flagged']}/{o['n']} appear in their cited line; "
               f"{o['flagged']} flagged (tx {ev['transaction_hash']})")
-        if st.get("close") and all("commit" not in rn or rn.get("tee_score") or not P.is_tee_round(st["policy"]) for rn in st["runs"].values()):
+        if st.get("close") and all("commit" not in rn or rn.get("tee_score") or rn.get("tee_asked") or not P.is_tee_round(st["policy"]) for rn in st["runs"].values()):
             for path in owner.reveal(a.id, a.out):  # certificates regenerated with the grounding; nothing else changes
                 print(path)
     elif a.cmd == "verify":
