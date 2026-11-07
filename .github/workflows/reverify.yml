@@ -5,7 +5,7 @@ name: re-verify
 # NEAR's archival RPC, OutLayer's worker approvals, NEAR's deployment repo. No secrets: it runs as a stranger would.
 on:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 6,18 * * *"  # twice a day: GitHub runs schedules best-effort and skipped one on Nov 7
   workflow_dispatch:
 
 permissions:
