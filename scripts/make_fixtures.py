@@ -1,6 +1,6 @@
 """Build tampered certificates from a real one: one isolated mutation each, with its expected verdict.
 
-Usage: uv run python scripts/make_fixtures.py BASE_CERT OUT_DIR
+Usage: uv run python scripts/make_fixtures.py BASE_CERT OUT_DIR [TEE_CERT [ZERO_REVEAL_CERT [GROUNDED_CERT]]]
 Writes OUT_DIR/<name>.json and OUT_DIR/manifest.json. Check with scripts/check_fixtures.py.
 """
 import base64
@@ -195,6 +195,43 @@ if len(sys.argv) > 4:
     @zr_fixture("zero-reveal-scorer-swapped", "REFUSED tee_score_mismatch", "the TEE record names a scorer build other than the one sealed in the round's policy")
     def _(c):
         c["run"]["evidence"]["tee_score"]["record"]["wasm_hash"] = "11" * 32
+
+# Answer-key grounding fixtures: from a certificate that carries a TEE grounding (optional fifth argument)
+if len(sys.argv) > 5:
+    g_base = json.loads(Path(sys.argv[5]).read_text())
+
+    def g_fixture(name, expected, why):
+        def wrap(mutate):
+            c = json.loads(json.dumps(g_base))
+            ev = c["run"]["evidence"]["tee_ground"]
+            mutate(ev)
+            (out / f"{name}.json").write_text(json.dumps(c, indent=1, ensure_ascii=False) + "\n")
+            fixtures.append({"file": f"{name}.json", "expected": expected, "mutation": why, "base": sys.argv[5]})
+            return mutate
+        return wrap
+
+    @g_fixture("ground-other-round", "REFUSED tee_ground_mismatch", "the grounding's benchmark root swapped for another round's, output hash recomputed: it no longer covers this round's sealed keys")
+    def _(ev):
+        ev["output"]["benchmark_root"] = "22" * 32
+        rehash(ev)
+
+    @g_fixture("ground-hidden-flag", "REFUSED tee_attestation_invalid", "a flagged answer key un-flagged and the count lowered, output hash recomputed; the Intel-signed quote binds the original output")
+    def _(ev):
+        f = bytearray.fromhex(ev["output"]["flags"])
+        i = next(i for i in range(len(f) * 8) if f[i // 8] & (0x80 >> (i % 8)))
+        f[i // 8] &= ~(0x80 >> (i % 8)) & 0xFF
+        ev["output"]["flags"], ev["output"]["flagged"] = f.hex(), ev["output"]["flagged"] - 1
+        rehash(ev)
+
+    @g_fixture("ground-fork-commit", "CANT_CERTIFY tee_unapproved", "the grounding cites a near/docs commit the verifier doesn't pin (GitHub serves a fork's commits under near/docs too)")
+    def _(ev):
+        ev["output"]["commit"] = "33" * 20
+        rehash(ev)
+
+    @g_fixture("ground-unpinned-build", "CANT_CERTIFY tee_unapproved", "the grounding's record names a build the verifier doesn't pin as a grounder")
+    def _(ev):
+        ev["record"]["wasm_hash"] = "11" * 32
+
 
 
 made = {f["file"] for f in fixtures}

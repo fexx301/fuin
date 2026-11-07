@@ -146,6 +146,7 @@
     ['trace', 'Serving container traced to NEAR\'s repo', 'Intel via PCCS · GitHub'],
     ['registry', 'NEAR registry record', 'NEAR RPC'], ['sample', 'Round close and audit sample', 'NEAR RPC'],
     ['tee', 'Every answer re-scored in a TEE', 'OutLayer quote via PCCS · NEAR RPC'],
+    ['ground', 'Answer keys checked against their source', 'OutLayer quote via PCCS · NEAR RPC'],
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const utf8b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
@@ -222,6 +223,7 @@
     const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
     if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', 'this certificate carries no TEE score');
+    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_ground)) await onStep('ground', 'skip', 'this certificate carries no answer-key check');
     if (id === running) stamp(res);
   }
   function picker() {

@@ -31,6 +31,11 @@ LIMITS = [
 LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
 ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is "
                      "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
+ZERO_REVEAL_GROUNDED_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions; the choice of questions is the owner's. "
+                              "Answer keys were checked inside a TEE only against their cited line (see the answer keys check).")
+GROUND_LIMIT = ("A grounded answer key appears in its cited line of near/docs; that doesn't prove it is the right answer to its "
+                "question, and a short key (a number, a word) can appear in a line by chance. Flagged keys were not checked. "
+                "GitHub saw which near/docs files the round cites, not the questions.")
 SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the "
                     "seal and the commitment are not individually timestamped.")
 E2EE_LIMIT = ("Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, "
@@ -260,6 +265,14 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 raise Refused(str(e)) from e
             except tee.TeeUnapproved as e:
                 deferred.append((str(e), "the TEE scorer build is not the one this verifier pins"))
+        ground_ev, ground_info = (r.get("evidence") or {}).get("tee_ground"), None
+        if ground_ev is not None:  # optional: every answer key checked against its cited near/docs line inside a TEE
+            try:
+                ground_info = tee.check_ground_local(ground_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "the grounding build, or the near/docs commit it cites, is not one this verifier pins"))
 
         # D. network checks
         used = {it["signature"]["signing_address"].lower() for it in items}
@@ -396,7 +409,23 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                             + (f"; {u} unreadable answer{'' if u == 1 else 's'} (counted inside the TEE)" if u is not None else "")
                             + f"; {detail}")
 
-        for step in (attest, registry, sample, tee_remote):
+        def ground_remote():
+            if ground_info is None:
+                return
+            try:
+                detail = tee.check_remote(ground_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "OutLayer worker measurements not approved at the grounding's block, or legacy format"))
+                return
+            f = ground_info["flagged"]
+            ok("answer keys", f"{n - len(f)}/{n} answer keys appear in their cited line of near/docs at {ground_info['commit'][:8]}, "
+                              f"checked inside an OutLayer TDX enclave by build {ground_info['pin'][:12]}… (task {ground_info['task']})"
+                              + (f"; {len(f)} flagged, not checked (a derived answer or a broader alternative): item{'' if len(f) == 1 else 's'} "
+                                 + ", ".join(map(str, f)) if f else "") + f"; {detail}")
+
+        for step in (attest, registry, sample, tee_remote, ground_remote):
             online(step)
     except Refused as e:
         code, _, where = str(e).partition(":")
@@ -426,7 +455,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                       "exact, not statistical, under the TEE trust assumptions")
     v2 = P.is_seal_bound(b["policy"])
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
-    limits += ([ZERO_REVEAL_LIMIT] if tee_round else []) + ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
+    grounded = any(c[0] == "answer keys" for c in checks)
+    limits += ([ZERO_REVEAL_GROUNDED_LIMIT if grounded else ZERO_REVEAL_LIMIT] if tee_round else []) + ([GROUND_LIMIT] if grounded else []) + ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
 
 

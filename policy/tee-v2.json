@@ -1,7 +1,7 @@
 {
   "version": "tee-v2",
-  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4 also counts unreadable answers in end-to-end-encrypted rounds; v5 rounds a numeric difference to 28 significant digits exactly as the sealed Python scorer's Decimal arithmetic does; v6, current, scores an answer that doesn't decrypt 0 even when the item accepts an empty answer. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
-  "current": "67c2292e21d27adf521c481c4019cd63bb0c56e26e2f40abc94a0a0932d14ce1",
+  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4 also counts unreadable answers in end-to-end-encrypted rounds; v5 rounds a numeric difference to 28 significant digits exactly as the sealed Python scorer's Decimal arithmetic does; v6 scores an answer that doesn't decrypt 0 even when the item accepts an empty answer; v7, current, scores exactly as v6 and adds the ground mode, which checks every answer key against its cited near/docs line. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
+  "current": "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8",
   "scorers": [
     {
       "wasm_sha256": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
@@ -32,6 +32,12 @@
       "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/67c2292e21d27adf521c481c4019cd63bb0c56e26e2f40abc94a0a0932d14ce1.wasm",
       "bytes": 741979,
       "build": "scorer v6: tee/build-docker.sh at commit 6b0705c; an answer that doesn't decrypt scores 0 whatever the item accepts"
+    },
+    {
+      "wasm_sha256": "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8.wasm",
+      "bytes": 760756,
+      "build": "scorer v7: tee/build-docker.sh at commit 58523c7; scores as v6, adds the ground mode (answer keys against their cited near/docs lines)"
     }
   ],
   "outlayer": {
@@ -40,5 +46,12 @@
     "register": "worker.outlayer.testnet",
     "api": "https://testnet-api.outlayer.ai",
     "task_hash_format": "V1 (timestamp >= 1769784939)"
-  }
+  },
+  "grounders": [
+    "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8"
+  ],
+  "ground_note": "A grounding is accepted from the builds in grounders, citing only the near/docs commits in ground_commits. GitHub serves a fork's commits under near/docs too, so each listed commit was checked to be on near/docs master (GitHub compare API).",
+  "ground_commits": [
+    "e2d2ea173cf462bcf518ecae5650984a221d5183"
+  ]
 }

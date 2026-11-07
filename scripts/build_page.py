@@ -77,7 +77,8 @@ def main() -> None:
                       "allowed_settings": sorted(P.ALLOWED_SETTINGS),
                       "scorers": {name: sha for (name, sha) in P.SCORERS},
                       "template_v2": P.TEMPLATE_V2, "template_v3": P.TEMPLATE_V3, "tee_audit": P.TEE_AUDIT},
-        "tee": {"pins": sorted(tee.pinned()), "outlayer": tee.tee_policy()["outlayer"], "v1_cutoff": tee.V1_CUTOFF},
+        "tee": {"pins": sorted(tee.pinned()), "outlayer": tee.tee_policy()["outlayer"], "v1_cutoff": tee.V1_CUTOFF,
+                "grounders": tee.tee_policy()["grounders"], "ground_commits": tee.tee_policy()["ground_commits"], "ground_repo": tee.GROUND_REPO},
         "attested_models": sorted(owner.attestation_policy()["models"]),
         "attestation_policy": {"version": owner.attestation_policy()["version"],
                                "models": {m: {ch: {"os_image_hash": e["os_image_hash"], "os_measurements": e["os_measurements"]}

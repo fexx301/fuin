@@ -299,21 +299,31 @@
     if (rec.attached_usd != null) parts.push(s(rec.attached_usd));
     return hex(await sha256(...parts));
   }
-  async function teeLocal(ev, cert, cfg) {
-    const need = (c, code = 'tee_score_invalid') => req(c, code), obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
-    need(obj(ev) && ev.v === 'fuin-tee-evidence-v1' && ['transaction_hash', 'input_data', 'scorer_url'].every((k) => typeof ev[k] === 'string'));
-    const rec = ev.record, out = ev.output, b = cert.benchmark, r = cert.run;
+  const tObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+  async function teeRecord(ev, cert, version, mode) {  // what a TEE score and a TEE grounding share (fuin/tee.py _check_record)
+    const need = (c, code = 'tee_score_invalid') => req(c, code), obj = tObj;
+    need(obj(ev) && ev.v === version && ['transaction_hash', 'input_data', 'scorer_url'].every((k) => typeof ev[k] === 'string'));
+    const rec = ev.record, out = ev.output;
     need(obj(rec) && obj(out));
     need(typeof rec.tdx_quote === 'string' && Number.isInteger(rec.task_id) && Number.isInteger(rec.timestamp)
       && ['task_type', 'output_hash', 'input_hash', 'wasm_hash'].every((k) => typeof rec[k] === 'string'));
-    const pin = rec.wasm_hash;
-    if (isTee(b.policy, cfg.supported) && pin !== b.policy.audit.scorer_wasm_sha256) throw new Refused('tee_score_mismatch');  // the sealed build
     need(rec.input_hash === hex(await sha256(enc.encode(ev.input_data))));
     need(rec.output_hash === hex(await sha256(enc.encode(jcs(out)))));  // = Python's sort_keys compact JSON for these strings and integers
     need(rec.transaction_hash === ev.transaction_hash && rec.task_type === 'execute' && rec.build_target === 'wasm32-wasip2');
     need(rec.caller_account_id === cert.registry.owner);
     let inp; try { inp = JSON.parse(ev.input_data); } catch { throw new Refused('tee_score_invalid'); }
-    need(obj(inp) && inp.mode === 'score' && inp.blob_sha256 === out.blob_sha256);
+    need(obj(inp) && inp.mode === mode && inp.blob_sha256 === out.blob_sha256);
+    return { rec, out };
+  }
+  const tPinned = (rec, pins) => {  // last, so tampered evidence is refused even when it also names an unpinned build
+    const pin = rec.wasm_hash;
+    if (!pins.includes(pin) || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : pin) !== pin) throw new TeeUnapproved('tee_unapproved');
+    return pin;
+  };
+  async function teeLocal(ev, cert, cfg) {
+    const need = (c, code = 'tee_score_invalid') => req(c, code), b = cert.benchmark, r = cert.run;
+    const { rec, out } = await teeRecord(ev, cert, 'fuin-tee-evidence-v1', 'score');
+    if (isTee(b.policy, cfg.supported) && rec.wasm_hash !== b.policy.audit.scorer_wasm_sha256) throw new Refused('tee_score_mismatch');  // the sealed build
     const signers = new Set(r.items.map((it) => it.signature.signing_address.toLowerCase()));
     need(out.v === 'fuin-tee-score-v1', 'tee_score_mismatch');
     need(out.model === r.model_id && out.n === b.n && out.total === r.total_score && out.benchmark_root === b.root && out.policy_hash === b.policy_hash
@@ -322,9 +332,20 @@
     need((out.seal_block_hash ?? null) === (v2 ? b.seal_block_hash : null), 'tee_score_mismatch');
     if ('unreadable' in out)  // scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
       need(b.policy.request.template === cfg.supported.template_v3 && Number.isInteger(out.unreadable) && out.unreadable >= 0 && out.unreadable <= b.n, 'tee_score_mismatch');
-    // last, so tampered evidence is refused even when it also names an unpinned build
-    if (!cfg.tee.pins.includes(pin) || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : pin) !== pin) throw new TeeUnapproved('tee_unapproved');
-    return { task: rec.task_id, pin, unreadable: out.unreadable };
+    return { task: rec.task_id, pin: tPinned(rec, cfg.tee.pins), unreadable: out.unreadable };
+  }
+  async function groundLocal(ev, cert, cfg) {  // fuin/tee.py check_ground_local
+    const need = (c) => req(c, 'tee_ground_mismatch'), b = cert.benchmark, n = b.n;
+    const { rec, out } = await teeRecord(ev, cert, 'fuin-tee-ground-evidence-v1', 'ground');
+    need(out.v === 'fuin-tee-ground-v1' && out.repo === cfg.tee.ground_repo && out.n === n && out.benchmark_root === b.root);
+    const f = out.flags;
+    need(typeof f === 'string' && /^[0-9a-f]*$/.test(f) && f.length === Math.ceil(n / 8) * 2 && Number.isInteger(out.flagged));
+    const bits = BigInt('0x' + (f || '0')), flagged = [];
+    for (let i = 0; i < f.length * 4; i++) if ((bits >> BigInt(f.length * 4 - 1 - i)) & 1n) flagged.push(i);
+    need(flagged.length === out.flagged && flagged.every((i) => i < n));
+    const pin = tPinned(rec, cfg.tee.grounders);
+    if (!cfg.tee.ground_commits.includes(out.commit)) throw new TeeUnapproved('tee_unapproved');  // a fork's commit is served under near/docs too
+    return { task: rec.task_id, pin, commit: out.commit, flagged };
   }
   async function teeRemote(ev, cert, cfg) {
     const rec = ev.record, T = cfg.tee, url = cfg.rpc, owner = cert.registry.owner;
@@ -492,6 +513,13 @@
         try { teeInfo = await teeLocal(teeEv, cert, cfg); await onStep('tee', 'running', 'record matches the certificate; checking its quote and the chain…'); }
         catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the TEE scorer build is not the one this verifier pins']); await onStep('tee', 'fail', 'tee_unapproved'); }
       }
+      const groundEv = (r.evidence || {}).tee_ground;
+      let groundInfo = null;
+      if (groundEv != null) {
+        await start('ground');
+        try { groundInfo = await groundLocal(groundEv, cert, cfg); await onStep('ground', 'running', 'record matches the sealed root; checking its quote and the chain…'); }
+        catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the grounding build, or the near/docs commit it cites, is not one this verifier pins']); await onStep('ground', 'fail', 'tee_unapproved'); }
+      }
 
       const gpu = cfg.recorded ? 'GPU (NVIDIA NRAS): recorded by fuin verify, not checked here'
         : 'GPU (NVIDIA NRAS blocks browsers): not checked here; run fuin verify';
@@ -608,6 +636,19 @@
         } catch (e) {
           if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the execution's block, or legacy format"]); await onStep('tee', 'fail', 'tee_unapproved'); }
           else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('tee', 'skip', 'unavailable: ' + e.message); }
+          else throw e;
+        }
+      }
+      if (groundInfo && !root.Dcap) await onStep('ground', 'skip', 'record matches the sealed root, but its quote is not checked here: the Intel TDX verifier did not load. Run fuin verify.');
+      else if (groundInfo) {
+        await start('ground');
+        try {
+          const detail = await teeRemote(groundEv, cert, cfg), f = groundInfo.flagged;
+          await pass(`${n - f.length}/${n} answer keys appear in their cited line of near/docs at ${groundInfo.commit.slice(0, 8)}, checked inside an OutLayer TDX enclave by build ${groundInfo.pin.slice(0, 12)}… (task ${groundInfo.task})`
+            + (f.length ? `; ${f.length} flagged, not checked (a derived answer or a broader alternative): item${f.length === 1 ? '' : 's'} ${f.join(', ')}` : '') + `; ${detail}`);
+        } catch (e) {
+          if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the grounding's block, or legacy format"]); await onStep('ground', 'fail', 'tee_unapproved'); }
+          else if (e instanceof Unavailable) { deferred.push(['evidence_unavailable', e.message]); await onStep('ground', 'skip', 'unavailable: ' + e.message); }
           else throw e;
         }
       }

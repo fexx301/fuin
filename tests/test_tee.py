@@ -123,4 +123,4 @@ def test_scorer_v6_scores_an_unreadable_answer_0_even_when_the_item_accepts_an_e
     fx = json.loads((Path(__file__).parent / "fixtures/tee-synthetic-evidence-v6-empty-accept.json").read_text())
     assert '"accept":[""]' in json.loads((Path(__file__).parent / "fixtures/tee-synthetic-round-v3-empty-accept.json").read_text())["round"]["items"][2]["item_jcs"]
     got = tee.check_local(copy.deepcopy(fx["evidence"]), _v3_cert(fx))
-    assert (fx["evidence"]["output"]["total"], got["unreadable"], got["pin"]) == (2, 1, tee.current_scorer()["wasm_sha256"])
+    assert (fx["evidence"]["output"]["total"], got["unreadable"], got["pin"]) == (2, 1, "67c2292e21d27adf521c481c4019cd63bb0c56e26e2f40abc94a0a0932d14ce1")  # scorer v6

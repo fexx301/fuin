@@ -60,6 +60,10 @@ def main(argv=None) -> int:
     p.add_argument("--id", required=True); p.add_argument("--model", required=True); p.add_argument("--out", default="examples")
     p.add_argument("--host", required=True, choices=["fastfs", "gist"],
                    help="where the encrypted run is hosted for the scorer: fastfs (permanent, public) or gist (secret, deleted after)")
+    p = sub.add_parser("tee-ground", help="check every answer key against its cited near/docs line inside OutLayer's TEE (once per round)")
+    p.add_argument("--id", required=True); p.add_argument("--out", default="examples")
+    p.add_argument("--host", required=True, choices=["fastfs", "gist"],
+                   help="where the encrypted items are hosted for the enclave: fastfs (permanent, public) or gist (secret, deleted after)")
     a = ap.parse_args(argv)
 
     if a.cmd == "check":
@@ -67,7 +71,7 @@ def main(argv=None) -> int:
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
         return 0
-    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "reveal") else None  # noqa: F841 (held until exit)
+    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal") else None  # noqa: F841 (held until exit)
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
@@ -120,6 +124,20 @@ def main(argv=None) -> int:
         elif st.get("close"):  # a closed round's certificates are regenerated with the evidence; the sample is re-derived, unchanged
             for p in owner.reveal(a.id, a.out):
                 print(p)
+    elif a.cmd == "tee-ground":
+        from fuin import policy as P, tee
+        st = owner.load(a.id)
+        if "seal" not in st:
+            raise SystemExit("round not sealed yet")
+        host = tee.fastfs_host(st["owner"]) if a.host == "fastfs" else tee.gist_host
+        st["tee_ground"] = ev = tee.ground(st, st["owner"], host)
+        owner.save(st)
+        o = ev["output"]
+        print(f"answer keys grounded in the TEE: {o['n'] - o['flagged']}/{o['n']} appear in their cited line; "
+              f"{o['flagged']} flagged (tx {ev['transaction_hash']})")
+        if st.get("close") and all("commit" not in rn or rn.get("tee_score") or not P.is_tee_round(st["policy"]) for rn in st["runs"].values()):
+            for path in owner.reveal(a.id, a.out):  # certificates regenerated with the grounding; nothing else changes
+                print(path)
     elif a.cmd == "verify":
         outcomes = set()
         for path in a.certs:
