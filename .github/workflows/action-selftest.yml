@@ -1,0 +1,13 @@
+name: action self-test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          certs: examples/cert-near-dev-60-r2-*.json

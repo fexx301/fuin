@@ -151,7 +151,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (113 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer).
+4. **Run the tests.** `uv run pytest` (114 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer).
 
 ## How it works
 
@@ -200,6 +200,25 @@ Round 5 (`near-dev-96-r5`) is zero-reveal and end-to-end encrypted: 96 questions
 - **near-cli-rs** for the owner's transactions; keys stay in the OS keychain.
 
 Transactions for every round: `evidence/*/README.md`.
+
+## Use it on your benchmark
+
+Install the command once, then anyone can check a certificate with no account and no key:
+
+```sh
+uv tool install git+https://github.com/fexx301/fuin    # puts `fuin` on your PATH, with the verifier's pinned policies
+fuin verify cert.json                                  # VERIFIED, REFUSED or CAN'T CERTIFY, with every check printed
+```
+
+To check certificates in your own CI, use the GitHub Action in this repository. The step fails unless every certificate is VERIFIED; it retries once when a public service doesn't answer, and never retries a REFUSED:
+
+```yaml
+- uses: fexx301/fuin@main
+  with:
+    certs: certs/*.json
+```
+
+To publish your own certified scores, run a round as below or follow [PILOT.md](PILOT.md).
 
 ## Audit your own suite
 

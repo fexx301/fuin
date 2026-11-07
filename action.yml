@@ -1,0 +1,28 @@
+name: Verify Fūin certificates
+description: Verify Fūin benchmark certificates keylessly; the step fails unless every certificate is VERIFIED.
+branding:
+  icon: check-circle
+  color: red
+inputs:
+  certs:
+    description: Certificate files or globs, space-separated (for example "certs/*.json").
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+    - shell: bash
+      env:
+        CERTS: ${{ inputs.certs }}
+      run: |
+        shopt -s nullglob globstar
+        files=($CERTS)
+        [ ${#files[@]} -gt 0 ] || { echo "no certificate matches: $CERTS"; exit 1; }
+        verify() { env -u NEARAI_API_KEY uv run --quiet --project "$GITHUB_ACTION_PATH" --frozen fuin verify "${files[@]}"; }
+        # exit 2 is CAN'T CERTIFY: usually a public service (Intel, NVIDIA, an RPC) that didn't answer, so try once more;
+        # a REFUSED certificate (exit 1) is never retried
+        verify && exit 0 || code=$?
+        [ "$code" = 2 ] || exit "$code"
+        echo "::warning::a service was unavailable; retrying once in 60 s"
+        sleep 60
+        verify
