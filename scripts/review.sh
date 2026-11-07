@@ -12,7 +12,7 @@ step() { printf '\n== %s\n' "$1"; }
 
 step "1/5 verify the real certificates (expect VERIFIED for each)"
 tmp=$(mktemp -d)
-workers=${FUIN_REVIEW_WORKERS:-4}  # independent network-bound checks, a batch at a time: public RPCs throttle bursts
+workers=${FUIN_REVIEW_WORKERS:-3}  # independent network-bound checks, a batch at a time: public RPCs throttle bursts
 started=0; printed=0; certs=(examples/cert-*.json)
 flush() {  # wait for the running batch, then print its results in order
   wait
@@ -26,9 +26,9 @@ flush() {  # wait for the running batch, then print its results in order
 for c in "${certs[@]}"; do
   # a public service's rate limit is an outage, not a verdict: CAN'T CERTIFY evidence_unavailable is retried after a pause
   ( out="$tmp/$(basename "$c").out"
-    for try in 1 2 3; do
+    for try in 1 2 3 4; do  # the one live archival testnet RPC throttles for minutes: back off 1, 2, then 3 minutes
       uv run fuin verify "$c" > "$out"; rc=$?
-      if [ $rc -eq 2 ] && grep -q "evidence_unavailable" "$out" && [ $try -lt 3 ]; then sleep 60; continue; fi
+      if [ $rc -eq 2 ] && grep -q "evidence_unavailable" "$out" && [ $try -lt 4 ]; then sleep $((60 * try)); continue; fi
       break
     done
     echo $rc > "$tmp/$(basename "$c").rc" ) &
