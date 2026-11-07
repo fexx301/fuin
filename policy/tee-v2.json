@@ -1,7 +1,7 @@
 {
   "version": "tee-v2",
-  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4 also counts unreadable answers in end-to-end-encrypted rounds; v5 rounds a numeric difference to 28 significant digits exactly as the sealed Python scorer's Decimal arithmetic does; v6 scores an answer that doesn't decrypt 0 even when the item accepts an empty answer; v7, current, scores exactly as v6 and adds the ground mode, which checks every answer key against its cited near/docs line. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
-  "current": "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8",
+  "note": "The verifier's pins for TEE scores. Every accepted build is a canonical build: tee/build-docker.sh (Linux x86_64 in a digest-pinned Rust image), which gives the same bytes on any host with Docker, from tee/ at the commit recorded below. v2 scores the six re-scored rounds and round 4 (which sealed it); v3 adds request template v3 and scores round 5, which sealed it; v4 also counts unreadable answers in end-to-end-encrypted rounds; v5 rounds a numeric difference to 28 significant digits exactly as the sealed Python scorer's Decimal arithmetic does; v6 scores an answer that doesn't decrypt 0 even when the item accepts an empty answer; v7 scores exactly as v6 and adds the ground mode, which checks every answer key against its cited near/docs line; v8, current, scores exactly as v7 and adds the numeric grounding rule. Neither ever echoes a sealed value in an error. Scorer v1 (a848254b9d2cda2ca522e839b4e4f7de33ec1d51a364fb9a0d92d88f252f69a7, tee/build.sh at commit f9bbbe9, reproducible on macOS arm64 only) was retired on 2026-11-05 after all six of its scores were re-done with v2.",
+  "current": "bb0d9a5d7502e85374b65351eaf635412700a6cc4ac78563c46d813759730100",
   "scorers": [
     {
       "wasm_sha256": "dabae968e8022350ceb59a04f78b7d494f43e73328448500ae08724c8c5a8973",
@@ -38,6 +38,12 @@
       "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8.wasm",
       "bytes": 760756,
       "build": "scorer v7: tee/build-docker.sh at commit 58523c7; scores as v6, adds the ground mode (answer keys against their cited near/docs lines)"
+    },
+    {
+      "wasm_sha256": "bb0d9a5d7502e85374b65351eaf635412700a6cc4ac78563c46d813759730100",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/bb0d9a5d7502e85374b65351eaf635412700a6cc4ac78563c46d813759730100.wasm",
+      "bytes": 764743,
+      "build": "scorer v8: tee/build-docker.sh at commit 39a2da3; scores exactly as v7 (the same code, split into per-item functions the asker shares), grounds numeric keys only where they touch no other digit, refuses rather than cuts an output of 1,024 bytes or more"
     }
   ],
   "outlayer": {
@@ -48,7 +54,8 @@
     "task_hash_format": "V1 (timestamp >= 1769784939)"
   },
   "grounders": [
-    "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8"
+    "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8",
+    "bb0d9a5d7502e85374b65351eaf635412700a6cc4ac78563c46d813759730100"
   ],
   "ground_note": "A grounding is accepted from the builds in grounders, citing only the near/docs commits in ground_commits. GitHub serves a fork's commits under near/docs too (tested Nov 7), so each listed commit was checked to be on near/docs master (GitHub compare API).",
   "ground_commits": [
@@ -56,11 +63,11 @@
   ],
   "askers": [
     {
-      "wasm_sha256": "ca2bb88fae28f2eba8b830f68c877a46a2534503fa6c9cc7de1ed2afdf69791c",
-      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/ca2bb88fae28f2eba8b830f68c877a46a2534503fa6c9cc7de1ed2afdf69791c.wasm",
+      "wasm_sha256": "dbbb286b744cb646535609f875f7dc65c3b6cf718c274481c9ae95dec7f62a77",
+      "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/dbbb286b744cb646535609f875f7dc65c3b6cf718c274481c9ae95dec7f62a77.wasm",
       "project": "fuin.testnet/fuin-ask-spike",
-      "bytes": 785661,
-      "build": "REHEARSAL ONLY (branch feat/enclave-asked): local cargo build of ask/, in the unlocked spike project; its certificates must be refused tee_asked_unlocked"
+      "bytes": 783608,
+      "build": "REHEARSAL ONLY: ask/build-docker.sh at commit aaa2083, in the unlocked spike project; its certificates are refused tee_asked_unlocked"
     }
   ]
 }
