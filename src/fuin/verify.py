@@ -33,8 +33,8 @@ ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the
                      "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
 ZERO_REVEAL_GROUNDED_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions; the choice of questions is the owner's. "
                               "Answer keys were checked inside a TEE only against their cited line (see the answer keys check).")
-GROUND_LIMIT = ("A grounded answer key appears in its cited line of near/docs; that doesn't prove it is the right answer to its "
-                "question, and a short key (a number, a word) can appear in a line by chance. Flagged keys were not checked. "
+GROUND_LIMIT = ("A grounded answer key appears in the line of near/docs the owner cited; that doesn't prove it is the right answer "
+                "to its question: a cited line can contain a wrong value, and a short key (a number, a word) can appear in a line by chance. Flagged keys were not checked. "
                 "The flags show which hidden items were flagged, not what they ask; GitHub saw which near/docs files the round cites.")
 SEAL_BOUND_LIMIT = ("Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the "
                     "seal and the commitment are not individually timestamped.")

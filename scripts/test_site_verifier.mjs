@@ -11,8 +11,9 @@ const F = ctx.FUIN, V = ctx.FuinVerify;
 const cfg = (rec) => ({ supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: rec });
 const clone = (x) => JSON.parse(JSON.stringify(x));
 // the page must carry the verifier's current pins: rebuild site/data.js (scripts/build_page.py) whenever policy/ changes
-const pinsNow = JSON.parse(fs.readFileSync('policy/tee-v2.json', 'utf8')).scorers.map((s) => s.wasm_sha256).sort();
-const pinsOk = JSON.stringify(pinsNow) === JSON.stringify([...F.tee.pins].sort());
+const tp = JSON.parse(fs.readFileSync('policy/tee-v2.json', 'utf8')), pinsNow = tp.scorers.map((s) => s.wasm_sha256).sort();
+const pinsOk = JSON.stringify(pinsNow) === JSON.stringify([...F.tee.pins].sort())
+  && JSON.stringify(tp.grounders) === JSON.stringify(F.tee.grounders) && JSON.stringify(tp.ground_commits) === JSON.stringify(F.tee.ground_commits);
 console.log(`${pinsOk ? 'ok  ' : 'FAIL'} page data carries policy/tee-v2.json's scorer pins${pinsOk ? '' : ' (stale site/data.js: run scripts/build_page.py)'}`);
 let fails = pinsOk ? 0 : 1;
 // LoRA-served models: the page's trace matcher agrees with fuin.provenance.served_as on the shared cases (expected values in tests/test_os_and_trace.py)

@@ -68,7 +68,8 @@ def test_status_private_round_points_to_tee_score_then_the_certificates(tmp_path
     (tmp_path / "pc").mkdir()
     (tmp_path / "pc" / "cert-p-a.json").write_text("{}")
     out = tooling.status("p", "pc")
-    assert "certificates in pc/: cert-p-a.json" in out[-2] and out[-1] == "next: env -u NEARAI_API_KEY uv run fuin verify pc/cert-p-a.json"
+    assert "certificates in pc/: cert-p-a.json" in out[-3] and "fuin tee-ground --id p" in out[-2]  # grounding offered, optional
+    assert out[-1] == "next: env -u NEARAI_API_KEY uv run fuin verify pc/cert-p-a.json"
 
 
 def test_an_accepted_answer_that_trims_to_nothing_is_an_error(tmp_path):

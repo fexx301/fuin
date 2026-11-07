@@ -151,6 +151,8 @@ def status(bid: str, examples: str = "examples") -> list[str]:
     unscored = [m for m, rn in st["runs"].items() if tee_round and "commit" in rn and not rn.get("tee_score")]
     if certs:
         lines.append(f"  ✓ certificates in {examples}/: {', '.join(c.name for c in certs)}")
+        if tee_round and not st.get("tee_ground"):  # optional: answer keys checked against their cited near/docs lines
+            lines.append(f"  · answer keys not grounded (optional: uv run fuin tee-ground --id {bid} --host gist --out {examples})")
         nxt = nxt or f"env -u NEARAI_API_KEY uv run fuin verify {' '.join(str(c) for c in certs)}"
     elif "close" in st:
         lines.append(f"  · no certificates in {examples}/ (if they were written elsewhere, add --out DIR)")
