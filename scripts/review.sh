@@ -67,8 +67,18 @@ if docker info >/dev/null 2>&1; then
   else
     echo "TEE scorer rebuild skipped: tee/build-docker.sh could not complete (image pull, network or disk), not counted as a failure"
   fi
+  # The asker in its locked project must rebuild from ask/ too: its code can never change, so it has to be this code.
+  apin=$(python3 -c 'import json;a=json.load(open("policy/tee-v2.json")).get("askers",[]);print(a[-1]["wasm_sha256"] if a else "")')
+  if [ -n "$apin" ]; then
+    if out=$(ask/build-docker.sh 2>/dev/null) && built=$(printf '%s\n' "$out" | tail -1 | cut -d' ' -f1) && [ ${#built} -eq 64 ]; then
+      if [ "$built" = "$apin" ]; then echo "Asker rebuilt with ask/build-docker.sh: sha256 $built = the pinned asker in policy/tee-v2.json"
+      else echo "Asker rebuilt as $built, pin is $apin"; fail=1; fi
+    else
+      echo "Asker rebuild skipped: ask/build-docker.sh could not complete (image pull, network or disk), not counted as a failure"
+    fi
+  fi
 else
-  echo "TEE scorer rebuild skipped: needs Docker (tee/build-docker.sh)"
+  echo "TEE scorer and asker rebuilds skipped: need Docker (tee/build-docker.sh, ask/build-docker.sh)"
 fi
 
 step "5/5 in-browser verifier, run in Node (expect every line 'ok')"
