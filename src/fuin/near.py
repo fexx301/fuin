@@ -14,9 +14,10 @@ import requests
 # rpc.testnet.near.org rate-limits hard (HTTP 429 after ~15 calls); FastNEAR's public testnet RPC did not, Nov 3
 # Archival endpoints: a certificate cites blocks and transactions older than a regular node keeps (about two days on
 # testnet; seen Nov 5: Nov 3 transactions already gone from the regular endpoints). FUIN_TESTNET_RPC pins one endpoint.
-# NEAR's own archival-rpc.testnet.near.org answers every call with a deprecation notice (HTTP 429) since Nov 2026, and
-# NEAR's provider list names no other keyless archival testnet endpoint, so FastNEAR's is the only default.
-ARCHIVAL = ["https://archival-rpc.testnet.fastnear.com"]
+# NEAR's own archival-rpc.testnet.near.org answered only with a deprecation notice on Nov 6 but serves the full history
+# again (checked Nov 7: the Nov 3 seal transaction and live blocks), so it is the fallback, tried on retries. A
+# rate-limit or deprecation answer from either one moves on to the other instead of ending the check.
+ARCHIVAL = ["https://archival-rpc.testnet.fastnear.com", "https://archival-rpc.testnet.near.org"]
 NETWORKS = {"testnet": os.environ.get("FUIN_TESTNET_RPC", ARCHIVAL[0])}
 # Verifier's trusted registry configuration (spec: Registry identity is pinned).
 REGISTRY = {"network": "testnet", "account": "registry.fuin.testnet",
@@ -39,6 +40,12 @@ def _cached(method: str, params, network: str) -> Path | None:
     return Path(d) / "rpc" / f"{key}.json"
 
 
+def _transient(err) -> bool:
+    """A JSON-RPC error that says the endpoint is throttling or retired, not that the request is wrong."""
+    s = json.dumps(err).upper()
+    return (isinstance(err, dict) and err.get("code") == -429) or "DEPRECATED" in s or "TOO_MANY_REQUESTS" in s
+
+
 def rpc(method: str, params, network: str = "testnet") -> dict:
     cache = _cached(method, params, network)
     if cache is not None and cache.exists():
@@ -55,6 +62,8 @@ def rpc(method: str, params, network: str = "testnet") -> dict:
                     wait = min(int(r.headers["Retry-After"]), 30)
                 raise RpcError(f"HTTP {r.status_code}")
             d = r.json()
+            if "error" in d and _transient(d["error"]):  # a throttled or retired endpoint: try the other one
+                raise RpcError(json.dumps(d["error"])[:200])
         except (requests.RequestException, ValueError, RpcError) as e:
             if attempt == attempts - 1:
                 raise RpcError(f"{method}: {e} (set FUIN_TESTNET_RPC to another testnet RPC to retry elsewhere)") from e

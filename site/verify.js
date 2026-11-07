@@ -170,7 +170,8 @@
         if (r.status === 429) wait = Math.max(Math.min(1000 * 2 ** a, 8000), 1000 * (Number(r.headers.get('retry-after')) || 0));
         if ([429, 502, 503, 504].includes(r.status)) throw new Error('HTTP ' + r.status);
         const d = await r.json();
-        if (d.error) { const e = new Error(JSON.stringify(d.error).slice(0, 300)); e.rpc = true; throw e; }
+        // a throttled or retired endpoint (as fuin.near._transient): try the other one; any other error is the answer
+        if (d.error) { const s = JSON.stringify(d.error), e = new Error(s.slice(0, 300)); e.rpc = !(d.error.code === -429 || /DEPRECATED|TOO_MANY_REQUESTS/i.test(s)); throw e; }
         if (key) RPC_CACHE.set(key, { value: d.result, at: Date.now() });
         return d.result;
       } catch (e) { if (e.rpc) throw e; last = e; await new Promise((s) => setTimeout(s, wait)); }
