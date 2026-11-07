@@ -126,6 +126,30 @@
    "base": "examples/cert-near-dev-155-r4-glm-5.3-flash.json"
   },
   {
+   "file": "ground-other-round.json",
+   "expected": "REFUSED tee_ground_mismatch",
+   "mutation": "the grounding's benchmark root swapped for another round's, output hash recomputed: it no longer covers this round's sealed keys",
+   "base": "examples/cert-near-dev-96-r6-glm-5.3-flash.json"
+  },
+  {
+   "file": "ground-hidden-flag.json",
+   "expected": "REFUSED tee_attestation_invalid",
+   "mutation": "a flagged answer key un-flagged and the count lowered, output hash recomputed; the Intel-signed quote binds the original output",
+   "base": "examples/cert-near-dev-96-r6-glm-5.3-flash.json"
+  },
+  {
+   "file": "ground-fork-commit.json",
+   "expected": "CANT_CERTIFY tee_unapproved",
+   "mutation": "the grounding cites a near/docs commit the verifier doesn't pin (GitHub serves a fork's commits under near/docs too)",
+   "base": "examples/cert-near-dev-96-r6-glm-5.3-flash.json"
+  },
+  {
+   "file": "ground-unpinned-build.json",
+   "expected": "CANT_CERTIFY tee_unapproved",
+   "mutation": "the grounding's record names a build the verifier doesn't pin as a grounder",
+   "base": "examples/cert-near-dev-96-r6-glm-5.3-flash.json"
+  },
+  {
    "file": "answer-hint.json",
    "expected": "REFUSED request_policy_mismatch",
    "mutation": "real round fixture-answer-hint-2: the owner appended the answer to the prompt; signed by the model and committed on chain"

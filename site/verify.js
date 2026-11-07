@@ -423,7 +423,7 @@
     RPC_FALLBACK = cfg.rpcFallback || [];
     const S = cfg.supported, deferred = [];
     let attMode = 'none';  // live: TDX checked here · recorded: shown from fuin verify · none: not checked
-    let teeMode = 'none', zeroReveal = false;  // teeMode live: the TEE score's OutLayer record checked here
+    let teeMode = 'none', groundMode = 'none', zeroReveal = false;  // teeMode live: the TEE score's OutLayer record checked here
     let traceMode = 'none';  // live: the deployment trace replayed here
     let step = '';
     const start = async (id) => { step = id; await onStep(id, 'running', ''); };
@@ -643,7 +643,7 @@
       else if (groundInfo) {
         await start('ground');
         try {
-          const detail = await teeRemote(groundEv, cert, cfg), f = groundInfo.flagged;
+          const detail = await teeRemote(groundEv, cert, cfg), f = groundInfo.flagged; groundMode = 'live';
           await pass(`${n - f.length}/${n} answer keys appear in their cited line of near/docs at ${groundInfo.commit.slice(0, 8)}, checked inside an OutLayer TDX enclave by build ${groundInfo.pin.slice(0, 12)}… (task ${groundInfo.task})`
             + (f.length ? `; ${f.length} flagged, not checked (a derived answer or a broader alternative): item${f.length === 1 ? '' : 's'} ${f.join(', ')}` : '') + `; ${detail}`);
         } catch (e) {
@@ -666,7 +666,7 @@
     const tee = `every item rebuilt and re-scored inside an OutLayer TDX enclave (checked here)`;
     const scope = zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
       : `audit passed ${au.k}/${n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)${teeMode === 'live' ? '; ' + tee : ''}`;
-    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, trace: traceMode, scope };
+    return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, ground: groundMode, trace: traceMode, scope };
   }
 
   root.FuinVerify = { verify, servedAs, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };

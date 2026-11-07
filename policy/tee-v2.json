@@ -50,7 +50,7 @@
   "grounders": [
     "acd9286f63f591aae755f538ce8553b64241c3970bdbb54bf93fd99a4b722bf8"
   ],
-  "ground_note": "A grounding is accepted from the builds in grounders, citing only the near/docs commits in ground_commits. GitHub serves a fork's commits under near/docs too, so each listed commit was checked to be on near/docs master (GitHub compare API).",
+  "ground_note": "A grounding is accepted from the builds in grounders, citing only the near/docs commits in ground_commits. GitHub serves a fork's commits under near/docs too (tested Nov 7), so each listed commit was checked to be on near/docs master (GitHub compare API).",
   "ground_commits": [
     "e2d2ea173cf462bcf518ecae5650984a221d5183"
   ]

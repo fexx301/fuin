@@ -118,6 +118,7 @@ html,body{background:#161616;margin:0}
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
+      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE; keys that don't are flagged by number (rounds 4–6: 337 of 347 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
@@ -125,7 +126,7 @@ html,body{background:#161616;margin:0}
       <li>Without a TEE score, hidden scores would be checked statistically, not item by item. Every published run carries one, which trusts Intel TDX and OutLayer.</li>
       <li>Instances of a model can share a key; the trace is taken at preflight. Approved measurements are recorded from NEAR's reports, not rebuilt from source.</li>
       <li>Discarded or uncommitted runs can't be seen. Committed runs are numbered.</li>
-      <li>Whether the questions and the sealed answer key are any good: in a zero-reveal round, only the owner can see them.</li>
+      <li>Whether the questions are any good, and whether a grounded key is the right answer: it appears in its cited line, which doesn't prove it. In a zero-reveal round, only the owner can see either.</li>
       <li>Each item's 0/1 score is public, so a certificate shows which hidden items a model got right, though not what they ask.</li>
       <li>The registry contract is locked, but its code rebuilds from source only on the Mac that built it, not on Linux: seals and commits are checked against the owner's signed transactions; run numbering trusts the deployed code.</li>
       <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155 or round 5's 96.</li>
