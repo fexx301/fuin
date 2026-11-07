@@ -85,7 +85,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Five independent rounds of private NEAR-developer questions (60, 60, 300, 155 and 96), each answer cited to a line of the NEAR docs. Each round was sealed before its run, and every run's total was scored over every answer inside a TEE on OutLayer, so hidden scores are checked exactly, not by sample. Rounds 1–3 also reveal an audited sample (28 of 300 in round 3). Rounds 4 and 5 reveal nothing at all, and round 5 also encrypted every question and answer end to end, so NEAR's gateway never saw them. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Six independent rounds of private NEAR-developer questions (60, 60, 300, 155, 96 and 96), each answer cited to a line of the NEAR docs. Each round was sealed before its run, and every run's total was scored over every answer inside a TEE on OutLayer, so hidden scores are checked exactly, not by sample. Rounds 1–3 also reveal an audited sample (28 of 300 in round 3). Rounds 4–6 reveal nothing at all, and rounds 5 and 6 also encrypted every question and answer end to end, so NEAR's gateway never saw them. Round 6 runs all seven models NEAR serves in its own TEEs. The scorer is strict: the number or name alone.</p>
   <figure class="panel viz" id="viz">
     <div class="viz-head">
       <figcaption><span class="viz-title" id="vizTitle"></span><span class="viz-sub" id="vizSub"></span></figcaption>
@@ -96,7 +96,7 @@ html,body{background:#161616;margin:0}
     <div class="viz-tip" id="vizTip" role="tooltip" hidden></div>
   </figure>
   <div class="rounds" id="rounds"></div>
-  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads both rounds it ran: 84 of 155 and 48 of 96. GLM leads Qwen on all five suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads all three rounds it ran, and in round 6 it leads all seven models (38 of 96, 40 for its abliterated version). Removing refusal training made no measurable difference: +2 for DeepSeek, −1 for Qwen, inside each pair's 95% interval. GLM leads Qwen on all six suites, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
 
 <section class="band" id="explore"><div class="wrap">
@@ -129,7 +129,7 @@ html,body{background:#161616;margin:0}
       <li>Each item's 0/1 score is public, so a certificate shows which hidden items a model got right, though not what they ask.</li>
       <li>The registry contract is locked, but its code rebuilds from source only on the Mac that built it, not on Linux: seals and commits are checked against the owner's signed transactions; run numbering trusts the deployed code.</li>
       <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155 or round 5's 96.</li>
-      <li>Exactly when inference happened (rounds 4 and 5's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
+      <li>Exactly when inference happened (rounds 4–6's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
   </div>
 </div></section>
 
