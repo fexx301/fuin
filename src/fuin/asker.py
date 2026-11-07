@@ -35,7 +35,8 @@ def secrets_ref(st: dict) -> dict:
 
 def keygen(owner_id: str, ak: dict) -> dict:
     """The asker's in-enclave key for this owner (sealed under the project's key: only the locked project's code opens it)."""
-    path = Path("private") / f"ask-key-{owner_id}-{ak['wasm_sha256'][:12]}.json"
+    # one per (owner, build, project): the secret is sealed under the project's key, so another project can't open it
+    path = Path("private") / f"ask-key-{owner_id}-{ak['wasm_sha256'][:12]}-{ak['project'].replace('/', '_')}.json"
     if path.exists():
         return json.loads(path.read_text())
     tx, input_data, out = tee.execute(owner_id, {"mode": "keygen"}, ak, project=ak["project"])
