@@ -65,9 +65,10 @@
     {
       "wasm_sha256": "dbbb286b744cb646535609f875f7dc65c3b6cf718c274481c9ae95dec7f62a77",
       "url": "https://test.fastfs.io/fuin.testnet/fuin.testnet/dbbb286b744cb646535609f875f7dc65c3b6cf718c274481c9ae95dec7f62a77.wasm",
-      "project": "fuin.testnet/fuin-ask-spike",
+      "project": "ask.fuin.testnet/asker",
       "bytes": 783608,
-      "build": "REHEARSAL ONLY: ask/build-docker.sh at commit aaa2083, in the unlocked spike project; its certificates are refused tee_asked_unlocked"
+      "build": "asker v1: ask/build-docker.sh at commit aaa2083 (reproduced twice); project ask.fuin.testnet/asker, whose owner's only key was deleted on 2026-11-08 (tx 6krbzCT1Lb9EGTRqxqviAMzaBNNxRU7hGr9BhuBXMZDe), so its code and records can't change"
     }
-  ]
+  ],
+  "asker_note": "An enclave-asked round (audit mode tee-asked-v1) seals one of these (build, project) pairs. The verifier also checks, at the round's seal block, that the project's owner account had no keys and no code and that the build was the project's only version, so nobody could delete the project (wiping its records) or change its code."
 }
