@@ -28,14 +28,14 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 ```sh
 uv sync                                    # first run downloads the dependencies
 env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-deepseek-v4.1-flash-1017.json   # about 1 minute: VERIFIED, every check printed
-uv run pytest -q                           # 5 seconds, offline: 114 passed
+uv run pytest -q                           # 5 seconds, offline: 116 passed
 uv run python scripts/check_fixtures.py examples/tampered/manifest.json   # optional, about 4 minutes: all 24 tampered or unsupported certificates caught
 ```
 
 CAN'T CERTIFY with `evidence_unavailable` means a public service (NEAR's RPC, Intel or NVIDIA) didn't answer, not that the certificate is wrong: run the same command again.
 
 **Full review (optional):**
-- Run `scripts/review.sh` in the background. It takes about 30 minutes (allow 45), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later. `FUIN_REVIEW_WORKERS` (default 4) sets how many certificates verify at once.
+- Run `scripts/review.sh` in the background. It takes about 30 minutes (allow 45), longer than many agents' command timeouts: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit. It needs uv and network, and exits 0 with `ALL CHECKS PASSED`. If a free RPC keeps rate-limiting (for example, two reviews running at once from one network), a line says CAN'T CERTIFY `evidence_unavailable`: that is an outage, not a verdict; run that certificate again later. `FUIN_REVIEW_WORKERS` (default 3) sets how many certificates verify at once.
 - `AGENTS.md` lists exit codes, what not to run and where evidence lives.
 
 Every claim below maps to a command:
@@ -47,7 +47,7 @@ Every claim below maps to a command:
 | The served container and weights are traced to NEAR's public deployment repo | same output, `deployment trace` line | `… nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc …` |
 | The set and results were committed on NEAR, with the seal before the commit and the commit before the close | same output, `registry` line | `seal … < commit … < close …` |
 | The owner can't choose which items a committed round reveals | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
-| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 23 `ok` lines, exit 0 |
+| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 24 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
 | Questions and answers can stay end-to-end encrypted, so NEAR's gateway never sees them | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r5-glm-5.3-flash.json` | `VERIFIED`; the policy line ends `fuin-request-v3 (end-to-end encrypted)`, and the limits print the end-to-end-encryption line; probe: `evidence/2026-11-05-e2ee-probe/` |
@@ -63,7 +63,7 @@ A benchmark owner has two bad options:
 
 A live example: NEAR's Delta League ranks improved versions of Qwen 3.5 0.8B by their score on a private eval set, designed so progress doesn't map onto standard benchmarks (Illia Polosukhin, Nov 6, 2026: [results](https://x.com/ilblackdragon/status/2118587268776829036), [the private eval set](https://x.com/ilblackdragon/status/2118591003368296561)).
 
-Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample and, when the owner adds a TEE score (every published certificate has one), on every answer. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them. Fūin certifies models that NEAR AI Cloud serves in an attested TEE; certifying fine-tuned submissions like Delta League's would need them served the same way.
+Fūin is a third option. The owner keeps the questions private. Anyone can check that the published score came from real, unedited answers by a named model running in a TEE, committed before any sample was drawn, and scored correctly against the owner's sealed answer key: on the revealed sample and, when the owner adds a TEE score (every published certificate has one), on every answer. Whether the questions and that key are any good stays with the owner, and in a round that reveals nothing, only the owner can see them. Fūin certifies models that NEAR AI Cloud serves in an attested TEE; certifying fine-tuned submissions like Delta League's would need them served the same way. A certificate also can't show whether the owner re-asked a question and kept the best signed answer (see the limits).
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
@@ -119,7 +119,7 @@ DeepSeek-V4.1-Flash, added in round 4, leads all three rounds it ran: 84 of 155,
 
 ## Try it (no account, no API key, no test set)
 
-You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, FastNEAR's archival NEAR testnet RPC (certificates cite blocks older than regular nodes keep; NEAR's own archival endpoint now only returns a deprecation notice, so set `FUIN_TESTNET_RPC` to use another archival endpoint you have access to), the NEAR AI model catalog, raw.githubusercontent.com and Docker Hub (for image build provenance; if it is unreachable, the verifier says it didn't check). One verification takes about 40 seconds.
+You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDIA NRAS, an archival NEAR testnet RPC (certificates cite blocks older than regular nodes keep): FastNEAR's, with NEAR's own archival endpoint as the fallback when one throttles; set `FUIN_TESTNET_RPC` to pin another, the NEAR AI model catalog, raw.githubusercontent.com and Docker Hub (for image build provenance; if it is unreachable, the verifier says it didn't check). One verification takes about 40 seconds.
 
 1. **Verify a real certificate.**
 
@@ -128,7 +128,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json
    ```
 
-   You see `VERIFIED` with ten passing checks (rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample, TEE score; a certificate whose serving image NEAR built adds an eleventh, build provenance), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (twelve: two models in each of the three sampled rounds, three models in each of the two zero-reveal rounds).
+   You see `VERIFIED` with ten passing checks (rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample, TEE score; a certificate whose serving image NEAR built adds an eleventh, build provenance), the scope line (`… audit passed 23/60 with zero mismatches; detection power 95.3564% for ≥6 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 23, unrevealed 37 …`), the warnings and the limits. Repeat with the other certificates in `examples/` (nineteen: two models in each of the three sampled rounds, three in each of rounds 4 and 5, and seven in round 6).
 
 2. **Watch tampering get refused.**
 
@@ -172,7 +172,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (114 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer).
+4. **Run the tests.** `uv run pytest` (116 tests, including hostile-input, outage, unapproved-OS, TEE-evidence and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer).
 
 ## How it works
 
@@ -209,7 +209,7 @@ The trade-off: a sampled round's score check needs only public bytes, while a ze
 
 The evidence is unchanged, because the model signs the exact encrypted bytes it received and returned (`provider_tee`, probe: `evidence/2026-11-05-e2ee-probe/`). To stay checkable, every random value derives from the item's secret salt: whoever holds the salt (a verifier of a revealed item, or the TEE scorer) re-encrypts the question byte for byte, which pins exactly what the model decrypted, and decrypts the answer. An answer that doesn't decrypt scores 0, even when the item accepts an empty answer: before scorer v6 it read as an empty answer and would have matched one (a blind reviewer's probe; no published suite accepts an empty answer, and suite checking now rejects one; enclave run: task 22597). The TEE scorer also requires that the key the questions went to is the key that signed every answer. The key an answer comes back to travels in an unsigned header, so from scorer v4 the TEE also counts answers that don't decrypt, and the count is printed with the TEE score (`evidence/2026-11-05-scorer-v4-unreadable-count/`, with a verifiable rehearsal certificate).
 
-Round 5 (`near-dev-96-r5`) is zero-reveal and end-to-end encrypted: 96 questions, three models; nothing was revealed, and no question or answer crossed NEAR's gateway in the clear. Details: `evidence/2026-11-05-round-near-dev-96-r5/`.
+Round 5 (`near-dev-96-r5`) is zero-reveal and end-to-end encrypted: 96 questions, three models; nothing was revealed, and no question or answer crossed NEAR's gateway in the clear (NEAR AI Cloud's end-to-end encryption, observed by the probe in `evidence/2026-11-05-e2ee-probe/`; the certificate itself can't show this). Details: `evidence/2026-11-05-round-near-dev-96-r5/`.
 
 Round 6 (`near-dev-96-r6`) runs every model NEAR serves in its own TEEs, seven, on 96 new questions, zero-reveal and end-to-end encrypted; all seven certificates VERIFY, with no failed inference attempts. Details: `evidence/2026-11-07-round-near-dev-96-r6/`.
 
@@ -277,6 +277,7 @@ Each suite line is `{"question", "answer", "answer_type": "numeric"|"exact", "ac
 - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
 - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
 - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+- An owner could send the same sealed request more than once and commit the best signed answer; every signature stays valid, so a certificate can't show that.
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
 - The seal precedes the result commitment; this does not prove when inference happened.

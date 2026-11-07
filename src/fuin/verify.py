@@ -18,6 +18,7 @@ LIMITS = [
     "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
     "Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.",
     "Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.",
+    "An owner could send the same sealed request more than once and commit the best signed answer; every signature stays valid, so a certificate can't show that.",
     "Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.",
     "Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.",
     "The seal precedes the result commitment; this does not prove when inference happened.",
