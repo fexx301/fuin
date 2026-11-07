@@ -71,6 +71,16 @@ def test_failure_keeps_earlier_groups_logs_retries_and_resumes(fake, tmp_path):
     assert "q7?" not in asked and "q6?" in asked  # the kept answer is used as is; only unanswered items are asked
 
 
+def test_a_second_command_on_the_same_round_stops_instead_of_losing_runs(tmp_path, monkeypatch):
+    # four parallel `fuin run`s on one round erased two models' runs (each rewrote state.json); now the second one stops
+    monkeypatch.chdir(tmp_path)
+    held = owner.lock("t")
+    with pytest.raises(SystemExit, match="another fuin command is writing round t"):
+        owner.lock("t")
+    held.close()
+    owner.lock("t").close()  # free again once the first command ends
+
+
 def test_one_slow_item_does_not_stall_the_window(fake, monkeypatch, tmp_path):
     make_state(tmp_path, 12)
     base = inference.complete

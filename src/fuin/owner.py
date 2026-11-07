@@ -28,6 +28,22 @@ def load(bid: str) -> dict:
     return json.loads(_path(bid).read_text())
 
 
+def lock(bid: str):
+    """Hold an exclusive lock on one round until the process exits. Two commands writing the same state.json at once
+    silently lose runs (each rewrites the whole file), so a second one stops instead."""
+    import fcntl
+    p = _path(bid).parent / ".lock"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    f = open(p, "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close()
+        raise SystemExit(f"another fuin command is writing round {bid}: wait for it to finish. Run models one after another "
+                         "(use --parallel for speed within one run).") from None
+    return f
+
+
 def save(st: dict) -> None:
     p = _path(st["benchmark_id"])
     p.parent.mkdir(parents=True, exist_ok=True)

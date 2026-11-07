@@ -67,6 +67,7 @@ def main(argv=None) -> int:
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
         return 0
+    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "reveal") else None  # noqa: F841 (held until exit)
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
