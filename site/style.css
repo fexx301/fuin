@@ -111,6 +111,57 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 
 /* ---------- results ---------- */
 .rounds { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+/* the comparison chart: one round at a time, one series, a 95% interval per bar; columns, or rows in a narrow box */
+.viz { position: relative; margin: 0 0 22px; padding: 24px 26px 20px; container-type: inline-size; }
+.viz-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px 24px; flex-wrap: wrap; margin-bottom: 26px; }
+.viz-title { display: block; font-weight: 650; font-size: 17px; }
+.viz-sub { display: block; margin-top: 4px; font: 12.5px/1.5 var(--mono); color: var(--muted); }
+.viz-rounds { display: flex; gap: 6px; flex-wrap: wrap; }
+.viz-rounds .chip { padding: 5px 11px; font-size: 12.5px; }
+.viz-plot { --h: 260px; position: relative; display: grid; grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr)); padding-left: 44px; }
+.viz-plot .grid { position: absolute; left: 0; right: 0; top: 0; height: var(--h); pointer-events: none; }
+.viz-plot .grid span { position: absolute; left: 44px; right: 0; bottom: calc(var(--g) * 100%); border-top: 1px solid var(--line); }
+.viz-plot .grid b { position: absolute; left: -44px; top: 0; transform: translateY(-50%); font: 500 11px var(--mono); color: var(--dim); }
+.viz .col { position: relative; display: flex; flex-direction: column; align-items: center; background: none; border: 0; padding: 0 4px; margin: 0; color: inherit; font: inherit; cursor: pointer; border-radius: 8px; }
+.viz .track { position: relative; display: block; width: 100%; height: var(--h); }
+.viz .fill { position: absolute; left: 50%; bottom: 0; width: 24px; transform: translateX(-50%); height: max(2px, calc(var(--v) * 100%)); background: var(--seal); border-radius: 4px 4px 0 0;
+  transition: height .9s cubic-bezier(.2, .8, .2, 1) var(--d), width .9s cubic-bezier(.2, .8, .2, 1) var(--d), filter .15s; }
+.viz .lora .fill { background: repeating-linear-gradient(135deg, var(--seal) 0 4px, #7d2a22 4px 7px); }
+.viz .whisker { position: absolute; left: 50%; bottom: calc(var(--lo) * 100%); height: calc((var(--hi) - var(--lo)) * 100%); width: 1.5px; transform: translateX(-50%); background: rgba(242, 238, 230, .72); z-index: 1; opacity: calc(var(--v) * 99); transition: opacity .3s calc(var(--d) + .8s); }
+.viz .whisker::before, .viz .whisker::after { content: ""; position: absolute; left: -4px; width: 9.5px; height: 1.5px; background: inherit; }
+.viz .whisker::before { top: 0; } .viz .whisker::after { bottom: 0; }
+.viz .val { position: absolute; left: 50%; bottom: calc(var(--hi) * 100% + 8px); transform: translateX(-50%); font: 600 12.5px var(--mono); color: var(--bone); opacity: calc(var(--v) * 99); transition: opacity .3s calc(var(--d) + .8s); white-space: nowrap; }
+.viz .lab { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 12px; text-align: center; min-height: 40px; }
+.viz .lab .n { font-size: 12.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.viz .lab .v { font: 11px var(--mono); color: var(--muted); }
+.viz .col:hover .fill, .viz .col:focus-visible .fill { filter: brightness(1.22); }
+.viz .col:focus-visible { outline: 2px solid var(--bone); outline-offset: 2px; }
+.viz-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.viz-key .sw { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: var(--seal); margin-left: 12px; }
+.viz-key .sw:first-child { margin-left: 0; }
+.viz-key .sw.ci { background: linear-gradient(rgba(242, 238, 230, .6), rgba(242, 238, 230, .6)) center / 1.5px 100% no-repeat; }
+.viz-key .sw.hatch { background: repeating-linear-gradient(135deg, var(--seal) 0 3px, #7d2a22 3px 5px); }
+.viz-tip { position: absolute; z-index: 6; width: 280px; padding: 12px 14px; background: #0f0f0e; border: 1px solid #3a3a37; border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45); pointer-events: none; }
+.viz-tip .tv strong { font: 650 24px var(--mono); } .viz-tip .tv span { font: 14px var(--mono); color: var(--muted); }
+.viz-tip .tv em { font: 600 13px var(--mono); font-style: normal; color: var(--bone); margin-left: 10px; padding: 2px 7px; border-radius: 99px; background: #3a1f1b; }
+.viz-tip .tm { margin: 4px 0 10px; font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.viz-tip dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12.5px; }
+.viz-tip dt { color: var(--muted); } .viz-tip dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.viz-tip .th { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--seal); }
+@container (max-width: 620px) {
+  .viz-plot { grid-template-columns: 1fr; padding-left: 0; row-gap: 4px; }
+  .viz-plot .grid { display: none; }
+  .viz .col { display: grid; grid-template-columns: 112px 1fr; align-items: center; padding: 4px 0; }
+  .viz .lab { order: -1; align-items: flex-start; margin: 0; min-height: 0; text-align: left; padding-right: 10px; }
+  .viz .track { height: 26px; width: calc(100% - 44px); background: linear-gradient(#2a2a28, #2a2a28) left center / 100% 14px no-repeat; border-radius: 0 4px 4px 0; }
+  .viz .fill { left: 0; top: 50%; bottom: auto; transform: translateY(-50%); height: 14px; width: max(2px, calc(var(--v) * 100%)); border-radius: 0 4px 4px 0; }
+  .viz .lora .fill { background: repeating-linear-gradient(45deg, var(--seal) 0 4px, #7d2a22 4px 7px); }
+  .viz .whisker { left: calc(var(--lo) * 100%); bottom: auto; top: 50%; width: calc((var(--hi) - var(--lo)) * 100%); height: 1.5px; transform: translateY(-50%); }
+  .viz .whisker::before, .viz .whisker::after { left: auto; top: -4px; width: 1.5px; height: 9.5px; }
+  .viz .whisker::before { left: 0; } .viz .whisker::after { right: 0; bottom: auto; }
+  .viz .val { left: calc(var(--hi) * 100% + 8px); bottom: auto; top: 50%; transform: translateY(-50%); }
+}
+@media (prefers-reduced-motion: reduce) { .viz .fill, .viz .whisker, .viz .val { transition: none; } }
 .round { padding: 24px; }
 .round h3 { margin: 0 0 4px; font-size: 18px; }
 .round .meta { font: 12.5px var(--mono); color: var(--muted); margin-bottom: 18px; }

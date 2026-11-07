@@ -230,7 +230,7 @@
     for (const rd of F.rounds) for (const e of rd.certs) {
       const btn = h('button', { class: 'cert-btn', 'aria-pressed': 'false' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/${e.cert.benchmark.n}`),
         h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${zeroReveal(e.cert) ? 'nothing revealed' + (encrypted(e.cert) ? ', encrypted' : '') : rd.cap.toLocaleString('en') + ' tokens'}`));
-      btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
+      btn.dataset.file = e.file; btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
     }
     const hb = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, 'Answer slipped into the prompt'), h('span', { class: 's' }, '1/1'),
       h('span', { class: 'r' }, 'real round, signed and committed'));
@@ -278,6 +278,79 @@
       box.append(card);
     }
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); box.querySelectorAll('.bar i').forEach((b) => (b.style.width = b.dataset.w)); } }, ONSCREEN).observe(box);
+  }
+  // One round at a time: every model in a round answered the same sealed questions, so only within a round do bars compare.
+  function chart() {
+    const plot = $('#vizPlot'), tip = $('#vizTip'), fig = $('#viz');
+    const wilson = (k, n) => {  // 95% score interval for a proportion
+      const z = 1.96, p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, m = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d;
+      return [Math.max(0, c - m), Math.min(1, c + m)];
+    };
+    const pc = (x) => `${Math.round(100 * x)}%`;
+    const trace = (e) => ((e.recorded && e.recorded.trace && e.recorded.trace.services) || [])[0] || null;
+    const lora = (e) => { const t = trace(e); return (t && t.adapter) || (/abliterated/i.test(e.cert.run.model_id) ? { path: 'a LoRA adapter' } : null); };
+    const label = (m) => { const s = short(m); const v = s.match(/^(.*?)-(abliterated)$/i); return v ? [v[1], 'abliterated'] : [s, '']; };
+    let shown = false, cur = 0;
+    const chips = $('#vizRounds');
+    F.rounds.forEach((rd, i) => {
+      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)}`);
+      c.addEventListener('click', () => { press(chips, c); draw(i); }); chips.append(c);
+    });
+    function hide() { tip.hidden = true; }
+    function show(col, e, k, n, lo, hi) {
+      const c = e.cert, t = trace(e), ad = lora(e), log = (c.run.evidence && c.run.evidence.attempt_log) || [];
+      tip.replaceChildren(
+        h('div', { class: 'tv' }, h('strong', {}, `${k}`), h('span', {}, ` / ${n}`), h('em', {}, pc(k / n))),
+        h('div', { class: 'tm' }, c.run.model_id),
+        h('dl', {},
+          h('dt', {}, '95% interval'), h('dd', {}, `${pc(lo)} – ${pc(hi)}`),
+          h('dt', {}, 'Served'), h('dd', {}, t ? `${short(t.model_path || '?')}${t.model_revision ? ' @' + t.model_revision.slice(0, 8) : ''}` : (served(e) || '—')),
+          ...(ad ? [h('dt', {}, 'Adapter'), h('dd', {}, ad.weights ? `${short(ad.weights)}${ad.revision ? ' @' + ad.revision.slice(0, 8) : ''}` : 'LoRA, unpinned')] : []),
+          h('dt', {}, 'Scored'), h('dd', {}, c.run.evidence && c.run.evidence.tee_score ? `all ${n} inside a TEE` : `audited sample of ${c.audit.reveals.length}`),
+          h('dt', {}, 'Failed attempts'), h('dd', {}, `${log.length} (owner-reported)`)),
+        h('div', { class: 'th' }, 'Click to verify this certificate'));
+      tip.hidden = false;
+      const f = fig.getBoundingClientRect(), b = col.querySelector('.fill').getBoundingClientRect(), w = tip.offsetWidth, ht = tip.offsetHeight;
+      if (plot.offsetWidth < 560) {  // rows: under the hovered row
+        const r = col.getBoundingClientRect();
+        tip.style.left = Math.max(8, (f.width - w) / 2) + 'px'; tip.style.top = (r.bottom - f.top + 8) + 'px';
+      } else {  // columns: beside the bar, never over the header
+        const right = b.right - f.left + 16, x = right + w < f.width - 8 ? right : b.left - f.left - w - 16;
+        tip.style.left = x + 'px'; tip.style.top = Math.min(Math.max(b.top - f.top - 24, 8), f.height - ht - 8) + 'px';
+      }
+    }
+    function draw(i) {
+      cur = i; hide();
+      const rd = F.rounds[i], n = rd.certs[0].cert.benchmark.n, zr = zeroReveal(rd.certs[0].cert);
+      const rows = rd.certs.map((e) => ({ e, k: e.cert.run.total_score })).sort((a, b) => b.k - a.k);
+      $('#vizTitle').textContent = `Round ${rd.id.slice(-1)}: share of ${n} sealed questions answered correctly`;
+      $('#vizSub').textContent = `${rows.length} models on the same questions · whiskers show the 95% interval · ` + (zr ? 'every answer scored inside a TEE, nothing revealed' : 'every answer re-scored inside a TEE, a sample revealed');
+      plot.replaceChildren(h('div', { class: 'grid', 'aria-hidden': 'true' }, ...[100, 75, 50, 25, 0].map((g) => h('span', { style: `--g:${g / 100}` }, h('b', {}, g + '%')))));
+      plot.style.setProperty('--cols', rows.length);
+      rows.forEach(({ e, k }, j) => {
+        const [lo, hi] = wilson(k, n), [name, variant] = label(e.cert.run.model_id);
+        const col = h('button', { class: 'col' + (lora(e) ? ' lora' : ''), style: `--v:${shown ? k / n : 0};--lo:${lo};--hi:${hi};--d:${j * 60}ms`,
+          'aria-label': `${e.cert.run.model_id}: ${k} of ${n} correct, ${pc(k / n)}; 95% interval ${pc(lo)} to ${pc(hi)}. Opens the certificate in the verifier.` },
+          h('span', { class: 'track' }, h('span', { class: 'whisker' }), h('span', { class: 'fill' }), h('span', { class: 'val' }, pc(k / n))),
+          h('span', { class: 'lab' }, h('span', { class: 'n' }, name), h('span', { class: 'v' }, variant || ' ')));
+        col.dataset.final = k / n;
+        const on = () => show(col, e, k, n, lo, hi);
+        col.addEventListener('pointerenter', on); col.addEventListener('focus', on);
+        col.addEventListener('pointerleave', hide); col.addEventListener('blur', hide);
+        col.addEventListener('click', () => {
+          const b = [...document.querySelectorAll('.cert-btn')].find((x) => x.dataset.file === e.file);
+          if (b) { $('#verify').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' }); b.click(); }
+        });
+        plot.append(col);
+      });
+      const anyLora = rows.some(({ e }) => lora(e));
+      $('#vizKey').replaceChildren(h('span', { class: 'sw' }), 'Answered correctly', h('span', { class: 'sw ci' }), '95% interval',
+        ...(anyLora ? [h('span', { class: 'sw hatch' }), 'Abliterated: the base model plus a LoRA adapter that removes refusal training'] : []));
+      if (shown) requestAnimationFrame(() => plot.querySelectorAll('.col').forEach((c) => c.style.setProperty('--v', c.dataset.final)));
+    }
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') hide(); });
+    draw(0);
+    new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); shown = true; plot.querySelectorAll('.col').forEach((c) => c.style.setProperty('--v', c.dataset.final)); } }, ONSCREEN).observe(plot);
   }
   function explorer() {
     const RR = F.rounds.filter((rd) => rd.certs[0].cert.audit.reveals.length);  // a zero-reveal round has nothing to explore
@@ -353,7 +426,7 @@
     await Promise.all([load('vendor/noble.js', 'signature checker'), load('vendor/yaml.js', 'deployment trace reader'), load('verify.js', 'verifier'), load('data.js', 'certificates')]);
     F = window.FUIN; V = window.FuinVerify;
     const vl = $('#verifyLoading'); if (vl) vl.remove();
-    picker(); results(); explorer(); refusals();
+    picker(); chart(); results(); explorer(); refusals();
     $('#buildInfo').append('Page data from commit ', h('a', { href: 'https://github.com/fexx301/fuin/tree/' + F.commit }, F.commit), ` · ${F.generated_utc}`);
     // the TDX verifier (1.4 MB of WASM) is only needed partway through a run; verify.js waits on this promise
     window.DcapReady = load('vendor/dcap.js', 'Intel TDX verifier');
