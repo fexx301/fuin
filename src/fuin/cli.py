@@ -38,6 +38,8 @@ def main(argv=None) -> int:
                    "pinned scorer build (sealed in the policy), requests bound to the seal block, nothing revealed")
     s.add_argument("--e2ee", action="store_true", help="request template v3: each question and answer end-to-end encrypted "
                    "between you and the model's attested TEE key, so NEAR's gateway never sees them; requests bound to the seal block")
+    s.add_argument("--ask", action="store_true", help="zero-reveal round whose model calls are made inside OutLayer's TEE by the "
+                   "current pinned asker build in its locked project, each item asked once (sealed in the policy); run `fuin ask`")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
         if c == "run":
@@ -64,6 +66,9 @@ def main(argv=None) -> int:
     p.add_argument("--id", required=True); p.add_argument("--out", default="examples")
     p.add_argument("--host", required=True, choices=["fastfs", "gist"],
                    help="where the encrypted items are hosted for the enclave: fastfs (permanent, public) or gist (secret, deleted after)")
+    p = sub.add_parser("ask", help="enclave-asked round: ask every item inside the TEE, then have it attest the run")
+    p.add_argument("--id", required=True); p.add_argument("--model", required=True)
+    p.add_argument("--host", required=True, choices=["fastfs", "gist"], help="where the encrypted round is hosted for the asker")
     a = ap.parse_args(argv)
 
     if a.cmd == "check":
@@ -71,19 +76,34 @@ def main(argv=None) -> int:
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
         return 0
-    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal") else None  # noqa: F841 (held until exit)
+    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask") else None  # noqa: F841 (held until exit)
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
             print("Not sealing: the suite has errors. Run `fuin check` for details.\n" + "\n".join("  ✗ " + e for e in res["errors"][:10]))
             return 1
         print(tooling.disclosure(res["n"], tee=a.tee))
-        tee_wasm = None
+        tee_wasm, ask_with = None, None
+        if a.tee and a.ask:
+            raise SystemExit("--tee and --ask are two kinds of zero-reveal round: pick one")
         if a.tee:
             from fuin import tee
             tee_wasm = tee.tee_policy()["current"]
+        if a.ask:
+            from fuin import asker
+            if not asker.askers():
+                raise SystemExit("policy/tee-v2.json pins no asker build")
+            ask_with = (asker.askers()[-1]["wasm_sha256"], asker.askers()[-1]["project"])
         owner.seal(a.suite, a.id, a.owner, {m: {**SETTINGS, "max_tokens": a.max_tokens} for m in (a.model or [QWEN])}, tee_wasm=tee_wasm,
-                   encrypt=a.e2ee)
+                   encrypt=a.e2ee, asker=ask_with)
+    elif a.cmd == "ask":
+        from fuin import asker, tee
+        st = owner.load(a.id)
+        host = tee.fastfs_host(st["owner"]) if a.host == "fastfs" else tee.gist_host
+        st = asker.run(a.id, a.model, host)
+        o = st["runs"][a.model]["tee_asked"]["output"]
+        print(f"every item asked once inside the TEE: {o['total']}/{o['n']}, {o['retried']} retried asks "
+              f"(aggregate tx {st['runs'][a.model]['tee_asked']['transaction_hash']}); next: fuin commit")
     elif a.cmd == "run":
         owner.run(a.id, a.model, a.parallel)
     elif a.cmd == "commit":

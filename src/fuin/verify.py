@@ -29,6 +29,10 @@ LIMITS = [
     "answered correctly, though not what they ask.",
 ]
 LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
+LIMIT_RESAMPLE = next(x for x in LIMITS if x.startswith("An owner could send the same sealed request"))
+ASKED_LIMIT = ("Each item was asked once, inside the enclave; that rests on OutLayer's storage not being rolled back by its operator, "
+               "as every TEE result rests on Intel TDX and OutLayer. An owner could still seal the same questions as another round "
+               "and publish the better one: separate rounds aren't linked.")
 ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is "
                      "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
 ZERO_REVEAL_GROUNDED_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions; the choice of questions is the owner's. "
@@ -205,12 +209,14 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         _req(P.policy_hash(b["policy"]) == b["policy_hash"], "policy_mismatch")
         _req(P.unsupported_reason(b["policy"], n, b["models"]) is None, "policy_mismatch")
         _req(r["model_id"] in b["policy"]["models"], "policy_mismatch")
-        tee_round = P.is_tee_round(b["policy"])
-        if tee_round:  # zero-reveal: no sample at all; every item is re-scored in the TEE instead
+        tee_round, asked = P.is_tee_round(b["policy"]), P.is_asked_round(b["policy"])
+        if tee_round:  # zero-reveal: no sample at all; every item is re-scored (or asked and scored) in the TEE instead
             d, k = 0, 0
-            _req(a.get("mode") == P.TEE_AUDIT and a["k"] == 0 and a["indices"] == [] and a["reveals"] == [], "audit_sample_mismatch")
-            ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; "
-                         f"TEE-scored by scorer {b['policy']['audit']['scorer_wasm_sha256'][:12]}…, nothing revealed; "
+            _req(a.get("mode") == b["policy"]["audit"]["mode"] and a["k"] == 0 and a["indices"] == [] and a["reveals"] == [], "audit_sample_mismatch")
+            pa = b["policy"]["audit"]
+            how = (f"asked once per item inside the TEE by asker {pa['asker_wasm_sha256'][:12]}… in {pa['asker_project']}" if asked
+                   else f"TEE-scored by scorer {pa['scorer_wasm_sha256'][:12]}…")
+            ok("policy", f"fuin-v1; {b['policy']['scorer']['name']} sha256 {b['policy']['scorer']['sha256'][:12]}…; {how}, nothing revealed; "
                          f"{b['policy']['request']['template']}" + (" (end-to-end encrypted)" if P.is_e2ee(b["policy"]) else ""))
         else:
             d, k = core.audit_size(n)
@@ -256,8 +262,18 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
            else f"{k}/{k} revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)")
 
         tee_ev, tee_info = (r.get("evidence") or {}).get("tee_score"), None
-        if tee_round and tee_ev is None:
+        if tee_round and not asked and tee_ev is None:
             deferred.append(("tee_score_missing", "the sealed policy promises a TEE score and the certificate carries none"))
+        asked_ev, asked_info = (r.get("evidence") or {}).get("tee_asked"), None
+        if asked and asked_ev is None:
+            deferred.append(("tee_asked_missing", "the sealed policy promises enclave-asked answers and the certificate carries no aggregate"))
+        if asked and asked_ev is not None:
+            try:
+                asked_info = tee.check_asked_local(asked_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "the asker build or its project is not one this verifier pins"))
         if tee_ev is not None:  # optional: every item re-scored inside a TEE (fuin/tee.py); local half first
             try:
                 tee_info = tee.check_local(tee_ev, cert)
@@ -425,7 +441,26 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                               + (f"; {len(f)} flagged, not checked (a derived answer or a broader alternative): item{'' if len(f) == 1 else 's'} "
                                  + ", ".join(map(str, f)) if f else "") + f"; {detail}")
 
-        for step in (attest, registry, sample, tee_remote, ground_remote):
+        def asked_remote():
+            if asked_info is None:
+                return
+            try:
+                detail = tee.check_remote(asked_ev, cert)
+                lock = tee.check_asked_lock(cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "OutLayer worker measurements not approved at the aggregate's block, or legacy format"))
+                return
+            u, rt = asked_info.get("unreadable"), asked_info["retried"]
+            if u is not None:
+                counted["unreadable"] = u
+            ok("asked once", f"all {n} answers asked once inside an OutLayer TDX enclave by asker {asked_info['pin'][:12]}… in "
+                             f"{asked_info['project']} (aggregate task {asked_info['task']}): total {r['total_score']}/{n} and both roots match; "
+                             f"{rt} retried ask{'' if rt == 1 else 's'} (no answer had left the enclave)"
+                             + (f"; {u} unreadable answer{'' if u == 1 else 's'}" if u is not None else "") + f"; {lock}; {detail}")
+
+        for step in (attest, registry, sample, tee_remote, ground_remote, asked_remote):
             online(step)
     except Refused as e:
         code, _, where = str(e).partition(":")
@@ -439,8 +474,12 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     log = r.get("evidence", {}).get("attempt_log")
     warnings.append("owner-reported failed inference attempts: " + ("not recorded" if log is None else str(len(log)))
                     + " (not verifiable; an owner could omit them)")
-    tee_scored = any(c[0] == "tee score" for c in checks)
-    if tee_round:
+    tee_scored = any(c[0] in ("tee score", "asked once") for c in checks)
+    if asked:
+        scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item asked once and "
+                 f"scored inside an OutLayer TDX enclave, so the total is exact and no answer was chosen among several, under the TEE "
+                 f"trust assumptions; nothing revealed: all {n} items stay private")
+    elif tee_round:
         scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item rebuilt and "
                  f"re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE "
                  f"trust assumptions; nothing revealed: all {n} items stay private")
@@ -454,7 +493,9 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             scope += (f"; every item re-scored inside an OutLayer TDX enclave from the sealed bytes: the total {r['total_score']}/{n} is "
                       "exact, not statistical, under the TEE trust assumptions")
     v2 = P.is_seal_bound(b["policy"])
-    limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)]
+    asked_ok = any(c[0] == "asked once" for c in checks)
+    limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)
+              and not (asked_ok and x == LIMIT_RESAMPLE)] + ([ASKED_LIMIT] if asked_ok else [])
     grounded = any(c[0] == "answer keys" for c in checks)
     limits += ([ZERO_REVEAL_GROUNDED_LIMIT if grounded else ZERO_REVEAL_LIMIT] if tee_round else []) + ([GROUND_LIMIT] if grounded else []) + ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}

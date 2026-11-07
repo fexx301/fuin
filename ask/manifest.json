@@ -1,0 +1,5 @@
+{
+  "display": {"name": "Fuin asker"},
+  "capabilities": {"network": [{"host": "cloud-api.near.ai", "timeout_secs": 170}, "gist.githubusercontent.com", "test.fastfs.io"]},
+  "encryption_keys": [{"path": "fuin-ask-key"}, {"path": "fuin-ask"}]
+}

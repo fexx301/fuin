@@ -61,7 +61,8 @@ def benchmark_leaves(st: dict) -> list[bytes]:
     return [core.benchmark_leaf(i, bytes.fromhex(r["salt"]), r["item"]) for i, r in enumerate(st["items"])]
 
 
-def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None, encrypt: bool = False) -> dict:
+def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None, encrypt: bool = False,
+         asker: tuple[str, str] | None = None) -> dict:
     if _path(bid).exists():
         raise SystemExit(f"{bid} already exists in private/; seal is once per benchmark id")
     items = []
@@ -71,10 +72,11 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_was
             q["request_nonce"] = os.urandom(32).hex()
             items.append({"item": q, "salt": os.urandom(32).hex()})
     n = len(items)
-    pol = P.make_policy(n, models, tee_wasm=tee_wasm, e2ee=encrypt)
+    pol = P.make_policy(n, models, tee_wasm=tee_wasm, e2ee=encrypt, asker=asker)
     st = {"benchmark_id": bid, "owner": owner, "registry": near.REGISTRY, "items": items, "policy": pol, "runs": {}}
     root = core.merkle_root(benchmark_leaves(st)).hex()
-    disclosure = (f"TEE-scored by scorer {tee_wasm[:12]}…, nothing revealed." if tee_wasm
+    disclosure = (f"asked once per item inside the TEE by asker {asker[0][:12]}… in {asker[1]}, nothing revealed." if asker
+                  else f"TEE-scored by scorer {tee_wasm[:12]}…, nothing revealed." if tee_wasm
                   else f"audit reveals k={pol['audit']['k']} of {n} items per round (D={pol['audit']['D']}).")
     print(f"Sealing {bid}: n={n}, {disclosure}" + (" Questions and answers end-to-end encrypted (template v3)." if encrypt else ""))
     save(st)  # keep salts/nonces before the chain sees the root
@@ -86,9 +88,8 @@ def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_was
     return st
 
 
-def run(bid: str, model: str, parallel: int = 1) -> dict:
-    st = load(bid)
-    settings = st["policy"]["models"][model]
+def preflight(st: dict, model: str) -> dict:
+    """The run's record, created on first use: a fresh attestation report with a new nonce, and its one accepted signer."""
     rn = st["runs"].get(model)
     if rn is None:  # fresh run: preflight report with a new nonce
         nonce = os.urandom(32).hex()
@@ -104,6 +105,14 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
         rn = st["runs"][model] = {"preflight_nonce": nonce, "model_report": report, "policy_version": attestation_policy()["version"],
                                   "signer": accepted[0]["signing_address"].lower(), "rows": [], "attempt_log": []}
         save(st)
+    return rn
+
+
+def run(bid: str, model: str, parallel: int = 1) -> dict:
+    st = load(bid)
+    if P.is_asked_round(st["policy"]):
+        raise SystemExit("this round's answers are asked inside the enclave: use `fuin ask`")
+    rn = preflight(st, model)
     if "commit" in rn:
         raise SystemExit(f"{model} run already committed")
 
@@ -165,10 +174,16 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
     return st
 
 
+def row_shas(r: dict) -> tuple[str, str]:
+    """A row's request and response sha256: from its bytes, or as recorded for an enclave-asked row (no bytes left the enclave)."""
+    if "request_b64" in r:
+        return (hashlib.sha256(base64.b64decode(r["request_b64"])).hexdigest(), hashlib.sha256(base64.b64decode(r["response_b64"])).hexdigest())
+    return r["req_sha256"], r["resp_sha256"]
+
+
 def run_leaves(st: dict, model: str) -> list[bytes]:
     bl = benchmark_leaves(st)
-    return [core.run_leaf(r["i"], bl[r["i"]], hashlib.sha256(base64.b64decode(r["request_b64"])).digest(),
-                          hashlib.sha256(base64.b64decode(r["response_b64"])).digest(), r["score"])
+    return [core.run_leaf(r["i"], bl[r["i"]], bytes.fromhex(row_shas(r)[0]), bytes.fromhex(row_shas(r)[1]), r["score"])
             for r in st["runs"][model]["rows"]]
 
 
@@ -218,9 +233,10 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
     tee_round = P.is_tee_round(st["policy"])
     n, k = len(st["items"]), st["policy"]["audit"]["k"]
     if tee_round:  # no sample: every committed run must carry its TEE score
-        missing = [m for m, rn in st["runs"].items() if "commit" in rn and not rn.get("tee_score")]
+        need = "tee_asked" if P.is_asked_round(st["policy"]) else "tee_score"
+        missing = [m for m, rn in st["runs"].items() if "commit" in rn and not rn.get(need)]
         if missing:
-            raise SystemExit(f"TEE-scored round: run `fuin tee-score` for {', '.join(missing)} first")
+            raise SystemExit(f"zero-reveal round: run `fuin {'ask' if need == 'tee_asked' else 'tee-score'}` for {', '.join(missing)} first")
         seed_hdr, seed, indices = None, None, []
     else:
         seed_hdr = near.select_seed_block(record["close_height"] + 2)
@@ -246,14 +262,14 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                                  # owner-reported, not verifiable: failed inference attempts before each saved row
                                  "attempt_log": rn.get("attempt_log", []),
                                  **({"tee_score": rn["tee_score"]} if rn.get("tee_score") else {}),
+                                 **({"tee_asked": rn["tee_asked"]} if rn.get("tee_asked") else {}),
                                  **({"tee_ground": st["tee_ground"]} if st.get("tee_ground") else {})},
                     "items": [{"i": i, "benchmark_leaf": bl[i].hex(),
-                               "req_sha256": hashlib.sha256(base64.b64decode(rows[i]["request_b64"])).hexdigest(),
-                               "resp_sha256": hashlib.sha256(base64.b64decode(rows[i]["response_b64"])).hexdigest(),
+                               "req_sha256": row_shas(rows[i])[0], "resp_sha256": row_shas(rows[i])[1],
                                "score": rows[i]["score"], "signature": rows[i]["signature"]} for i in range(n)],
                     "run_root": rn["commit"]["run_root"], "total_score": rn["commit"]["total_score"],
                     "commit_tx": rn["commit"]["tx"], "commit_height": rn["commit"]["height"], "commit_block_hash": rn["commit"]["block_hash"]},
-            "audit": (({"mode": P.TEE_AUDIT, "k": 0} if tee_round else
+            "audit": (({"mode": st["policy"]["audit"]["mode"], "k": 0} if tee_round else
                         {"D": st["policy"]["audit"]["D"], "target": st["policy"]["audit"]["target"], "k": k})
                       | {"close_tx": st["close"]["tx"], "close_height": st["close"]["height"], "close_block_hash": st["close"]["block_hash"],
                          "round_runs": round_runs(record)}

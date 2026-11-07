@@ -153,6 +153,7 @@ def fastfs_upload(signer: str, data: bytes, ext: str, mime: str) -> str:
 
 def _output_from_chain(tx: str, signer: str) -> dict:
     st = near.rpc("EXPERIMENTAL_tx_status", {"tx_hash": tx, "sender_account_id": signer, "wait_until": "FINAL"})
+    failed = None
     for r in st["receipts_outcome"]:
         val = r["outcome"]["status"].get("SuccessValue")
         if val:
@@ -160,16 +161,20 @@ def _output_from_chain(tx: str, signer: str) -> dict:
             out = json.loads(out) if isinstance(out, str) else out
             if isinstance(out, dict) and ("v" in out or "error" in out):
                 return out
-    raise RuntimeError(f"no OutLayer output in {tx}")
+        failed = failed or next((x for x in r["outcome"].get("logs", []) if "Execution promise failed" in x or "Execution failed" in x), None)
+    raise RuntimeError(f"OutLayer execution failed in {tx}: {failed[:200]}" if failed else f"no OutLayer output in {tx}")
 
 
-def execute(signer: str, input_obj: dict, sc: dict | None = None) -> tuple[str, str, dict]:
-    """request_execution on OutLayer with the pinned scorer build. Returns (tx hash, exact input string, output)."""
+def execute(signer: str, input_obj: dict, sc: dict | None = None, project: str | None = None, secrets_ref: dict | None = None
+            ) -> tuple[str, str, dict]:
+    """request_execution on OutLayer with a pinned build: by URL, or as the active version of `project` (the asker, which
+    needs project storage and the owner's NEAR AI key as `secrets_ref`). Returns (tx hash, exact input string, output)."""
     tp, sc = tee_policy(), sc or current_scorer()
     input_data = jdump(input_obj)
-    args = {"source": {"WasmUrl": {"url": sc["url"], "hash": sc["wasm_sha256"], "build_target": "wasm32-wasip2"}},
-            "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
-            "input_data": input_data, "response_format": "Json"}
+    source = ({"Project": {"project_id": project, "version_key": sc["wasm_sha256"]}} if project else
+              {"WasmUrl": {"url": sc["url"], "hash": sc["wasm_sha256"], "build_target": "wasm32-wasip2"}})
+    args = {"source": source, "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
+            "input_data": input_data, "response_format": "Json", **({"secrets_ref": secrets_ref} if secrets_ref else {})}
     out = _near_file(signer, tp["outlayer"]["contract"], "request_execution", json.dumps(args).encode(), "300 Tgas", "0.1 NEAR")
     m = re.search(r"Transaction ID:\s*([1-9A-HJ-NP-Za-km-z]{43,44})", out)
     if not m:
@@ -415,18 +420,56 @@ def check_local(ev, cert: dict) -> dict:
     sealed_pin = cert["benchmark"]["policy"]["audit"].get("scorer_wasm_sha256") if P.is_tee_round(cert["benchmark"]["policy"]) else None
     if sealed_pin is not None and rec["wasm_hash"] != sealed_pin:  # a zero-reveal round sealed which scorer build scores it
         raise TeeRefused("tee_score_mismatch")
+    _need(out.get("v") == "fuin-tee-score-v1", "tee_score_mismatch")
+    _run_fields(out, cert, "tee_score_mismatch")
+    return {"task": rec["task_id"], "pin": _pinned(rec, pinned()), "unreadable": out.get("unreadable")}
+
+
+def _run_fields(out: dict, cert: dict, code: str) -> None:
+    """A TEE result for one run (a re-score or an asker's aggregate) equals the certificate's run, field by field."""
     b, r = cert["benchmark"], cert["run"]
     signers = {it["signature"]["signing_address"].lower() for it in r["items"]}
-    _need(out.get("v") == "fuin-tee-score-v1", "tee_score_mismatch")
     _need((out.get("model"), out.get("n"), out.get("total"), out.get("benchmark_root"), out.get("policy_hash"), out.get("run_root"))
-          == (r["model_id"], b["n"], r["total_score"], b["root"], b["policy_hash"], r["run_root"]) and {out.get("signer")} == signers,
-          "tee_score_mismatch")
-    v2 = P.is_seal_bound(b["policy"])  # the scorer rebuilt each nonce from this block hash
-    _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), "tee_score_mismatch")
+          == (r["model_id"], b["n"], r["total_score"], b["root"], b["policy_hash"], r["run_root"]) and {out.get("signer")} == signers, code)
+    v2 = P.is_seal_bound(b["policy"])  # each nonce was rebuilt from this block hash
+    _need(out.get("seal_block_hash") == (b["seal_block_hash"] if v2 else None), code)
     if "unreadable" in out:  # scorer v4+: only end-to-end-encrypted rounds have answers that can fail to decrypt
         u = out["unreadable"]
-        _need(P.is_e2ee(b["policy"]) and type(u) is int and 0 <= u <= b["n"], "tee_score_mismatch")
-    return {"task": rec["task_id"], "pin": _pinned(rec, pinned()), "unreadable": out.get("unreadable")}
+        _need(P.is_e2ee(b["policy"]) and type(u) is int and 0 <= u <= b["n"], code)
+
+
+def check_asked_local(ev, cert: dict) -> dict:
+    """An enclave-asked run's aggregate, offline: from the asker build and project the round sealed, and equal to the run."""
+    rec, out = _check_record(ev, cert, "fuin-tee-asked-evidence-v1", "aggregate")
+    a = cert["benchmark"]["policy"]["audit"]
+    if (rec["wasm_hash"], rec.get("project_id")) != (a["asker_wasm_sha256"], a["asker_project"]):
+        raise TeeRefused("tee_asked_mismatch")  # another build, or the same code in another project (other storage)
+    _need(out.get("v") == "fuin-tee-asked-v1" and type(out.get("retried")) is int and out["retried"] >= 0, "tee_asked_mismatch")
+    _run_fields(out, cert, "tee_asked_mismatch")
+    pins = {(x["wasm_sha256"], x["project"]) for x in tee_policy().get("askers", [])}
+    if (rec["wasm_hash"], rec.get("project_id")) not in pins or rec.get("executed_wasm_sha256", rec["wasm_hash"]) != rec["wasm_hash"]:
+        raise TeeUnapproved("tee_unapproved")
+    return {"task": rec["task_id"], "pin": rec["wasm_hash"], "project": rec["project_id"], "unreadable": out.get("unreadable"),
+            "retried": out["retried"]}
+
+
+def check_asked_lock(cert: dict) -> str:
+    """The network half of "asked once": at the seal block the project's owner account had no keys and no code, and the
+    project's only version was the sealed asker. Nobody could then delete the project (wiping its records) or change its
+    code, and every ask came after the seal (its nonce is bound to the seal block)."""
+    a, h = cert["benchmark"]["policy"]["audit"], cert["benchmark"]["seal_height"]
+    proj, acct = a["asker_project"], a["asker_project"].split("/")[0]
+    q = lambda kind, **kw: near.rpc("query", {"request_type": kind, "block_id": h, **kw})
+    keys = q("view_access_key_list", account_id=acct)["keys"]
+    code = q("view_account", account_id=acct)["code_hash"]
+    _need(keys == [] and code == "11111111111111111111111111111111", "tee_asked_unlocked")
+    view = lambda method, args: json.loads(bytes(q("call_function", account_id=tee_policy()["outlayer"]["contract"], method_name=method,
+                                                   args_base64=base64.b64encode(json.dumps(args).encode()).decode())["result"]))
+    project = view("get_project", {"project_id": proj})
+    versions = view("list_versions", {"project_id": proj, "from_index": 0, "limit": 10})
+    _need(isinstance(project, dict) and project.get("owner") == acct and project.get("active_version") == a["asker_wasm_sha256"]
+          and [v.get("wasm_hash") for v in versions] == [a["asker_wasm_sha256"]], "tee_asked_unlocked")
+    return f"{proj} was locked at the seal (block {h}): its owner had no keys and no code, and its only version was the sealed asker"
 
 
 def check_ground_local(ev, cert: dict) -> dict:
