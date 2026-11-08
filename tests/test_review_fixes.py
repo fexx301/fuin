@@ -121,3 +121,12 @@ def test_13_an_empty_round_is_a_clear_error():
     from fuin import policy as P
     with pytest.raises(ValueError, match="at least one item"):
         P.make_policy(0, {"m": {"max_tokens": 1}})
+
+
+def test_11_a_round_id_cannot_leave_private():
+    import pytest
+    from fuin import owner
+    for bad in ("../../x", "a/b", "..", "-x", "a*b", "", "x" * 65):
+        with pytest.raises(SystemExit):
+            owner._path(bad)
+    assert owner._path("near-dev-37-r7").name == "state.json"

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
@@ -22,6 +23,9 @@ def b64(b: bytes) -> str:
 
 
 def _path(bid: str) -> Path:
+    # a round id names a folder under private/: no separators or "..", so it can't reach outside it (review 11)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", bid) or ".." in bid:
+        raise SystemExit(f"round id {bid!r}: use 1-64 letters, digits, '.', '_' or '-', starting with a letter or digit")
     return PRIVATE / bid / "state.json"
 
 
