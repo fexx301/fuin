@@ -86,7 +86,7 @@ Seven rounds of private questions, each answer cited to a line of [near/docs](ht
 git clone https://github.com/fexx301/fuin && cd fuin
 uv sync                                    # first run downloads the dependencies
 env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-deepseek-v4.1-flash-1017.json   # about 1 minute: VERIFIED, every check printed
-uv run pytest -q                           # 5 seconds, offline: 153 passed
+uv run pytest -q                           # 5 seconds, offline: 154 passed
 uv run python scripts/check_fixtures.py examples/tampered/manifest.json   # optional, about 4 minutes: 39 ok lines
 ```
 
@@ -138,7 +138,7 @@ One verification takes about 40 seconds.
    - Each fixture and its expected verdict: [docs/REFUSALS.md](https://github.com/fexx301/fuin/blob/main/docs/REFUSALS.md).
 3. **Read an audit:** `uv run fuin show examples/cert-near-dev-60-r2-glm-5.3-flash.json --audit` prints each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 4. **Run the tests:**
-   - `uv run pytest`: 153 offline tests.
+   - `uv run pytest`: 154 offline tests.
    - `cd contract && cargo test`: 15 tests.
    - `cd tee && cargo test`: the TEE scorer against Python on 3,600 generated cases, plus signed synthetic rounds.
 5. **Try it in a browser:** open `site/index.html`. The page verifies certificates in the browser with the same checks, and lets you tamper with one live.
