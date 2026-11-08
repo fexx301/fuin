@@ -263,6 +263,7 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                                  "attempt_log": rn.get("attempt_log", []),
                                  **({"tee_score": rn["tee_score"]} if rn.get("tee_score") else {}),
                                  **({"tee_asked": rn["tee_asked"]} if rn.get("tee_asked") else {}),
+                                 **({"tee_asked_check": rn["tee_asked_check"]} if rn.get("tee_asked_check") else {}),
                                  **({"tee_ground": st["tee_ground"]} if st.get("tee_ground") else {})},
                     "items": [{"i": i, "benchmark_leaf": bl[i].hex(),
                                "req_sha256": row_shas(rows[i])[0], "resp_sha256": row_shas(rows[i])[1],

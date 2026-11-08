@@ -453,10 +453,19 @@ def check_asked_local(ev, cert: dict) -> dict:
             "retried": out["retried"]}
 
 
+def check_asked_check_local(ev, cert: dict) -> dict:
+    """The seal check of an enclave-asked run, offline: every request rebuilt with the seal block's hash equals the signed
+    one (else the task would have refused), by a pinned scorer, and the recomputed roots equal the run's."""
+    rec, out = _check_record(ev, cert, "fuin-tee-asked-check-evidence-v1", "asked-check")
+    _need(out.get("v") == "fuin-tee-asked-check-v1" and "unreadable" not in out, "tee_asked_mismatch")
+    _run_fields(out, cert, "tee_asked_mismatch")
+    return {"task": rec["task_id"], "pin": _pinned(rec, set(tee_policy().get("asked_checkers", [])))}
+
+
 def check_asked_lock(cert: dict) -> str:
     """The network half of "asked once": at the seal block the project's owner account had no keys and no code, and the
-    project's only version was the sealed asker. Nobody could then delete the project (wiping its records) or change its
-    code, and every ask came after the seal (its nonce is bound to the seal block)."""
+    project's only version was the sealed asker, so nobody could delete the project (wiping its records) or change its
+    code. That every ask came after the seal is the asked-check's part (check_asked_check_local)."""
     a, h = cert["benchmark"]["policy"]["audit"], cert["benchmark"]["seal_height"]
     proj, acct = a["asker_project"], a["asker_project"].split("/")[0]
     q = lambda kind, **kw: near.rpc("query", {"request_type": kind, "block_id": h, **kw})

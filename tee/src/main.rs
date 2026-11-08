@@ -4,6 +4,8 @@
 //!         build's sha256 (`bind: "wasm"`), so only this exact scorer, called by the same account, can open it.
 //! score:  fetch the owner's encrypted round, check its hash, unseal the secret, decrypt, rebuild and score every answer
 //!         (fuin_tee::score_round) and return only the roots, the total and the signer.
+//! asked-check: decrypt the same way; rebuild every request of an enclave-asked run with the true seal block hash and
+//!         require each to equal the request the model signed, then recompute the run's roots (fuin_tee::check_asked).
 //! ground: decrypt the same way, fetch every cited near/docs file at the round's commit and report which answer keys
 //!         don't appear in their cited line (fuin_tee::ground_round), with the sealed benchmark root they belong to.
 //! Native: `fuin-tee plain ROUND.json` scores a plaintext round without a TEE, and `fuin-tee ground ITEMS.json DIR` grounds
@@ -35,7 +37,7 @@ mod tee {
                 let sealed = outlayer::encryption_keys::encrypt(KEY_PATH, None, &b, AAD).map_err(|e| e.to_string())?;
                 Ok(json!({"v": "fuin-tee-key-v1", "pub": hex::encode(public.as_bytes()), "sealed": hex::encode(sealed)}))
             }
-            Some(mode @ ("score" | "ground")) => {
+            Some(mode @ ("score" | "ground" | "asked-check")) => {
                 let blob = wasi_http_client::Client::new().get(&s("url")?).connect_timeout(Duration::from_secs(20)).send()
                     .and_then(|r| r.body()).map_err(|e| format!("fetch: {e}"))?;
                 let blob_sha256 = hex::encode(Sha256::digest(&blob));
@@ -68,6 +70,13 @@ mod tee {
                 if mode == "score" {
                     return Ok(fuin_tee::score_round(&fuin_tee::round_from_json(&round)?)?.to_json(&blob_sha256));
                 }
+                if mode == "asked-check" {
+                    let r = fuin_tee::round_from_json(&round)?;
+                    let signer = round["signer"].as_str().ok_or("missing signer")?;
+                    let mut out = fuin_tee::check_asked(&r, &fuin_tee::asked_from_json(&round)?, signer)?.to_json(&blob_sha256);
+                    out["v"] = "fuin-tee-asked-check-v1".into();
+                    return Ok(out);
+                }
                 let items = fuin_tee::items_from_json(&round)?;
                 let (commit, paths) = fuin_tee::ground_sources(&items)?;
                 let mut files = std::collections::HashMap::new();
@@ -85,7 +94,7 @@ mod tee {
                 out["blob_sha256"] = blob_sha256.into();
                 Ok(out)
             }
-            _ => Err("mode must be keygen, score or ground".into()),
+            _ => Err("mode must be keygen, score, ground or asked-check".into()),
         }
     }
 }

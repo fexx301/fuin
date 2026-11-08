@@ -69,6 +69,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("ask", help="enclave-asked round: ask every item inside the TEE, then have it attest the run")
     p.add_argument("--id", required=True); p.add_argument("--model", required=True)
     p.add_argument("--host", required=True, choices=["fastfs", "gist"], help="where the encrypted round is hosted for the asker")
+    p = sub.add_parser("ask-check", help="enclave-asked round: have the TEE rebuild every request with the true seal block hash")
+    p.add_argument("--id", required=True); p.add_argument("--model", required=True); p.add_argument("--out", default="examples")
+    p.add_argument("--host", required=True, choices=["fastfs", "gist"])
     a = ap.parse_args(argv)
 
     if a.cmd == "check":
@@ -76,7 +79,7 @@ def main(argv=None) -> int:
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
         return 0
-    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask") else None  # noqa: F841 (held until exit)
+    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask", "ask-check") else None  # noqa: F841 (held until exit)
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
@@ -104,6 +107,16 @@ def main(argv=None) -> int:
         o = st["runs"][a.model]["tee_asked"]["output"]
         print(f"every item asked once inside the TEE: {o['total']}/{o['n']}, {o['retried']} retried asks "
               f"(aggregate tx {st['runs'][a.model]['tee_asked']['transaction_hash']}); next: fuin commit")
+    elif a.cmd == "ask-check":
+        from fuin import asker, tee
+        st = owner.load(a.id)
+        host = tee.fastfs_host(st["owner"]) if a.host == "fastfs" else tee.gist_host
+        ev = st["runs"][a.model]["tee_asked_check"] = asker.check(st, a.model, host)
+        owner.save(st)
+        print(f"every request rebuilt with the seal block's hash matches the signed one (task {ev['record']['task_id']})")
+        if st.get("close"):
+            for path in owner.reveal(a.id, a.out):
+                print(path)
     elif a.cmd == "run":
         owner.run(a.id, a.model, a.parallel)
     elif a.cmd == "commit":

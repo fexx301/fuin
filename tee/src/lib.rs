@@ -535,6 +535,41 @@ pub fn outcome_from(r: &Round, c: &Sealed, results: &[ItemResult]) -> Result<Out
     })
 }
 
+/// An enclave-asked run, checked against its seal (mode `asked-check`): each item's request is rebuilt with the true seal
+/// block hash and must equal the request the model signed (its sha256 in the run), so every recorded ask came after the
+/// seal; with the asked scores, the run's roots and total are recomputed exactly as for a TEE score. Rows aren't needed:
+/// the asker kept every response inside its enclave. The output carries no unreadable count (it needs the responses).
+pub fn check_asked(r: &Round, asked: &[([u8; 32], [u8; 32], u8)], signer: &str) -> Result<Outcome, String> {
+    let c = sealed(r)?;
+    if asked.len() != r.items.len() {
+        return Err("rows must match items one to one".into());
+    }
+    let mut results = Vec::with_capacity(asked.len());
+    for (i, (req, resp, score)) in asked.iter().enumerate() {
+        let (expected, _) = item_request(r, &c, i)?;
+        if &sha256(&[expected.as_bytes()]) != req {
+            return Err(format!("item {i}: request_policy_mismatch"));
+        }
+        if *score > 1 {
+            return Err(format!("item {i}: score out of range"));
+        }
+        results.push(ItemResult { req_sha: *req, resp_sha: *resp, score: *score, unreadable: false, signer: signer.to_lowercase() });
+    }
+    let mut o = outcome_from(r, &c, &results)?;
+    o.unreadable = None;
+    Ok(o)
+}
+
+/// The asked rows of a plaintext (`asked`: req_sha256, resp_sha256, score per item, in index order).
+pub fn asked_from_json(v: &Value) -> Result<Vec<([u8; 32], [u8; 32], u8)>, String> {
+    let h = |x: &Value, k: &str| -> Result<[u8; 32], String> {
+        hex::decode(x[k].as_str().ok_or(format!("missing {k}"))?).ok().and_then(|b| b.try_into().ok()).ok_or(format!("{k} must be 32 bytes"))
+    };
+    v["asked"].as_array().ok_or("asked")?.iter().map(|x| {
+        Ok((h(x, "req_sha256")?, h(x, "resp_sha256")?, x["score"].as_u64().filter(|s| *s <= 1).ok_or("score")? as u8))
+    }).collect()
+}
+
 /// Rebuild and score one run: every leaf from the sealed bytes, every request against the sealed template, every
 /// signature recovered to one signer, every answer scored. The verifier compares the result with the registry.
 pub fn score_round(r: &Round) -> Result<Outcome, String> {

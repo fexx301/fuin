@@ -30,9 +30,11 @@ LIMITS = [
 ]
 LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
 LIMIT_RESAMPLE = next(x for x in LIMITS if x.startswith("An owner could send the same sealed request"))
-ASKED_LIMIT = ("Each item was asked once, inside the enclave; that rests on OutLayer's storage not being rolled back by its operator, "
-               "as every TEE result rests on Intel TDX and OutLayer. An owner could still seal the same questions as another round "
-               "and publish the better one: separate rounds aren't linked.")
+ASKED_LIMIT = ("Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage "
+               "not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. A retried ask (one whose "
+               "first request ran out of time, so no answer had left the enclave) is a second draw, and the owner sets the task's time "
+               "limit: a single draw per item could differ from the total by at most the retried count. An owner could still seal the "
+               "same questions as another round and publish the better one: separate rounds aren't linked.")
 ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is "
                      "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
 ZERO_REVEAL_GROUNDED_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions; the choice of questions is the owner's. "
@@ -274,6 +276,16 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 raise Refused(str(e)) from e
             except tee.TeeUnapproved as e:
                 deferred.append((str(e), "the asker build or its project is not one this verifier pins"))
+        check_ev, check_info = (r.get("evidence") or {}).get("tee_asked_check"), None
+        if asked and check_ev is None:
+            deferred.append(("tee_asked_check_missing", "nothing shows the asked answers' requests were made after the seal"))
+        if asked and check_ev is not None:
+            try:
+                check_info = tee.check_asked_check_local(check_ev, cert)
+            except tee.TeeRefused as e:
+                raise Refused(str(e)) from e
+            except tee.TeeUnapproved as e:
+                deferred.append((str(e), "the asked-check's scorer build is not one this verifier pins"))
         if tee_ev is not None:  # optional: every item re-scored inside a TEE (fuin/tee.py); local half first
             try:
                 tee_info = tee.check_local(tee_ev, cert)
@@ -444,8 +456,11 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
         def asked_remote():
             if asked_info is None:
                 return
+            if check_info is None:
+                return
             try:
                 detail = tee.check_remote(asked_ev, cert)
+                tee.check_remote(check_ev, cert)
                 lock = tee.check_asked_lock(cert)
             except tee.TeeRefused as e:
                 raise Refused(str(e)) from e
@@ -457,7 +472,9 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 counted["unreadable"] = u
             ok("asked once", f"all {n} answers asked once inside an OutLayer TDX enclave by asker {asked_info['pin'][:12]}… in "
                              f"{asked_info['project']} (aggregate task {asked_info['task']}): total {r['total_score']}/{n} and both roots match; "
-                             f"{rt} retried ask{'' if rt == 1 else 's'} (no answer had left the enclave)"
+                             f"{rt} retried ask{'' if rt == 1 else 's'} (no answer had left the enclave); every request rebuilt with the seal "
+                             f"block's hash by scorer {check_info['pin'][:12]}… (task {check_info['task']}) equals the signed one, so every ask "
+                             f"came after the seal"
                              + (f"; {u} unreadable answer{'' if u == 1 else 's'}" if u is not None else "") + f"; {lock}; {detail}")
 
         for step in (attest, registry, sample, tee_remote, ground_remote, asked_remote):
@@ -476,9 +493,12 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                     + " (not verifiable; an owner could omit them)")
     tee_scored = any(c[0] in ("tee score", "asked once") for c in checks)
     if asked:
-        scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item asked once and "
-                 f"scored inside an OutLayer TDX enclave, so the total is exact and no answer was chosen among several, under the TEE "
-                 f"trust assumptions; nothing revealed: all {n} items stay private")
+        rt = asked_info["retried"] if asked_info else 0
+        scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item asked inside an "
+                 f"OutLayer TDX enclave after the seal and scored there, its answer recorded once, so the total is exact under the TEE "
+                 f"trust assumptions" + (f"; {rt} ask{'' if rt == 1 else 's'} retried after a timeout, so a single draw per item could "
+                 f"differ from this total by at most {rt}" if rt else "; no ask retried, so each item is a single draw")
+                 + f"; nothing revealed: all {n} items stay private")
     elif tee_round:
         scope = (f"signature evidence verified; commitments and total consistent ({r['total_score']}/{n}); every item rebuilt and "
                  f"re-scored inside an OutLayer TDX enclave from the sealed bytes, so the total is exact, not statistical, under the TEE "

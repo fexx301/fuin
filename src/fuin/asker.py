@@ -123,7 +123,27 @@ def run(bid: str, model: str, host, tries: int = 3) -> dict:
     rn["tee_asked"] = {"v": "fuin-tee-asked-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
                        "record": tee.fetch_record(tx), "scorer_url": ak["url"]}
     owner.save(st)
+    rn["tee_asked_check"] = check(st, model, host)
+    owner.save(st)
     return st
+
+
+def check(st: dict, model: str, host) -> dict:
+    """Have the scorer rebuild every request of the asked run with the true seal block hash (mode asked-check): each must
+    equal the request the model signed, so every recorded ask came after the seal, and the roots must equal the run's."""
+    rn = st["runs"][model]
+    tp = tee.tee_policy()
+    sc = next(x for x in reversed(tp["scorers"]) if x["wasm_sha256"] in tp.get("asked_checkers", []))
+    rows = sorted(rn["rows"], key=lambda r: r["i"])
+    plain = {**plaintext(st, model, rn), "signer": rn["signer"],
+             "asked": [{"req_sha256": r["req_sha256"], "resp_sha256": r["resp_sha256"], "score": r["score"]} for r in rows]}
+    tx, input_data, out = tee._sealed_task(st["owner"], host, sc, "asked-check", plain)
+    want = {k: v for k, v in expected(st, model, rn).items() if k not in ("retried", "unreadable")}
+    diff = {k: (out.get(k), v) for k, v in want.items() if out.get(k) != v}
+    if out.get("v") != "fuin-tee-asked-check-v1" or diff:
+        raise RuntimeError(f"asked-check differs from the asked run: {out.get('error') or diff}")
+    return {"v": "fuin-tee-asked-check-evidence-v1", "transaction_hash": tx, "input_data": input_data, "output": out,
+            "record": tee.fetch_record(tx), "scorer_url": sc["url"]}
 
 
 def expected(st: dict, model: str, rn: dict) -> dict:

@@ -138,3 +138,21 @@ fn an_unreadable_answer_scores_0_even_when_the_item_accepts_an_empty_answer() {
     let got = score(&round).unwrap();
     assert_eq!((got["total"].clone(), got["unreadable"].clone()), (2.into(), 1.into()));
 }
+
+#[test]
+fn asked_check_reproduces_the_run_only_with_the_true_seal_block() {
+    use sha2::{Digest, Sha256};
+    let (round, exp) = fixture_v2();
+    let r = fuin_tee::round_from_json(&round).unwrap();
+    let asked: Vec<([u8; 32], [u8; 32], u8)> = r.rows.iter().enumerate().map(|(i, row)| {
+        let score = fuin_tee::score_response(&serde_json::from_str(&r.items[i].item_jcs).unwrap(), &row.response, true).unwrap();
+        (Sha256::digest(&row.request).into(), Sha256::digest(&row.response).into(), score)
+    }).collect();
+    let signer = exp["signer"].as_str().unwrap();
+    let o = fuin_tee::check_asked(&r, &asked, signer).unwrap();
+    assert_eq!((o.total, o.run_root.as_str(), o.unreadable), (exp["total"].as_u64().unwrap(), exp["run_root"].as_str().unwrap(), None));
+    let mut other = round.clone();  // asks made with any other seal block hash (as before the seal) are refused
+    other["seal_block_hash"] = "11111111111111111111111111111111".into();
+    let err = fuin_tee::check_asked(&fuin_tee::round_from_json(&other).unwrap(), &asked, signer).err().unwrap();
+    assert!(err.contains("request_policy_mismatch") || err.contains("32 bytes"), "{err}");
+}
