@@ -274,7 +274,7 @@ Transactions for every round: `evidence/*/README.md`.
 Install the command once, then anyone can check a certificate with no account and no key:
 
 ```sh
-uv tool install git+https://github.com/fexx301/fuin    # puts `fuin` on your PATH, with the verifier's pinned policies
+pip install fuin                                        # or: uv tool install fuin; puts `fuin` on your PATH, with the verifier's pinned policies
 fuin verify cert.json                                  # VERIFIED, REFUSED or CAN'T CERTIFY, with every check printed
 ```
 
@@ -373,6 +373,8 @@ Also: verification needs the public services listed above (it is account-free, n
 | `examples/` | real certificates; `tampered/` fixtures and their manifest |
 | `evidence/` | dated command output, transactions and probe write-ups behind every claim here |
 | `scripts/` | fixture builder and checker, suite source checker, leak guard, results-page builder |
+| `ask/` | the asker: Rust compiled to WASI P2, run as the locked OutLayer project `ask.fuin.testnet/asker`; reproducible build `ask/build-docker.sh` (pass the commit it was built from) |
+| `docs/` | [how the code fits together](docs/ARCHITECTURE.md) and [what Fūin costs and depends on](docs/COSTS-AND-DEPENDENCIES.md) |
 | `site/` | interactive page: verify certificates in the browser (every local check, live NEAR RPC checks, and the Intel TDX quote via Phala's WASM build of `dcap-qvl`; the TEE score's OutLayer record (quote, task hash, worker approval, chain record) is checked live; the deployment trace is replayed live (vendored js-yaml reads the compose files); NVIDIA's GPU verdict can't run in a browser, so a published certificate shows `fuin verify`'s recorded result for it (matched to its exact bytes) and an uploaded one gets PARTLY CHECKED), tamper with them live, explore results. Open `site/index.html`; data from `scripts/build_page.py`, vendored crypto from `scripts/build_vendor.sh`, tested by `node scripts/test_site_verifier.mjs` |
 
-MIT licence.
+Running and fixing it: [MAINTAINING.md](MAINTAINING.md). Changes: [CHANGELOG.md](CHANGELOG.md). MIT licence.

@@ -1,0 +1,52 @@
+name: policy drift
+# NEAR redeploys models; each redeploy changes the measurements Fūin's attestation policy approves, and preflight stops
+# until a reviewed policy accepts them. This job notices that within a day: it runs `fuin policy-update`, which fetches
+# fresh attestation reports and, for any configuration whose evidence holds but isn't approved yet, drafts the next
+# policy with the evidence checked. It approves nothing. A draft is attached to one GitHub issue for a person to review
+# (see MAINTAINING.md). Needs the repository secret NEARAI_API_KEY (reports are fetched with a key); without it, it skips.
+on:
+  schedule:
+    - cron: "37 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0, as action.yml
+      - name: Draft a policy if NEAR redeployed
+        id: draft
+        env:
+          NEARAI_API_KEY: ${{ secrets.NEARAI_API_KEY }}
+        run: |
+          if [ -z "$NEARAI_API_KEY" ]; then echo "skipped: add the repository secret NEARAI_API_KEY to enable this check"; exit 0; fi
+          uv sync -q
+          uv run fuin policy-update | tee out.txt
+          f=$(grep -oE 'policy/attestation-v[0-9]+\.json' out.txt | head -1 || true)
+          echo "draft=$f" >> "$GITHUB_OUTPUT"
+      - name: Keep the draft
+        if: steps.draft.outputs.draft != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: attestation-policy-draft
+          path: |
+            ${{ steps.draft.outputs.draft }}
+            out.txt
+      - name: Open one review issue
+        if: steps.draft.outputs.draft != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="NEAR redeployed a model: review ${{ steps.draft.outputs.draft }}"
+          if gh issue list --state open --search "in:title NEAR redeployed a model" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "a review issue is already open"; exit 0; fi
+          { echo "\`fuin policy-update\` drafted **${{ steps.draft.outputs.draft }}** (artifact: attestation-policy-draft on run ${{ github.run_id }})."
+            echo; echo "It approves nothing. To accept it, follow MAINTAINING.md (\"When NEAR redeploys a model\")."
+            echo; echo '```'; sed -n '1,60p' out.txt; echo '```'; } > body.md
+          gh issue create --title "$title" --body-file body.md

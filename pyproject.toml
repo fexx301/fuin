@@ -1,6 +1,6 @@
 [project]
 name = "fuin"
-version = "0.1.0"
+version = "1.0.0"
 description = "Sealed benchmark results with verifiable NEAR AI Cloud TEE signatures and a re-scorable audit sample"
 readme = "README.md"
 license = "MIT"
@@ -15,6 +15,11 @@ dependencies = [
     "sigstore>=4",
 ]
 
+[project.urls]
+Homepage = "https://github.com/fexx301/fuin"
+Repository = "https://github.com/fexx301/fuin"
+Documentation = "https://github.com/fexx301/fuin#readme"
+
 [project.scripts]
 fuin = "fuin.cli:main"
 
@@ -27,6 +32,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fuin"]
+
+[tool.hatch.build.targets.sdist]  # the package and its policies; the site, evidence and examples stay in the repository
+include = ["src/fuin", "policy", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "policy" = "fuin/policy"  # an installed fuin carries the verifier's pinned policies

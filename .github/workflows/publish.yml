@@ -1,0 +1,40 @@
+name: publish
+# Builds the fuin package and publishes it to PyPI when a version tag (vX.Y.Z) is pushed. Trusted publishing: PyPI
+# accepts this workflow's GitHub identity (OIDC), so no PyPI token is stored anywhere. One-time setup on pypi.org:
+# a "pending publisher" for project fuin, owner fexx301, repository fuin, workflow publish.yml, environment pypi.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0, as action.yml
+      - name: Build, and check the tag matches the package version
+        run: |
+          v=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME doesn't match version $v"; exit 1; }
+          uv build
+      - name: Install the wheel in a clean environment and verify a certificate with it
+        run: |
+          uv venv -q /tmp/check && uv pip install -q --python /tmp/check/bin/python dist/*.whl
+          env -u NEARAI_API_KEY /tmp/check/bin/fuin verify examples/cert-near-dev-96-r6-glm-5.3-flash.json | head -1 | grep -q 'VERIFIED\|CAN.T CERTIFY'
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0, as action.yml
+      - run: uv publish --trusted-publishing always dist/*
