@@ -19,7 +19,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
 **Human reviewers (2 minutes):**
 1. Read [the problem](#the-problem), [the three kinds of round](#three-kinds-of-round) and [the result](#result-which-near-ai-cloud-model-answers-near-developer-questions-correctly).
-2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 34 cases (25 tampered or malformed certificates refused, 9 that can't be certified), each caught by a named check.
+2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 39 cases (29 tampered or malformed certificates refused, 9 that can't be certified, and 1 tricky but valid one that must stay VERIFIED), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
 
@@ -28,7 +28,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 ```sh
 uv sync                                    # first run downloads the dependencies
 env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-deepseek-v4.1-flash-1017.json   # about 1 minute: VERIFIED, every check printed
-uv run pytest -q                           # 5 seconds, offline: 140 passed
+uv run pytest -q                           # 5 seconds, offline: 153 passed
 uv run python scripts/check_fixtures.py examples/tampered/manifest.json   # optional, about 4 minutes: all 24 tampered or unsupported certificates caught
 ```
 
@@ -47,7 +47,7 @@ Every claim below maps to a command:
 | The served container and weights are traced to NEAR's public deployment repo | same output, `deployment trace` line | `… nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc …` |
 | The set and results were committed on NEAR, with the seal before the commit and the commit before the close | same output, `registry` line | `seal … < commit … < close …` |
 | The owner can't choose which items a committed round reveals | same output, `audit sample` line; fixture `changed-audit` | `first final block ≥ close+2`; `REFUSED audit_sample_mismatch` |
-| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 34 `ok` lines, exit 0 |
+| Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 39 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
 | A zero-reveal round's answer keys come from their cited sources | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-glm-5.3-flash.json` | `[pass] answer keys: 92/96 answer keys appear in their cited line of near/docs at e2d2ea17, checked inside an OutLayer TDX enclave …; 4 flagged, not checked …: items 14, 35, 46, 94`; fixtures `ground-other-round`, `ground-hidden-flag`, `ground-fork-commit`, `ground-unpinned-build` |
@@ -141,7 +141,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    uv run python scripts/check_fixtures.py examples/tampered/manifest.json
    ```
 
-   You see 34 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
+   You see 39 `ok` lines. Each fixture makes one change, listed in `examples/tampered/manifest.json`, and gets exactly its expected verdict:
 
    | Fixture | What changed | Verdict |
    |---|---|---|
@@ -168,6 +168,21 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
    | zero-reveal-unscored | a zero-reveal round's certificate with its TEE score removed, so nothing checks its scores | CAN'T CERTIFY `tee_score_missing` |
    | zero-reveal-scorer-swapped | the TEE record names a build other than the one sealed in the round's policy | REFUSED `tee_score_mismatch` |
    | evidence-unavailable | NEAR RPC unreachable | CAN'T CERTIFY `evidence_unavailable` |
+   | infinite-tolerance | a revealed numeric item's tolerance set to Infinity, which would mark any number correct (review 1) | REFUSED `certificate_invalid` |
+   | malformed-event-log | an attestation report's event-log entry replaced with a string; it used to crash a later check (review 2) | REFUSED `certificate_invalid` |
+   | malformed-gpu-evidence | an attestation report's GPU evidence replaced with a JSON list (review 2) | REFUSED `certificate_invalid` |
+   | edited-event-digest | a logged RTMR3 event digest replaced; both verifiers compare each logged digest with the event (review 7) | REFUSED `attestation_invalid` |
+   | shared-key-other-model-first | a report for another model with the same signing key listed first; the verifier must use the accepted report (review 4), so this stays VERIFIED | stays VERIFIED |
+   | ground-other-round | the grounding's benchmark root swapped for another round's, output hash recomputed: it no longer covers this round's sealed keys | REFUSED `tee_ground_mismatch` |
+   | ground-hidden-flag | a flagged answer key un-flagged and the count lowered, output hash recomputed; the Intel-signed quote binds the original output | REFUSED `tee_attestation_invalid` |
+   | ground-fork-commit | the grounding cites a near/docs commit the verifier doesn't pin (GitHub serves a fork's commits under near/docs too) | CAN'T CERTIFY `tee_unapproved` |
+   | ground-unpinned-build | the grounding's record names a build the verifier doesn't pin as a grounder | CAN'T CERTIFY `tee_unapproved` |
+   | asked-unscored | an enclave-asked round's certificate with its aggregate removed, so nothing shows each answer was asked once | CAN'T CERTIFY `tee_asked_missing` |
+   | asked-unchecked | the asked-check removed, so nothing shows the answers' requests were made after the seal | CAN'T CERTIFY `tee_asked_check_missing` |
+   | asked-other-project | the aggregate's record names another project: the same code there has other storage, so its asks could repeat | REFUSED `tee_asked_mismatch` |
+   | asked-total-edited | the aggregate's total raised and its output hash recomputed; it now contradicts the committed run | REFUSED `tee_asked_mismatch` |
+   | asked-check-edited | the asked-check's run root replaced and its output hash recomputed; it no longer equals the committed run | REFUSED `tee_asked_mismatch` |
+   | asked-hidden-retry | a retried ask hidden (retried 1 -> 0) with the output hash recomputed; the Intel-signed quote binds the original output | REFUSED `tee_attestation_invalid` |
 
 3. **Read the audit.**
 
@@ -177,7 +192,7 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
    You see the revealed-sample summary and miss breakdown, then each of the 23 revealed questions with its expected answer, docs source, what the model said and its score.
 
-4. **Run the tests.** `uv run pytest` (140 tests, including hostile-input, outage, unapproved-OS, TEE-evidence, answer-key-grounding, enclave-asked-round and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer; answer-key grounding matched to Python on edge cases such as `\r\n` endings and line breaks only Python would split on, and unsafe source paths refused).
+4. **Run the tests.** `uv run pytest` (153 tests, including hostile-input, outage, unapproved-OS, TEE-evidence, answer-key-grounding, enclave-asked-round and end-to-end-encryption cases that run offline), `cd contract && cargo test` (15 tests) and `cd tee && cargo test` (the TEE scorer against Python on 3,600 generated cases, including Python's 28-digit rounding of numeric differences, and signed synthetic rounds: reproduced; six refusals; the seal-bound template refused with the wrong seal block or none; the end-to-end-encrypted template re-encrypted and decrypted, and refused with another key or none; an unreadable answer scored 0 even when its item accepts an empty answer; answer-key grounding matched to Python on edge cases such as `\r\n` endings and line breaks only Python would split on, and unsafe source paths refused).
 
 ## How it works
 

@@ -19,5 +19,6 @@ The first public release, built at NEAR HACKATHON.
 - **Answer keys:** each key is checked inside a TEE against the docs line it cites.
 - **Two verifiers that must agree:** the `fuin verify` command and a browser verifier. Both give three outcomes: VERIFIED, REFUSED with a reason code, or CAN'T CERTIFY when evidence is missing or a service is down.
 - **Reproducible builds:** the TEE scorer and the asker (Docker), with their hashes pinned in `policy/tee-v2.json`.
-- **Seven verified rounds:** 20 certificates, 2,302 TEE-checked answers, seven models, and 34 tamper fixtures.
+- **Seven verified rounds:** 20 certificates, 2,302 TEE-checked answers, seven models, and 39 tamper fixtures.
 - **For owners:** `fuin check`, `fuin status`, `fuin policy-update`, a GitHub Action, and `pip install fuin`.
+- **Hardened after an external review** (`evidence/2026-11-08-external-review/`): stricter suite and evidence form checks, a pinned deployment trace, NVIDIA verdict tokens verified, and the browser verifier aligned with the command line.
