@@ -130,3 +130,10 @@ def test_11_a_round_id_cannot_leave_private():
         with pytest.raises(SystemExit):
             owner._path(bad)
     assert owner._path("near-dev-37-r7").name == "state.json"
+
+
+def test_12_models_sharing_a_last_name_get_distinct_certificate_files():
+    from fuin import owner
+    assert owner.cert_name("org1/Model", ["org1/Model", "org2/model"]) == "org1--model"
+    assert owner.cert_name("org2/model", ["org1/Model", "org2/model"]) == "org2--model"
+    assert owner.cert_name("z-ai/glm-5.3-flash", ["z-ai/glm-5.3-flash", "Qwen/Qwen3.8-27B"]) == "glm-5.3-flash"  # unchanged

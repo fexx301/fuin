@@ -229,6 +229,14 @@ def audit_context(st_or_cert: dict, record: dict, close_block_hash: str) -> dict
             "close_height": record["close_height"], "close_block_hash": close_block_hash, "runs": round_runs(record)}
 
 
+def cert_name(model: str, models: list[str]) -> str:
+    """The model's part of a certificate file name: its last path segment, or its whole id when another model in the round
+    shares that segment, so one certificate can't overwrite another (review 12)."""
+    last = model.split("/")[-1].lower()
+    clash = sum(m.split("/")[-1].lower() == last for m in models) > 1
+    return model.replace("/", "--").lower() if clash else last
+
+
 def reveal(bid: str, out_dir: str) -> list[Path]:
     st = load(bid)
     record = near.view(near.REGISTRY["account"], "get_benchmark", {"owner": st["owner"], "benchmark_id": bid})
@@ -285,7 +293,7 @@ def reveal(bid: str, out_dir: str) -> list[Path]:
                                       "proof_benchmark": [h.hex() for h in core.merkle_proof(bl, i)],
                                       "proof_run": [h.hex() for h in core.merkle_proof(rl, i)]} for i in indices]}),
         }
-        p = Path(out_dir) / f"cert-{bid}-{model.split('/')[-1].lower()}.json"
+        p = Path(out_dir) / f"cert-{bid}-{cert_name(model, list(st['runs']))}.json"
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(cert, indent=1, ensure_ascii=False) + "\n")
         paths.append(p)
