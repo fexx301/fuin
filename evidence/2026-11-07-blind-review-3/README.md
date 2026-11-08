@@ -15,7 +15,7 @@ A fresh clone of `66dbb25`, run with no API key, no project memory and no user-l
 
 ## Not fixed, and why
 
-- **c1, real fix (the enclave makes the single inference call per item):** a redesign of how runs are made. This close to the deadline the stated limit is the honest change.
+- **c1, real fix (the enclave makes the single inference call per item):** a redesign of how runs are made. This close to the deadline the stated limit is the honest change. **Update, Nov 8: done for round 7.** The asker (`ask/`) in the locked project `ask.fuin.testnet/asker` made every model call, recorded each answer once, and scorer v9's asked-check shows every request was made after the seal (`evidence/2026-11-08-round-near-dev-37-r7/`). Rounds 1–6 keep the printed limit.
 - **c2, answer keys checked against their cited source inside the TEE:** the owner already does this check when the suite is built (`scripts/check_suite_sources.py`: every anchor on its cited line, and each answer either found literally or listed for review). **Update, later on Nov 7: done.** Scorer v7 checks each key against its cited line inside the TEE, once per round and bound to the sealed root, so nothing had to be re-scored; derived answers are flagged rather than passed. Rounds 4–6: 337 of 347 keys found, 10 flagged (`evidence/2026-11-07-answer-key-grounding/`).
 - **Policy churn (v1–v9 in five days):** it follows NEAR's redeploys. `fuin policy-update` drafts each update, and a person reviews it.
 - **Impact (no outside user with a real private benchmark) and README density:** not changed by code.

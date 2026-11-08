@@ -260,6 +260,16 @@ if len(sys.argv) > 6:
         ev["output"]["total"] += 1
         rehash(ev)
 
+    @a_fixture("asked-unchecked", "CANT_CERTIFY tee_asked_check_missing", "the asked-check removed, so nothing shows the answers' requests were made after the seal")
+    def _(c):
+        del c["run"]["evidence"]["tee_asked_check"]
+
+    @a_fixture("asked-check-edited", "REFUSED tee_asked_mismatch", "the asked-check's run root replaced and its output hash recomputed; it no longer equals the committed run")
+    def _(c):
+        ev = c["run"]["evidence"]["tee_asked_check"]
+        ev["output"]["run_root"] = "00" * 32
+        rehash(ev)
+
     @a_fixture("asked-hidden-retry", "REFUSED tee_attestation_invalid", "a retried ask hidden (retried 1 -> 0) with the output hash recomputed; the Intel-signed quote binds the original output")
     def _(c):
         ev = c["run"]["evidence"]["tee_asked"]

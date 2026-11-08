@@ -69,3 +69,13 @@ def test_aggregate_from_another_build_or_project_is_refused():
         c["run"]["evidence"]["tee_asked"]["record"][k] = v
         with pytest.raises(tee.TeeRefused):
             tee.check_asked_local(c["run"]["evidence"]["tee_asked"], c)
+
+
+def test_real_asked_check_passes_offline_and_a_changed_root_is_refused():
+    c = _cert()
+    assert tee.check_asked_check_local(c["run"]["evidence"]["tee_asked_check"], c)["pin"] in tee.tee_policy()["asked_checkers"]
+    ev = c["run"]["evidence"]["tee_asked_check"]
+    ev["output"]["run_root"] = "00" * 32
+    ev["record"]["output_hash"] = hashlib.sha256(tee._sorted_compact(ev["output"]).encode()).hexdigest()
+    with pytest.raises(tee.TeeRefused):
+        tee.check_asked_check_local(ev, c)

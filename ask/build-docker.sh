@@ -2,12 +2,19 @@
 # The canonical asker build: Linux x86_64 in the same digest-pinned Rust image as tee/build-docker.sh, so any host with
 # Docker gets the same bytes. Copies only sources (ask/ and the scorer library it depends on), writes dist/fuin-ask.wasm
 # and prints the sha256 that policy/tee-v2.json pins under "askers".
+# With a commit (ask/build-docker.sh COMMIT), builds ask/ and tee/ exactly as they were at that commit: the asker in its
+# locked project was built from a fixed commit and can never change, while the scorer library it shares keeps moving.
 set -euo pipefail
 cd "$(dirname "$0")"
+src="$PWD/.."
+if [ $# -ge 1 ]; then
+  src=$(mktemp -d); trap 'rm -rf "$src"' EXIT
+  git -C .. archive "$1" ask tee | tar -x -C "$src"
+fi
 IMAGE="rust@sha256:e14e87345b4d5964ddcc3491d27ee046a0f23820f340c3c1e24da6880141f7c0"  # rust:1.95.0-slim, linux/amd64
 mkdir -p dist
 out=$(mktemp -d)  # outside the read-only source mount: a nested mount confuses Docker Desktop's file sharing
-docker run --rm --platform linux/amd64 -v "$PWD/..":/src:ro -v "$out":/dist "$IMAGE" bash -c '
+docker run --rm --platform linux/amd64 -v "$src":/src:ro -v "$out":/dist "$IMAGE" bash -c '
   set -e; mkdir -p /b/tee /b/ask
   cp -r /src/tee/Cargo.toml /src/tee/Cargo.lock /src/tee/rust-toolchain.toml /src/tee/manifest.json /src/tee/src /b/tee/
   cp -r /src/ask/Cargo.toml /src/ask/Cargo.lock /src/ask/rust-toolchain.toml /src/ask/manifest.json /src/ask/build.sh /src/ask/src /b/ask/

@@ -168,6 +168,18 @@
    "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
   },
   {
+   "file": "asked-unchecked.json",
+   "expected": "CANT_CERTIFY tee_asked_check_missing",
+   "mutation": "the asked-check removed, so nothing shows the answers' requests were made after the seal",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
+   "file": "asked-check-edited.json",
+   "expected": "REFUSED tee_asked_mismatch",
+   "mutation": "the asked-check's run root replaced and its output hash recomputed; it no longer equals the committed run",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
    "file": "asked-hidden-retry.json",
    "expected": "REFUSED tee_attestation_invalid",
    "mutation": "a retried ask hidden (retried 1 -> 0) with the output hash recomputed; the Intel-signed quote binds the original output",

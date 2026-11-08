@@ -15,13 +15,14 @@ Rounds 1–6 left one gap a certificate couldn't close (blind review 3, weakness
 - **No question, answer or response body leaves the enclave.** The owner gets each answer's hashes, score and signature. A last task (`aggregate`) reads every final record and attests the run's roots and total, exactly as the TEE scorer does.
 - **`fuin verify` checks:**
   - that the aggregate came from the sealed asker in the sealed project and equals the committed run;
+  - that every request, rebuilt inside a TEE with the seal block's hash (scorer v9's asked-check, task 27343), equals the request the model signed, so every ask came after the seal. A review found this missing at first: without it, asks made before the seal, under a guessed seal hash, could have been aggregated later. Round 7 was re-checked and passes 37/37;
   - and, on the archival chain at the seal block, that the project's owner had no keys and no code, and that the asker was the project's only version.
 
 **Result.** VERIFIED keyless by both verifiers (`verify-output.txt`, `verify.jsonl`; the browser verifier in Node gives VERIFIED too).
 
 | Model | Correct | 95% interval | Asked | Commit | Aggregate (OutLayer task) |
 |---|---|---|---|---|---|
-| deepseek-ai/DeepSeek-V4.1-Flash-1017 | **19/37** | 36–67% | 37 asks, 1 retried | `7EDzYgZmB6KtxpdfUAUm5f75LEx32b1LpL5AXhumWpLg` | `CaERs6ok2Ud2VCcpcwUKeX7mVaq3YGRi6aTp1hmoWMGj` (27207) |
+| deepseek-ai/DeepSeek-V4.1-Flash-1017 | **19/37** | 36–67% | 37 asks, 1 retried (a single draw per item could differ by at most 1) | `7EDzYgZmB6KtxpdfUAUm5f75LEx32b1LpL5AXhumWpLg` | `CaERs6ok2Ud2VCcpcwUKeX7mVaq3YGRi6aTp1hmoWMGj` (27207) |
 
 - **Seal:** `7NmmAkLeQzc7LRezVYp5tD4Y1irhxaeVA5Fd4r4izHoa` at height 276695392, after the lock.
 - **Close:** `14BZmP5vL83jQHJErjrvzViszVVYz1qgGnBBxCXYZwZY` at 276697978.

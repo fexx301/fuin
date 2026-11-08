@@ -348,6 +348,12 @@
     if (!pinned || ('executed_wasm_sha256' in rec ? rec.executed_wasm_sha256 : rec.wasm_hash) !== rec.wasm_hash) throw new TeeUnapproved('tee_unapproved');
     return { task: rec.task_id, pin: rec.wasm_hash, project: rec.project_id, unreadable: out.unreadable, retried: out.retried };
   }
+  async function askedCheckLocal(ev, cert, cfg) {  // fuin/tee.py check_asked_check_local: requests rebuilt with the seal block hash
+    const { rec, out } = await teeRecord(ev, cert, 'fuin-tee-asked-check-evidence-v1', 'asked-check');
+    req(out.v === 'fuin-tee-asked-check-v1' && !('unreadable' in out), 'tee_asked_mismatch');
+    runFields(out, cert, cfg, 'tee_asked_mismatch');
+    return { task: rec.task_id, pin: tPinned(rec, cfg.tee.asked_checkers || []) };
+  }
   async function askedLock(cert, cfg) {  // fuin/tee.py check_asked_lock: the project was locked at the seal block
     const a = cert.benchmark.policy.audit, h = cert.benchmark.seal_height, proj = a.asker_project, acct = proj.split('/')[0];
     const q = (kind, extra) => rpc(cfg.rpc, 'query', { request_type: kind, block_id: h, account_id: acct, ...extra });
@@ -541,11 +547,17 @@
       const asked = isAsked(b.policy, S), askedEv = (r.evidence || {}).tee_asked;
       if (tr && !asked && teeEv == null) deferred.push(['tee_score_missing', 'the sealed policy promises a TEE score and the certificate carries none']);
       if (asked && askedEv == null) deferred.push(['tee_asked_missing', 'the sealed policy promises enclave-asked answers and the certificate carries no aggregate']);
-      let askedInfo = null;
+      const checkEv = (r.evidence || {}).tee_asked_check;
+      if (asked && checkEv == null) deferred.push(['tee_asked_check_missing', "nothing shows the asked answers' requests were made after the seal"]);
+      let askedInfo = null, checkInfo = null;
       if (asked && askedEv != null) {
         await start('asked');
         try { askedInfo = await askedLocal(askedEv, cert, cfg); await onStep('asked', 'running', 'aggregate matches the run; checking its quote, the chain and the project lock…'); }
         catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', 'the asker build or its project is not one this verifier pins']); await onStep('asked', 'fail', 'tee_unapproved'); }
+        if (checkEv != null) {
+          try { checkInfo = await askedCheckLocal(checkEv, cert, cfg); }
+          catch (e) { if (!(e instanceof TeeUnapproved)) throw e; deferred.push(['tee_unapproved', "the asked-check's scorer build is not one this verifier pins"]); await onStep('asked', 'fail', 'tee_unapproved'); }
+        }
       }
       if (teeEv != null) {
         await start('tee');
@@ -679,13 +691,15 @@
         }
       }
       if (askedInfo && !root.Dcap) await onStep('asked', 'skip', 'aggregate matches the run, but its quote is not checked here: the Intel TDX verifier did not load. Run fuin verify.');
-      else if (askedInfo) {
+      else if (askedInfo && checkInfo) {
         await start('asked');
         try {
-          const detail = await teeRemote(askedEv, cert, cfg), lock = await askedLock(cert, cfg), rt = askedInfo.retried, u = askedInfo.unreadable;
+          const detail = await teeRemote(askedEv, cert, cfg); await teeRemote(checkEv, cert, cfg);
+          const lock = await askedLock(cert, cfg), rt = askedInfo.retried, u = askedInfo.unreadable;
           teeMode = 'live';  // the aggregate is this round's TEE score
           await pass(`all ${n} answers asked once inside an OutLayer TDX enclave by asker ${askedInfo.pin.slice(0, 12)}… in ${askedInfo.project} (aggregate task ${askedInfo.task}): `
-            + `total ${r.total_score}/${n} and both roots match; ${rt} retried ask${rt === 1 ? '' : 's'} (no answer had left the enclave)`
+            + `total ${r.total_score}/${n} and both roots match; ${rt} retried ask${rt === 1 ? '' : 's'} (no answer had left the enclave); `
+            + `every request rebuilt with the seal block's hash by scorer ${checkInfo.pin.slice(0, 12)}… (task ${checkInfo.task}) equals the signed one, so every ask came after the seal`
             + (u == null ? '' : `; ${u} unreadable answer${u === 1 ? '' : 's'}`) + `; ${lock}; ${detail}`);
         } catch (e) {
           if (e instanceof TeeUnapproved) { deferred.push(['tee_unapproved', "OutLayer worker measurements not approved at the aggregate's block, or legacy format"]); await onStep('asked', 'fail', 'tee_unapproved'); }
@@ -719,7 +733,9 @@
     if (!cfg.recorded) return { outcome: 'PARTIAL', code: traceMode === 'live' ? 'GPU not checked in a browser' : 'GPU and deployment trace not checked in a browser', attestation: attMode, gpu: 'not checked', trace: traceMode };
     const tee = `every item rebuilt and re-scored inside an OutLayer TDX enclave (checked here)`;
     const askedRound = isAsked(cert.benchmark.policy, cfg.supported);
-    const scope = askedRound ? `every item asked once and scored inside an OutLayer TDX enclave (checked here): the total is exact and no answer was chosen among several, under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
+    const rt = askedRound && cert.run.evidence.tee_asked ? cert.run.evidence.tee_asked.output.retried : 0;
+    const scope = askedRound ? `every item asked inside an OutLayer TDX enclave after the seal and scored there, its answer recorded once (checked here): the total is exact under the TEE trust assumptions; `
+      + (rt ? `${rt} ask${rt === 1 ? '' : 's'} retried after a timeout, so a single draw per item could differ from this total by at most ${rt}` : 'no ask retried, so each item is a single draw') + `; nothing revealed, all ${n} items stay private`
       : zeroReveal ? `${tee}: the total is exact under the TEE trust assumptions; nothing revealed, all ${n} items stay private`
       : `audit passed ${au.k}/${n}; detection power ${(au.p * 100).toFixed(4)}% for ≥${au.d} incorrect scores (not the probability the total is correct)${teeMode === 'live' ? '; ' + tee : ''}`;
     return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, ground: groundMode, trace: traceMode, scope };
