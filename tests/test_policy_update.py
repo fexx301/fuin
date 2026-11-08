@@ -14,7 +14,7 @@ def stub(monkeypatch, tmp_path, outcome):
     monkeypatch.setattr(inference, "model_report", lambda m, n: {"model_attestations": [cand]})
     monkeypatch.setattr(A, "check_report", lambda c, n, p, use_nras=True: {"outcome": outcome, "compose_hash": "c0" * 32})
     monkeypatch.setattr(A, "verify_quote", lambda q: ("UpToDate", [], TD))
-    monkeypatch.setattr(A, "nras_verdict", lambda p: True)
+    monkeypatch.setattr(A, "nras_verdict", lambda p, nonce=None: True)
     monkeypatch.setattr(A, "compose_hash", lambda c: "c0" * 32)
     monkeypatch.setattr(A, "image_digests", lambda c: ["x/y@sha256:" + "11" * 32])
     monkeypatch.setattr(provenance, "trace", lambda c, n, td: {"services": [{"service": "s", "tag": "v1", "file": "f.yaml", "image": "img", "model_path": "w"}]})

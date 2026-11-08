@@ -99,14 +99,59 @@ def verify_quote(quote_hex: str):
     return res.status, list(res.advisory_ids), td
 
 
-def nras_verdict(nvidia_payload) -> bool:
-    """POST the GPU evidence unchanged to NVIDIA NRAS; True only on an explicit overall pass."""
+NRAS_ISSUER = "https://nras.attestation.nvidia.com"
+NRAS_JWKS = "https://nras.attestation.nvidia.com/.well-known/jwks.json"
+_NRAS_KEYS: dict = {}  # NVIDIA's signing keys by kid, fetched once per process
+
+
+def _b64u(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _nras_key(kid: str):
+    """NVIDIA's ES384 (P-384) public key for this kid, from its published key set."""
+    from cryptography.hazmat.primitives.asymmetric import ec
+    if kid not in _NRAS_KEYS:
+        r = requests.get(NRAS_JWKS, timeout=30)
+        r.raise_for_status()
+        for k in r.json().get("keys", []):
+            if k.get("kty") == "EC" and k.get("crv") == "P-384":
+                _NRAS_KEYS[k["kid"]] = ec.EllipticCurvePublicNumbers(
+                    int.from_bytes(_b64u(k["x"]), "big"), int.from_bytes(_b64u(k["y"]), "big"), ec.SECP384R1()).public_key()
+    return _NRAS_KEYS.get(kid)
+
+
+def nras_token_ok(jwt: str, nonce: str, now: float | None = None) -> bool:
+    """NVIDIA's verdict token: ES384-signed by a key in NVIDIA's key set, issued by NRAS, inside its validity window,
+    bound to this report's nonce (eat_nonce), with an explicit overall pass (review 5)."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec, utils
+    try:
+        h64, c64, s64 = jwt.split(".")
+        header, claims, sig = json.loads(_b64u(h64)), json.loads(_b64u(c64)), _b64u(s64)
+    except ValueError:
+        return False
+    key = _nras_key(header.get("kid", "")) if header.get("alg") == "ES384" else None
+    if key is None or len(sig) != 96:
+        return False
+    try:
+        key.verify(utils.encode_dss_signature(int.from_bytes(sig[:48], "big"), int.from_bytes(sig[48:], "big")),
+                   f"{h64}.{c64}".encode(), ec.ECDSA(hashes.SHA384()))
+    except InvalidSignature:
+        return False
+    now = time.time() if now is None else now
+    return (claims.get("iss") == NRAS_ISSUER and claims.get("nbf", 0) <= now + 300 and claims.get("exp", 0) >= now - 300
+            and str(claims.get("eat_nonce", "")).lower() == nonce.lower() and claims.get("x-nvidia-overall-att-result") is True)
+
+
+def nras_verdict(nvidia_payload, nonce: str | None = None) -> bool:
+    """POST the GPU evidence unchanged to NVIDIA NRAS; True only on a verified overall pass for this nonce (the
+    evidence's own nonce unless given)."""
     body = nvidia_payload if isinstance(nvidia_payload, str) else json.dumps(nvidia_payload)
     r = requests.post(NRAS_URL, data=body, headers={"Content-Type": "application/json"}, timeout=60)
     r.raise_for_status()
-    jwt = r.json()[0][1]
-    claims = json.loads(base64.urlsafe_b64decode(jwt.split(".")[1] + "=="))
-    return claims.get("x-nvidia-overall-att-result") is True
+    return nras_token_ok(r.json()[0][1], nonce if nonce is not None else str(_json(nvidia_payload).get("nonce", "")))
 
 
 def tcb_outcome(status: str, advisories: list[str]) -> str:
@@ -171,7 +216,7 @@ def check_report(report: dict, nonce_hex: str, policy: dict, *, use_nras: bool =
         return {**checks, "os_seen": os_seen, "outcome": ("cant_certify", "measurement_unapproved")}
     if use_nras:
         try:
-            checks["nras_ok"] = nras_verdict(report["nvidia_payload"])
+            checks["nras_ok"] = nras_verdict(report["nvidia_payload"], nonce)
         except (requests.RequestException, ValueError, KeyError, IndexError) as e:
             return {**checks, "error": f"NRAS: {e}", "outcome": ("cant_certify", "evidence_unavailable")}
         if not checks["nras_ok"]:

@@ -58,3 +58,32 @@ def test_3_a_trace_must_pin_image_weights_revision_and_compose_hash():
     assert provenance.unpinned([ok]) is None
     for k, v in (("image", "nearaidev/vllm:latest"), ("model_path", None), ("model_revision", None), ("file_sha256_checked", False)):
         assert provenance.unpinned([ok, {**ok, "service": "t", k: v}]) == "t", k
+
+
+def test_5_nvidia_verdict_token_is_verified_not_just_decoded(monkeypatch):
+    import base64 as b
+    import time
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec, utils
+    from fuin import attestation as A
+    key = ec.generate_private_key(ec.SECP384R1())
+    monkeypatch.setattr(A, "_NRAS_KEYS", {"k1": key.public_key()})
+    enc = lambda o: b.urlsafe_b64encode(json.dumps(o).encode()).rstrip(b"=").decode()
+    now, nonce = time.time(), "ab" * 32
+
+    def token(alg="ES384", kid="k1", signer=key, **claims):
+        c = {"iss": A.NRAS_ISSUER, "nbf": now - 10, "exp": now + 3600, "eat_nonce": nonce, "x-nvidia-overall-att-result": True, **claims}
+        head, body = enc({"alg": alg, "kid": kid}), enc(c)
+        r, s = utils.decode_dss_signature(signer.sign(f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA384())))
+        return f"{head}.{body}." + b.urlsafe_b64encode(r.to_bytes(48, "big") + s.to_bytes(48, "big")).rstrip(b"=").decode()
+
+    assert A.nras_token_ok(token(), nonce)
+    assert not A.nras_token_ok(token(), "cd" * 32)                                   # another report's nonce
+    assert not A.nras_token_ok(token(**{"x-nvidia-overall-att-result": False}), nonce)
+    assert not A.nras_token_ok(token(iss="https://evil.example"), nonce)
+    assert not A.nras_token_ok(token(exp=now - 3600), nonce)                         # expired
+    assert not A.nras_token_ok(token(signer=ec.generate_private_key(ec.SECP384R1())), nonce)  # not NVIDIA's key
+    assert not A.nras_token_ok(token(alg="none"), nonce) and not A.nras_token_ok("x.y", nonce)
+    h, c, s = token().split(".")
+    forged = enc({**json.loads(b.urlsafe_b64decode(c + "==")), "x-nvidia-overall-att-result": True, "eat_nonce": "cd" * 32})
+    assert not A.nras_token_ok(f"{h}.{forged}.{s}", "cd" * 32)                       # claims edited after signing
