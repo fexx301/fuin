@@ -43,3 +43,10 @@ def test_doc_counts_match_the_artifacts():
     assert found
     for got in found:
         assert [int(x) for x in re.findall(r"\d+", got)] == by_round, got
+
+
+def test_every_fixture_has_a_row_in_refusals():
+    refusals = (ROOT / "docs/REFUSALS.md").read_text()
+    fixtures = json.loads((ROOT / "examples/tampered/manifest.json").read_text())["fixtures"]
+    missing = [f["file"] for f in fixtures if Path(f["file"]).stem not in refusals]
+    assert not missing, missing

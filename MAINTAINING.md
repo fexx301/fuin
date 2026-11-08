@@ -54,7 +54,7 @@ The asker runs in a project whose owner has no keys, so **it can't be changed**:
 
 Every change has to keep one promise: **a certificate is VERIFIED only when every check holds, REFUSED only on evidence that's actually wrong, and CAN'T CERTIFY otherwise.**
 - **Both verifiers change together.** A new check goes into `src/fuin/verify.py` and `site/verify.js`, and `scripts/test_site_verifier.mjs` must still agree on every certificate and fixture.
-- **Every new check gets a tamper fixture**, made by `scripts/make_fixtures.py`, with its expected verdict in `examples/tampered/manifest.json`.
+- **Every new check gets a tamper fixture**, made by `scripts/make_fixtures.py`, with its expected verdict in `examples/tampered/manifest.json` and a row in `docs/REFUSALS.md`.
 - **Sealed things are never edited.** Scorers (`scorer*.py`), attestation policies and TEE builds are added, never changed: old certificates name them.
 - **Outages defer, they don't decide.** A network failure must end in CAN'T CERTIFY `evidence_unavailable`, after every offline check has run.
 
