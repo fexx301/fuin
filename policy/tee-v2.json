@@ -75,7 +75,7 @@
       "project": "ask.fuin.testnet/asker",
       "bytes": 783608,
       "build": "asker v1: ask/build-docker.sh at commit aaa2083 (reproduced twice); project ask.fuin.testnet/asker, whose owner's only key was deleted on 2026-11-08 (tx 6krbzCT1Lb9EGTRqxqviAMzaBNNxRU7hGr9BhuBXMZDe), so its code and records can't change",
-      "commit": "aaa2083"
+      "commit": "aaa2083e16ba2f06813f7e0c2b87003ab1a08b02"
     }
   ],
   "asker_note": "An enclave-asked round (audit mode tee-asked-v1) seals one of these (build, project) pairs. The verifier also checks, at the round's seal block, that the project's owner account had no keys and no code and that the build was the project's only version, so nobody could delete the project (wiping its records) or change its code.",

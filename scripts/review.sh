@@ -71,6 +71,8 @@ if docker info >/dev/null 2>&1; then
   apin=$(python3 -c 'import json;a=json.load(open("policy/tee-v2.json")).get("askers",[]);print(a[-1]["wasm_sha256"] if a else "")')
   acommit=$(python3 -c 'import json;a=json.load(open("policy/tee-v2.json")).get("askers",[]);print(a[-1].get("commit","") if a else "")')
   if [ -n "$apin" ]; then
+    # a shallow clone (CI) lacks the asker's recorded commit: fetch just that commit
+    [ -z "$acommit" ] || git cat-file -e "$acommit^{commit}" 2>/dev/null || git fetch -q --depth=1 origin "$acommit" 2>/dev/null || true
     if out=$(ask/build-docker.sh $acommit 2>/dev/null) && built=$(printf '%s\n' "$out" | tail -1 | cut -d' ' -f1) && [ ${#built} -eq 64 ]; then
       if [ "$built" = "$apin" ]; then echo "Asker rebuilt with ask/build-docker.sh at its recorded commit $acommit: sha256 $built = the pinned asker in policy/tee-v2.json"
       else echo "Asker rebuilt as $built, pin is $apin"; fail=1; fi
