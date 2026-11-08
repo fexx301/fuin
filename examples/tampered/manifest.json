@@ -72,6 +72,16 @@
    "mutation": "a revealed numeric item's tolerance set to Infinity, which would mark any number correct (review 1)"
   },
   {
+   "file": "malformed-event-log.json",
+   "expected": "REFUSED certificate_invalid",
+   "mutation": "an attestation report's event-log entry replaced with a string; it used to crash a later check (review 2)"
+  },
+  {
+   "file": "malformed-gpu-evidence.json",
+   "expected": "REFUSED certificate_invalid",
+   "mutation": "an attestation report's GPU evidence replaced with a JSON list (review 2)"
+  },
+  {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"

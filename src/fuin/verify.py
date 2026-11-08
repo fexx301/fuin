@@ -6,6 +6,8 @@ unavailable or unsupported; else VERIFIED with its scope, warnings and limits.
 
 import base64
 import hashlib
+import json
+import re
 import requests
 import yaml
 
@@ -70,6 +72,21 @@ def _req(cond, code):
 HEX = "0123456789abcdef"
 
 
+def _hex(v) -> bool:
+    """A hex string of whole bytes (either case), as bytes.fromhex reads it."""
+    return isinstance(v, str) and len(v) % 2 == 0 and re.fullmatch(r"[0-9a-fA-F]*", v) is not None
+
+
+def _json_obj(v):
+    """A JSON object given as a dict or as JSON text; None if it isn't one."""
+    if isinstance(v, dict):
+        return v
+    try:
+        return json.loads(v) if isinstance(v, str) else None
+    except ValueError:
+        return None
+
+
 def _validate(c) -> None:
     """Strict schema check: every field the verifier reads has the right type and form. Raises Refused(certificate_invalid)."""
     def need(cond, where):
@@ -113,6 +130,15 @@ def _validate(c) -> None:
         info = rep.get("info")
         need(isinstance(info, dict) and isinstance(info.get("tcb_info"), dict) and isinstance(info["tcb_info"].get("app_compose"), str),
              f"{w}.info.tcb_info.app_compose")
+        # nested evidence too, so malformed input is refused here rather than crashing a later check (review 2)
+        need(re.fullmatch(r"0x[0-9a-fA-F]{40}", rep["signing_address"]) is not None, f"{w}.signing_address")
+        need(_hex(rep["intel_quote"]), f"{w}.intel_quote")
+        need(len(rep["event_log"]) <= 1000, f"{w}.event_log")
+        for q, e in enumerate(rep["event_log"]):
+            need(isinstance(e, dict) and type(e.get("imr")) is int and type(e.get("event_type")) is int and isinstance(e.get("event"), str)
+                 and _hex(e.get("event_payload")) and (e.get("digest") is None or _hex(e["digest"])), f"{w}.event_log[{q}]")
+        need(isinstance(_json_obj(rep["nvidia_payload"]), dict), f"{w}.nvidia_payload")
+        need(isinstance(_json_obj(info["tcb_info"]["app_compose"]), dict), f"{w}.info.tcb_info.app_compose")
     h32(r.get("run_root"), "run.run_root"); num(r.get("total_score"), "run.total_score")
     txt(r.get("commit_tx"), "run.commit_tx"); num(r.get("commit_height"), "run.commit_height")
     ev = r.get("evidence", {})
@@ -330,7 +356,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
             except (requests.RequestException, RuntimeError) as e:  # GitHub or Intel unreachable
                 deferred.append(("evidence_unavailable", f"deployment trace: {str(e)[:200]}"))
                 return
-            except (provenance.TraceUnavailable, ValueError, KeyError, yaml.YAMLError) as e:  # VERIFIED requires the trace
+            except (provenance.TraceUnavailable, ValueError, KeyError, TypeError, AttributeError, yaml.YAMLError) as e:  # VERIFIED requires the trace; a compose file that isn't a mapping is no trace
                 deferred.append(("deployment_untraced", str(e)[:200]))
                 return
             trace = tr

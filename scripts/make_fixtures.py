@@ -116,6 +116,16 @@ def _(c):
     next(x for x in c["audit"]["reveals"] if x["item"]["answer_type"] == "numeric")["item"]["tolerance"] = "Infinity"
 
 
+@fixture("malformed-event-log", "REFUSED certificate_invalid", "an attestation report's event-log entry replaced with a string; it used to crash a later check (review 2)")
+def _(c):
+    c["run"]["model_report"]["model_attestations"][0]["event_log"][0] = "not-an-event"
+
+
+@fixture("malformed-gpu-evidence", "REFUSED certificate_invalid", "an attestation report's GPU evidence replaced with a JSON list (review 2)")
+def _(c):
+    c["run"]["model_report"]["model_attestations"][0]["nvidia_payload"] = "[]"
+
+
 @fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
     k = c["audit"]["k"]

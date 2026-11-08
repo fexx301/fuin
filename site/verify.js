@@ -425,6 +425,22 @@
     need(b.policy && typeof b.policy === 'object', 'benchmark.policy'); str(b.seal_tx, 'benchmark.seal_tx'); num(b.seal_height, 'benchmark.seal_height');
     str(r.model_id, 'run.model_id'); num(r.run_index, 'run.run_index'); n32(r.preflight_nonce, 'run.preflight_nonce');
     need(r.model_report && Array.isArray(r.model_report.model_attestations), 'run.model_report');
+    // nested evidence too, so malformed input is refused here rather than crashing a later check (review 2; fuin/verify.py _validate)
+    const hexBytes = (v) => typeof v === 'string' && v.length % 2 === 0 && /^[0-9a-fA-F]*$/.test(v);
+    const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+    const jsonObj = (v) => { if (isObj(v)) return true; if (typeof v !== 'string') return false; try { return isObj(JSON.parse(v)); } catch { return false; } };
+    r.model_report.model_attestations.forEach((rep, j) => {
+      const w = `run.model_report.model_attestations[${j}]`; need(isObj(rep), w);
+      for (const k of ['signing_address', 'model_name', 'intel_quote', 'request_nonce']) need(typeof rep[k] === 'string', `${w}.${k}`);
+      need(/^0x[0-9a-fA-F]{40}$/.test(rep.signing_address), `${w}.signing_address`); need(hexBytes(rep.intel_quote), `${w}.intel_quote`);
+      need(Array.isArray(rep.event_log), w);  // the GPU payload is optional here: the page's certificates omit it (browsers can't reach NRAS)
+      need(isObj(rep.info) && isObj(rep.info.tcb_info) && typeof rep.info.tcb_info.app_compose === 'string', `${w}.info.tcb_info.app_compose`);
+      need(rep.event_log.length <= 1000, `${w}.event_log`);
+      rep.event_log.forEach((e, q) => need(isObj(e) && Number.isInteger(e.imr) && Number.isInteger(e.event_type) && typeof e.event === 'string'
+        && hexBytes(e.event_payload) && (e.digest == null || hexBytes(e.digest)), `${w}.event_log[${q}]`));
+      if (rep.nvidia_payload !== undefined) need(jsonObj(rep.nvidia_payload), `${w}.nvidia_payload`);
+      need(jsonObj(rep.info.tcb_info.app_compose), `${w}.info.tcb_info.app_compose`);
+    });
     n32(r.run_root, 'run.run_root'); num(r.total_score, 'run.total_score'); str(r.commit_tx, 'run.commit_tx'); num(r.commit_height, 'run.commit_height');
     need(Array.isArray(r.items), 'run.items');
     r.items.forEach((it, j) => {
