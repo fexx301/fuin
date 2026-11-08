@@ -18,7 +18,7 @@ Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 ## For judges
 
 **Human reviewers (2 minutes):**
-1. Read [the problem](#the-problem) and [the result](#result-which-near-ai-cloud-model-answers-near-developer-questions-correctly).
+1. Read [the problem](#the-problem), [the three kinds of round](#three-kinds-of-round) and [the result](#result-which-near-ai-cloud-model-answers-near-developer-questions-correctly).
 2. Look at [the refusals table](#try-it-no-account-no-api-key-no-test-set): 34 cases (25 tampered or malformed certificates refused, 9 that can't be certified), each caught by a named check.
 
 **AI reviewers (Claude Code, Codex):**
@@ -69,7 +69,7 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Seven independent rounds of private questions (60, 60, 300, 155, 96, 96 and 37), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. Each round was sealed on NEAR before its run: for rounds 4–6, each request's nonce is bound to the seal block, so no answer can predate the seal; for rounds 1–3 the public checks show only that the seal preceded the committed results, and the run's timing is the owner's word. Every model ran with reasoning on and temperature 0. Rounds 4–6 reveal nothing; their scores are checked only inside the TEE. Rounds 5 and 6 also encrypted every question and answer end to end, so NEAR's gateway never saw them. Round 6 runs all seven models NEAR serves in its own TEEs, including two "abliterated" versions (a LoRA adapter that removes refusal training, on the same base weights). The scorer is strict about form: the answer must be the number or term alone. It ignores surrounding quotes, backticks and markdown emphasis and one trailing period, and compares exact answers case-insensitively, so `u128::MAX` counts as `U128::MAX`.
+Seven independent rounds of private questions (60, 60, 300, 155, 96, 96 and 37), each with exact answers cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. They come in [three kinds](#three-kinds-of-round): rounds 1–3 reveal a sample, rounds 4–6 reveal nothing, and in round 7 a TEE asked every question once. Each round was sealed on NEAR before its run: for rounds 4–6, each request's nonce is bound to the seal block, so no answer can predate the seal; for rounds 1–3 the public checks show only that the seal preceded the committed results, and the run's timing is the owner's word. Every model ran with reasoning on and temperature 0. Rounds 4–6 reveal nothing; their scores are checked only inside the TEE. Rounds 5 and 6 also encrypted every question and answer end to end, so NEAR's gateway never saw them. Round 6 runs all seven models NEAR serves in its own TEEs, including two "abliterated" versions (a LoRA adapter that removes refusal training, on the same base weights). The scorer is strict about form: the answer must be the number or term alone. It ignores surrounding quotes, backticks and markdown emphasis and one trailing period, and compares exact answers case-insensitively, so `u128::MAX` counts as `U128::MAX`.
 
 | Round (token cap) | Model (as served by NEAR AI Cloud) | Committed score | Revealed (k): correct · wrong · format · cut off | Whole run: cut off (owner-reported) |
 |---|---|---|---|---|
@@ -181,6 +181,23 @@ You need [uv](https://docs.astral.sh/uv/) and network access to Intel PCS, NVIDI
 
 ## How it works
 
+### Three kinds of round
+
+Every round seals its questions on NEAR first, and every certificate is checked the same way. The rounds differ in what they reveal and in who calls the model, and each kind is a trade-off:
+
+| | Sampled (`fuin seal`) | TEE-scored (`fuin seal --tee`) | Asked once (`fuin seal --ask`) |
+|---|---|---|---|
+| Questions revealed | a sample, picked by a future NEAR block | none | none |
+| Who calls the model | the owner | the owner | a TEE, once per question, after the seal |
+| How scores are checked | anyone re-scores the sample; a TEE re-scores every answer | a TEE re-scores every answer | the TEE scores each answer as it asks |
+| Can the owner re-ask a question and keep the best answer? | yes (a printed limit) | yes (a printed limit) | no: the TEE refuses a second ask |
+| Models and token cap | all seven, 8,192 | all seven, 8,192 | fast models only, a smaller cap (DeepSeek-V4.1-Flash at 4,096) |
+| Rounds here | 1–3 | 4–6 | 7 |
+
+Why the last column is narrower: an asked round's model call happens inside an OutLayer task that NEAR has to answer within about two minutes, so only answers a model can write in that time fit. The other two kinds still run every model at 8,192 tokens. Pick sampled or TEE-scored for the widest comparison, asked once when it matters that nobody could re-draw answers. Scores from different caps aren't comparable.
+
+### The flow
+
 Flow: **seal → run → commit → close → sample → reveal → verify.**
 
 1. **Seal.** The owner commits a Merkle root over the salted items (each with a secret 32-byte nonce) and a policy hash on the NEAR registry. The policy fixes the request template, generation settings, scorer (pinned by file hash) and audit size: `k` is the smallest sample that catches at least one of `D = ceil(n/10)` wrong scores with probability ≥ 95%, computed exactly (k = 23 for n = 60). That is detection power against a stated amount of mis-scoring, not a probability that the total is correct.
@@ -214,7 +231,7 @@ A flagged key isn't necessarily wrong: a number worked out from the line (a unit
 
 ### Asked once (round 7)
 
-Until round 7 the owner made the model calls. NEAR AI Cloud's temperature-0 serving isn't deterministic (re-asking 43 of round 4's items changed 5 scores), so an owner could re-send a sealed request and commit the best signed answer, and every signature would still be valid. In an enclave-asked round (`fuin seal --ask`) the owner makes no model call:
+This is the third [kind of round](#three-kinds-of-round). Until round 7 the owner made the model calls. NEAR AI Cloud's temperature-0 serving isn't deterministic (re-asking 43 of round 4's items changed 5 scores), so an owner could re-send a sealed request and commit the best signed answer, and every signature would still be valid. In an enclave-asked round (`fuin seal --ask`) the owner makes no model call:
 - **The asker** (`ask/`) runs as the OutLayer project `ask.fuin.testnet/asker`. The account that owns it had its only key deleted before the round, so the project can't be deleted, re-versioned or transferred. Its only version is the asker build `dbbb286b…`, which rebuilds byte for byte with `ask/build-docker.sh`.
 - **Each ask:** the asker records it in sealed project storage under a name derived from the sealed round (benchmark root, model, index), builds the sealed request, calls NEAR AI with the owner's key (an OutLayer secret the owner stores), checks the `provider_tee` signature, scores the answer with the scorer's own code and records it final. A final record is re-emitted, never re-asked; one still pending, whose answer never left the enclave, may be retried, and the retries are counted.
 - **The certificate** carries the asker's aggregate: the run's roots and total from every final record, attested by OutLayer. `fuin verify` checks that it came from the sealed asker in the sealed project, that it equals the committed run, and, on the archival chain at the seal block, that the project's owner had no keys or code and the asker was its only version.

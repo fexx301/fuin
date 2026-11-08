@@ -174,6 +174,7 @@
   ];
   const zeroReveal = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.audit && [F.supported.tee_audit, F.supported.tee_asked].includes(c.benchmark.policy.audit.mode));
   const askedRound = (c) => zeroReveal(c) && c.benchmark.policy.audit.mode === F.supported.tee_asked;
+  const modeName = (c) => askedRound(c) ? 'asked once' : zeroReveal(c) ? 'TEE-scored' : 'sampled';  // the three kinds of round, as the page explains them
   const encrypted = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.request && c.benchmark.policy.request.template === F.supported.template_v3);
   const canCheat = (c, need) => !need || (need === 'reveals' ? !!(c.audit && c.audit.reveals && c.audit.reveals.length) : !!(c.run && c.run.evidence && c.run.evidence.tee_score));
   function renderChecks() {
@@ -224,7 +225,7 @@
     renderChecks(); $('#stamp').className = 'stamp';
     const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
-    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', 'this certificate carries no TEE score');
+    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', cert.run && cert.run.evidence && cert.run.evidence.tee_asked ? 'an asked-once round: the TEE scored each answer as it asked it (see "Every answer asked once, in a TEE" below)' : 'this certificate carries no TEE score');
     if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_ground)) await onStep('ground', 'skip', 'this certificate carries no answer-key check');
     if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_asked)) await onStep('asked', 'skip', 'this round was not asked inside a TEE');
     if (id === running) stamp(res);
@@ -234,7 +235,7 @@
     const all = [];
     for (const rd of F.rounds) for (const e of rd.certs) {
       const btn = h('button', { class: 'cert-btn', 'aria-pressed': 'false' }, h('span', { class: 'm' }, short(e.cert.run.model_id)), h('span', { class: 's' }, `${e.cert.run.total_score}/${e.cert.benchmark.n}`),
-        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${zeroReveal(e.cert) ? 'nothing revealed' + (encrypted(e.cert) ? ', encrypted' : '') : rd.cap.toLocaleString('en') + ' tokens'}`));
+        h('span', { class: 'r' }, `round ${rd.id.slice(-1)} · ${modeName(e.cert)}` + (encrypted(e.cert) ? ' · encrypted' : '') + ` · ${rd.cap.toLocaleString('en')} tokens`));
       btn.dataset.file = e.file; btn.addEventListener('click', () => select(btn, e)); list.append(btn); all.push([btn, e]);
     }
     const hb = h('button', { class: 'cert-btn' }, h('span', { class: 'm' }, 'Answer slipped into the prompt'), h('span', { class: 's' }, '1/1'),
@@ -278,6 +279,7 @@
           h('div', { class: 'pills' }, ...(zr ? [h('span', { class: 'pill' }, 'nothing revealed')] : [h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
             h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)]),
             ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE ${zr ? 'scored' : 're-scored'} all ${c.benchmark.n}`)] : [])),
+            ...(c.run.evidence && c.run.evidence.tee_asked ? [h('span', { class: 'pill ok', title: 'Every question asked once by the asker inside an OutLayer TDX enclave, after the seal, and scored there; checked by fuin verify' }, `asked once in a TEE, all ${c.benchmark.n}`)] : []),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
@@ -298,7 +300,7 @@
     let shown = false, cur = 0;
     const chips = $('#vizRounds');
     F.rounds.forEach((rd, i) => {
-      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)}`);
+      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${modeName(rd.certs[0].cert)}`);
       c.addEventListener('click', () => { press(chips, c); draw(i); }); chips.append(c);
     });
     function hide() { tip.hidden = true; }
@@ -311,7 +313,7 @@
           h('dt', {}, '95% interval'), h('dd', {}, `${pc(lo)} – ${pc(hi)}`),
           h('dt', {}, 'Served'), h('dd', {}, t ? `${short(t.model_path || '?')}${t.model_revision ? ' @' + t.model_revision.slice(0, 8) : ''}` : (served(e) || '—')),
           ...(ad ? [h('dt', {}, 'Adapter'), h('dd', {}, ad.weights ? `${short(ad.weights)}${ad.revision ? ' @' + ad.revision.slice(0, 8) : ''}` : 'LoRA, unpinned')] : []),
-          h('dt', {}, 'Scored'), h('dd', {}, c.run.evidence && c.run.evidence.tee_score ? `all ${n} inside a TEE` : `audited sample of ${c.audit.reveals.length}`),
+          h('dt', {}, 'Scored'), h('dd', {}, c.run.evidence && c.run.evidence.tee_asked ? `all ${n} inside a TEE, each asked once` : c.run.evidence && c.run.evidence.tee_score ? `all ${n} inside a TEE` : `audited sample of ${c.audit.reveals.length}`),
           h('dt', {}, 'Failed attempts'), h('dd', {}, `${log.length} (owner-reported)`)),
         h('div', { class: 'th' }, 'Click to verify this certificate'));
       tip.hidden = false;
@@ -329,7 +331,8 @@
       const rd = F.rounds[i], n = rd.certs[0].cert.benchmark.n, zr = zeroReveal(rd.certs[0].cert);
       const rows = rd.certs.map((e) => ({ e, k: e.cert.run.total_score })).sort((a, b) => b.k - a.k);
       $('#vizTitle').textContent = `Round ${rd.id.slice(-1)}: share of ${n} sealed questions answered correctly`;
-      $('#vizSub').textContent = `${rows.length} models on the same questions · whiskers show the 95% interval · ` + (zr ? 'every answer scored inside a TEE, nothing revealed' : 'every answer re-scored inside a TEE, a sample revealed');
+      const c0 = rd.certs[0].cert, how = askedRound(c0) ? 'each question asked once by a TEE, nothing revealed' : zr ? 'every answer scored inside a TEE, nothing revealed' : 'every answer re-scored inside a TEE, a sample revealed';
+      $('#vizSub').textContent = `${rows.length} model${rows.length === 1 ? '' : 's'} on the same questions · ${modeName(c0)} round, ${rd.cap.toLocaleString('en')}-token cap · ${how} · whiskers show the 95% interval`;
       plot.replaceChildren(h('div', { class: 'grid', 'aria-hidden': 'true' }, ...[100, 75, 50, 25, 0].map((g) => h('span', { style: `--g:${g / 100}` }, h('b', {}, g + '%')))));
       plot.style.setProperty('--cols', rows.length);
       rows.forEach(({ e, k }, j) => {
