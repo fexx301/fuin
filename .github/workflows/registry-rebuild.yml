@@ -28,6 +28,7 @@ jobs:
           home=$(strings -n 8 deployed.wasm | grep -oE '/Users/[^/]+/\.cargo/registry' | head -1 | sed 's#/\.cargo/registry##')
           tc=$(strings -n 8 deployed.wasm | grep -oE '\.rustup/toolchains/[^/]+' | head -1 | sed 's#\.rustup/toolchains/##')
           test -n "$home" && test -n "$tc"
+          echo "::add-mask::$home"  # the build machine's home path is in the deployed code, but needn't be in public logs
           echo "BHOME=$home" >> "$GITHUB_ENV"; echo "TC=$tc" >> "$GITHUB_ENV"
           echo "deployed sha256 $(shasum -a 256 deployed.wasm | cut -d' ' -f1); build paths under a /Users home; toolchain $tc"
       - name: Recreate the build machine's paths and toolchain
@@ -35,7 +36,7 @@ jobs:
           sudo mkdir -p "$BHOME" && sudo chown "$(whoami)" "$BHOME"
           export CARGO_HOME="$BHOME/.cargo" RUSTUP_HOME="$BHOME/.rustup"
           curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
-          "$CARGO_HOME/bin/rustup" toolchain install 1.95.0 --profile minimal --target wasm32-unknown-unknown
+          "$CARGO_HOME/bin/rustup" toolchain install 1.95.0 --profile minimal --component rust-src --target wasm32-unknown-unknown  # with rust-src, rustc records the std sources' real paths, as the deployed build did
           mv "$RUSTUP_HOME/toolchains/1.95.0-aarch64-apple-darwin" "$RUSTUP_HOME/toolchains/$TC"
           "$CARGO_HOME/bin/rustup" default "${TC%-aarch64-apple-darwin}"
           "$CARGO_HOME/bin/rustc" --version
