@@ -96,7 +96,9 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
         key = (a["commit"], a["file"])
         if key not in files:
             r = requests.get(f"https://raw.githubusercontent.com/{repo}/{a['commit']}/{a['file']}", timeout=30)
-            r.raise_for_status()
+            if r.status_code in (404, 410):  # the logged file isn't there: no trace, not an outage (review 9)
+                raise TraceUnavailable(f"{a['file']}@{a['commit'][:10]} isn't in {repo} (HTTP {r.status_code})")
+            r.raise_for_status()  # network errors and 5xx: unavailable, try again
             if a.get("file_sha256") and hashlib.sha256(r.content).hexdigest() != a["file_sha256"]:
                 raise TraceInvalid(f"{a['file']}@{a['commit'][:10]} does not match the logged sha256")
             files[key] = {"doc": yaml.safe_load(r.content), "sha_checked": bool(a.get("file_sha256"))}

@@ -262,6 +262,7 @@
       const key = a.commit + ' ' + a.file;
       if (!files.has(key)) {
         let r; try { r = await fetch(`https://raw.githubusercontent.com/${repo}/${a.commit}/${a.file}`); } catch { throw new Unavailable('GitHub unreachable'); }
+        if (r.status === 404 || r.status === 410) throw new Untraced(`${a.file}@${String(a.commit).slice(0, 10)} isn't in ${repo} (HTTP ${r.status})`);  // no trace, not an outage (review 9)
         if (!r.ok) throw new Unavailable(`GitHub HTTP ${r.status} for ${a.file}`);
         const bytes = new Uint8Array(await r.arrayBuffer());
         if (a.file_sha256) req(hex(await sha256(bytes)) === a.file_sha256, 'attestation_invalid');
