@@ -172,7 +172,8 @@
     ['Forge the TEE task', 'Changes the OutLayer task id; the Intel-signed quote binds the original task hash.', (c) => {
       const rec = c.run.evidence.tee_score.record, was = rec.task_id; rec.task_id++; return `run.evidence.tee_score.record.task_id: ${was} → ${rec.task_id}`; }, 'tee'],
   ];
-  const zeroReveal = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.audit && c.benchmark.policy.audit.mode === F.supported.tee_audit);
+  const zeroReveal = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.audit && [F.supported.tee_audit, F.supported.tee_asked].includes(c.benchmark.policy.audit.mode));
+  const askedRound = (c) => zeroReveal(c) && c.benchmark.policy.audit.mode === F.supported.tee_asked;
   const encrypted = (c) => !!(c && c.benchmark && c.benchmark.policy && c.benchmark.policy.request && c.benchmark.policy.request.template === F.supported.template_v3);
   const canCheat = (c, need) => !need || (need === 'reveals' ? !!(c.audit && c.audit.reveals && c.audit.reveals.length) : !!(c.run && c.run.evidence && c.run.evidence.tee_score));
   function renderChecks() {
@@ -266,7 +267,7 @@
       const n = rd.certs[0].cert.benchmark.n, dis = DISCLOSURE[rd.id] || { revealed: rd.certs[0].cert.audit.reveals.length, indirect: 0 }, known = dis.revealed + dis.indirect;
       const zr = zeroReveal(rd.certs[0].cert);
       const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, zr
-        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, every answer scored inside a TEE` + (encrypted(rd.certs[0].cert) ? '; questions and answers end-to-end encrypted, never seen by NEAR\'s gateway' : '')
+        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, ` + (askedRound(rd.certs[0].cert) ? 'every question asked once and scored inside a TEE, which made the model calls itself' : 'every answer scored inside a TEE') + (encrypted(rd.certs[0].cert) ? '; questions and answers end-to-end encrypted, never seen by NEAR\'s gateway' : '')
         : `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;

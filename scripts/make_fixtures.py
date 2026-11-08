@@ -1,6 +1,6 @@
 """Build tampered certificates from a real one: one isolated mutation each, with its expected verdict.
 
-Usage: uv run python scripts/make_fixtures.py BASE_CERT OUT_DIR [TEE_CERT [ZERO_REVEAL_CERT [GROUNDED_CERT]]]
+Usage: uv run python scripts/make_fixtures.py BASE_CERT OUT_DIR [TEE_CERT [ZERO_REVEAL_CERT [GROUNDED_CERT [ASKED_CERT]]]]
 Writes OUT_DIR/<name>.json and OUT_DIR/manifest.json. Check with scripts/check_fixtures.py.
 """
 import base64
@@ -232,6 +232,39 @@ if len(sys.argv) > 5:
     def _(ev):
         ev["record"]["wasm_hash"] = "11" * 32
 
+
+# Enclave-asked fixtures: from an asked round's certificate (optional sixth argument)
+if len(sys.argv) > 6:
+    a_base = json.loads(Path(sys.argv[6]).read_text())
+
+    def a_fixture(name, expected, why):
+        def wrap(mutate):
+            c = json.loads(json.dumps(a_base))
+            mutate(c)
+            (out / f"{name}.json").write_text(json.dumps(c, indent=1, ensure_ascii=False) + "\n")
+            fixtures.append({"file": f"{name}.json", "expected": expected, "mutation": why, "base": sys.argv[6]})
+            return mutate
+        return wrap
+
+    @a_fixture("asked-unscored", "CANT_CERTIFY tee_asked_missing", "an enclave-asked round's certificate with its aggregate removed, so nothing shows each answer was asked once")
+    def _(c):
+        del c["run"]["evidence"]["tee_asked"]
+
+    @a_fixture("asked-other-project", "REFUSED tee_asked_mismatch", "the aggregate's record names another project: the same code there has other storage, so its asks could repeat")
+    def _(c):
+        c["run"]["evidence"]["tee_asked"]["record"]["project_id"] = "fuin.testnet/fuin-ask-spike"
+
+    @a_fixture("asked-total-edited", "REFUSED tee_asked_mismatch", "the aggregate's total raised and its output hash recomputed; it now contradicts the committed run")
+    def _(c):
+        ev = c["run"]["evidence"]["tee_asked"]
+        ev["output"]["total"] += 1
+        rehash(ev)
+
+    @a_fixture("asked-hidden-retry", "REFUSED tee_attestation_invalid", "a retried ask hidden (retried 1 -> 0) with the output hash recomputed; the Intel-signed quote binds the original output")
+    def _(c):
+        ev = c["run"]["evidence"]["tee_asked"]
+        ev["output"]["retried"] = 0
+        rehash(ev)
 
 
 made = {f["file"] for f in fixtures}

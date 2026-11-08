@@ -118,6 +118,7 @@ html,body{background:#161616;margin:0}
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
+      <li>In an enclave-asked round (round 7), a TEE made each model call itself and refused to ask any question twice, in a project nobody can change, so no answer was picked from several tries.</li>
       <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE, so no key was invented; keys that don't appear are flagged by number (rounds 4–6: 337 of 347 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
@@ -130,7 +131,7 @@ html,body{background:#161616;margin:0}
       <li>Each item's 0/1 score is public, so a certificate shows which hidden items a model got right, though not what they ask.</li>
       <li>The registry contract is locked, but its code rebuilds from source only on the Mac that built it, not on Linux: seals and commits are checked against the owner's signed transactions; run numbering trusts the deployed code.</li>
       <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155 or round 5's 96.</li>
-      <li>Whether the owner asked each question once: an owner could re-send a sealed request and commit the best signed answer.</li>
+      <li>Whether the owner asked each question once: an owner could re-send a sealed request and commit the best signed answer. Round 7 closes this: a TEE asked every question, once. Separate rounds still aren't linked.</li>
       <li>Exactly when inference happened (rounds 4–6's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
   </div>
 </div></section>

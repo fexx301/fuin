@@ -24,3 +24,48 @@ def test_an_audit_that_isnt_the_canonical_asked_audit_is_unsupported():
         pol = P.make_policy(37, M, e2ee=True, asker=ASK)
         edit(pol["audit"])
         assert P.unsupported_reason(pol, 37, list(M)) is not None
+
+
+# ---- the verifier's offline check of a real enclave-asked certificate (round 7) ----
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from fuin import tee
+
+CERT = Path(__file__).parent.parent / "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+
+
+def _cert():
+    return json.loads(CERT.read_text())
+
+
+def test_real_asked_aggregate_passes_offline():
+    c = _cert()
+    got = tee.check_asked_local(c["run"]["evidence"]["tee_asked"], c)
+    assert (got["project"], got["retried"], got["unreadable"]) == ("ask.fuin.testnet/asker", 1, 0)
+
+
+def _rehashed(mutate):
+    c = _cert()
+    ev = c["run"]["evidence"]["tee_asked"]
+    mutate(ev["output"])
+    ev["record"]["output_hash"] = hashlib.sha256(tee._sorted_compact(ev["output"]).encode()).hexdigest()
+    return ev, c
+
+
+@pytest.mark.parametrize("mutate", [lambda o: o.update(retried=-1), lambda o: o.update(retried="0"), lambda o: o.update(v="fuin-tee-score-v1"),
+                                    lambda o: o.update(run_root="00" * 32), lambda o: o.update(signer="0x" + "00" * 20)])
+def test_inconsistent_aggregates_are_refused(mutate):
+    with pytest.raises(tee.TeeRefused):
+        tee.check_asked_local(*_rehashed(mutate))
+
+
+def test_aggregate_from_another_build_or_project_is_refused():
+    for k, v in (("wasm_hash", "11" * 32), ("project_id", "someone.testnet/asker")):
+        c = _cert()
+        c["run"]["evidence"]["tee_asked"]["record"][k] = v
+        with pytest.raises(tee.TeeRefused):
+            tee.check_asked_local(c["run"]["evidence"]["tee_asked"], c)

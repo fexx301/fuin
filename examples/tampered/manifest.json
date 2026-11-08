@@ -150,6 +150,30 @@
    "base": "examples/cert-near-dev-96-r6-glm-5.3-flash.json"
   },
   {
+   "file": "asked-unscored.json",
+   "expected": "CANT_CERTIFY tee_asked_missing",
+   "mutation": "an enclave-asked round's certificate with its aggregate removed, so nothing shows each answer was asked once",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
+   "file": "asked-other-project.json",
+   "expected": "REFUSED tee_asked_mismatch",
+   "mutation": "the aggregate's record names another project: the same code there has other storage, so its asks could repeat",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
+   "file": "asked-total-edited.json",
+   "expected": "REFUSED tee_asked_mismatch",
+   "mutation": "the aggregate's total raised and its output hash recomputed; it now contradicts the committed run",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
+   "file": "asked-hidden-retry.json",
+   "expected": "REFUSED tee_attestation_invalid",
+   "mutation": "a retried ask hidden (retried 1 -> 0) with the output hash recomputed; the Intel-signed quote binds the original output",
+   "base": "examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json"
+  },
+  {
    "file": "answer-hint.json",
    "expected": "REFUSED request_policy_mismatch",
    "mutation": "real round fixture-answer-hint-2: the owner appended the answer to the prompt; signed by the model and committed on chain"
