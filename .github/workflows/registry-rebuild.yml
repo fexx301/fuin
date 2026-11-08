@@ -1,0 +1,50 @@
+name: registry rebuild (macOS arm64)
+# Can anyone tie the locked registry's deployed code to contract/? The wasm embeds the build machine's home-directory
+# paths (panic locations in dependency sources), and the compiler's output differed between macOS and Linux
+# (evidence/2026-11-06-registry-rebuild/). This job rebuilds on GitHub's macOS arm64 runner with the same toolchain
+# (rustc 1.95.0 under the toolchain name "stable", cargo-near 0.22.0) and the same paths, read from the deployed code
+# itself rather than written here, and compares the sha256 with the code on chain.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["contract/**", ".github/workflows/registry-rebuild.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the deployed code and read its build paths
+        run: |
+          curl -s https://archival-rpc.testnet.fastnear.com -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_code","finality":"final","account_id":"registry.fuin.testnet"}}' \
+            | python3 -c 'import sys,json,base64; open("deployed.wasm","wb").write(base64.b64decode(json.load(sys.stdin)["result"]["code_base64"]))'
+          echo "DEPLOYED=$(shasum -a 256 deployed.wasm | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          home=$(strings -n 8 deployed.wasm | grep -oE '/Users/[^/]+/\.cargo/registry' | head -1 | sed 's#/\.cargo/registry##')
+          tc=$(strings -n 8 deployed.wasm | grep -oE '\.rustup/toolchains/[^/]+' | head -1 | sed 's#\.rustup/toolchains/##')
+          test -n "$home" && test -n "$tc"
+          echo "BHOME=$home" >> "$GITHUB_ENV"; echo "TC=$tc" >> "$GITHUB_ENV"
+          echo "deployed sha256 $(shasum -a 256 deployed.wasm | cut -d' ' -f1); build paths under a /Users home; toolchain $tc"
+      - name: Recreate the build machine's paths and toolchain
+        run: |
+          sudo mkdir -p "$BHOME" && sudo chown "$(whoami)" "$BHOME"
+          export CARGO_HOME="$BHOME/.cargo" RUSTUP_HOME="$BHOME/.rustup"
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
+          "$CARGO_HOME/bin/rustup" toolchain install 1.95.0 --profile minimal --target wasm32-unknown-unknown
+          mv "$RUSTUP_HOME/toolchains/1.95.0-aarch64-apple-darwin" "$RUSTUP_HOME/toolchains/$TC"
+          "$CARGO_HOME/bin/rustup" default "${TC%-aarch64-apple-darwin}"
+          "$CARGO_HOME/bin/rustc" --version
+          "$CARGO_HOME/bin/cargo" install cargo-near --version 0.22.0 --locked
+      - name: Build contract/ and compare with the chain
+        run: |
+          export CARGO_HOME="$BHOME/.cargo" RUSTUP_HOME="$BHOME/.rustup" PATH="$BHOME/.cargo/bin:$PATH"
+          cd contract && cargo near build non-reproducible-wasm
+          built=$(shasum -a 256 target/near/fuin_registry.wasm | cut -d' ' -f1)
+          echo "built    sha256 $built"; echo "deployed sha256 $DEPLOYED"
+          if [ "$built" = "$DEPLOYED" ]; then echo "REGISTRY REBUILT: matches the deployed code byte for byte"
+          else echo "REGISTRY DIFFERS"; exit 1; fi
