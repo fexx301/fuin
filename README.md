@@ -3,15 +3,15 @@
 Fūin (封印, pronounced *foo-een*) is Japanese for "seal": the test set is sealed on NEAR before any result is committed.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/fexx301/fuin/main/assets/fuin-logo-dark.svg">
-  <img src="https://raw.githubusercontent.com/fexx301/fuin/main/assets/fuin-logo.svg" alt="Fūin logo" width="320">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/fuin-logo-dark.svg">
+  <img src="assets/fuin-logo.svg" alt="Fūin logo" width="320">
 </picture>
 
 Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is re-scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all. In round 7 a TEE made every model call itself and refused to ask any question twice, so no owner could re-ask and keep the best answer.
 
 Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
-![The browser verifier refusing a real round-3 certificate whose revealed answer was edited after signing: REFUSED signature_text_mismatch](https://raw.githubusercontent.com/fexx301/fuin/main/assets/verify-refused.png)
+![The browser verifier refusing a real round-3 certificate whose revealed answer was edited after signing: REFUSED signature_text_mismatch](assets/verify-refused.png)
 
 *The browser verifier on a real round-3 certificate after "Edit an answer": the checks pass until the revealed sample is re-scored, where the edited answer no longer matches what the model signed.*
 
@@ -27,8 +27,8 @@ Fūin is a third option. The owner keeps the questions private. Anyone can check
 ## How it works
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/fexx301/fuin/main/assets/fuin-flow-dark.svg">
-  <img src="https://raw.githubusercontent.com/fexx301/fuin/main/assets/fuin-flow.svg" alt="The six steps of a Fūin round: seal on NEAR, run (the model in a TEE signs each answer), commit on NEAR, close, check (a future block picks a sample, or a TEE scores every answer), verify (anyone gets VERIFIED, REFUSED or CAN'T CERTIFY)" width="940">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/fuin-flow-dark.svg">
+  <img src="assets/fuin-flow.svg" alt="The six steps of a Fūin round: seal on NEAR, run (the model in a TEE signs each answer), commit on NEAR, close, check (a future block picks a sample, or a TEE scores every answer), verify (anyone gets VERIFIED, REFUSED or CAN'T CERTIFY)" width="940">
 </picture>
 
 **seal → run → commit → close → check → verify.**

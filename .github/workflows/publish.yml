@@ -19,6 +19,9 @@ jobs:
         run: |
           v=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
           test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME doesn't match version $v"; exit 1; }
+          # PyPI can't resolve the README's repo-relative images, so point them at the public repo for the package only
+          sed -i 's#\(src\|srcset\)="assets/#\1="https://raw.githubusercontent.com/fexx301/fuin/main/assets/#g; s#](assets/#](https://raw.githubusercontent.com/fexx301/fuin/main/assets/#g' README.md
+          ! grep -nE '(src|srcset)="assets/|\]\(assets/' README.md
           uv build
       - name: Install the wheel in a clean environment and verify a certificate with it
         run: |
