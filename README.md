@@ -331,7 +331,7 @@ For an enclave-asked round that passes the asked-once check, that limit reads in
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
 - The seal precedes the result commitment; this does not prove when inference happened.
-- The registry contract is locked (no access keys), but its code rebuilds byte for byte from contract/ only on the macOS machine that built it, not on Linux, so others can't tie it to this repository: the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+- The registry contract is locked (no access keys), and its code rebuilds byte for byte from contract/ on macOS arm64 with the recorded toolchain (GitHub's runners: .github/workflows/registry-rebuild.yml), not on Linux; the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
 - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
 
 Printed as well when a certificate carries a TEE score:
