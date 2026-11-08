@@ -128,6 +128,8 @@ def p_detect(n: int, d: int, k: int) -> Fraction:
 
 def audit_size(n: int, target: Fraction = TARGET) -> tuple[int, int]:
     """Return (D, k): D = ceil(n/10) bad scores, smallest k detecting one with probability >= target."""
+    if n < 1:  # a clear error, not an "unreachable" assertion, for library callers (review 13)
+        raise ValueError("a round needs at least one item")
     d = math.ceil(n / 10)
     for k in range(1, n + 1):
         if p_detect(n, d, k) >= target:

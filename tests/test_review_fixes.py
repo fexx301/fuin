@@ -114,3 +114,10 @@ def test_8_more_items_than_any_verifier_accepts_is_refused_before_sealing(monkey
                       "source": {"url": "u", "commit": "e2d2ea173cf462bcf518ecae5650984a221d5183", "path": "a.md", "line": i, "anchor": "x"}}
     f.write_text("".join(json.dumps(item(i)) + "\n" for i in (1, 2)))
     assert any("at most 1" in e for e in tooling.check_suite(str(f))["errors"])
+
+
+def test_13_an_empty_round_is_a_clear_error():
+    import pytest
+    from fuin import policy as P
+    with pytest.raises(ValueError, match="at least one item"):
+        P.make_policy(0, {"m": {"max_tokens": 1}})
