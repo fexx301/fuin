@@ -609,9 +609,10 @@
       const approvedTd = new Map();  // signer -> its model quote's measurements, for the same-machine check of the trace
       const reps = r.model_report.model_attestations.filter((x) => used.has(String(x.signing_address).toLowerCase()));
       if (root.DcapReady && !root.Dcap) { await onStep('attestation', 'running', 'loading the Intel TDX verifier…'); try { await root.DcapReady; } catch { /* falls back below */ } }
+      let acceptedRep = null;  // the one report accepted for this run: the trace below uses it (review 4)
       if (root.Dcap && reps.length && reps.every((x) => x.intel_quote)) {
         await online('attestation', async () => {
-          const out = [];
+          const out = [], accepted = [];
           for (const rep of reps) {
             const res = await tdxVerify(unhex(rep.intel_quote), rep.intel_quote, cfg, 'attestation_invalid');
             req(res.status !== 'Revoked', 'tcb_revoked');
@@ -626,19 +627,26 @@
               if (ev.imr !== 3) continue;
               const le = new Uint8Array(4); new DataView(le.buffer).setUint32(0, ev.event_type, true);
               const d = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([le, enc.encode(':' + ev.event + ':'), unhex(ev.event_payload)])));
+              if (ev.digest) req(hex(d) === String(ev.digest).toLowerCase(), 'attestation_invalid');  // a logged (non-empty) digest must match, as the CLI checks it
               rt = new Uint8Array(await crypto.subtle.digest('SHA-384', concat([rt, d])));
             }
             req(hex(rt) === td.rt_mr3, 'attestation_invalid');
             // the application (compose hash) and the OS it runs on (MRTD, RTMR0-2, os_image_hash) must both be approved
-            const entry = (cfg.attestationPolicy.models[r.model_id] || {})[ch];
+            // approved under the model the report names; exactly one report may be accepted, for the run's model (below)
+            const entry = (cfg.attestationPolicy.models[rep.model_name] || {})[ch];
             const osOk = !!entry && rep.info.os_image_hash === entry.os_image_hash
               && entry.os_measurements.some((m) => ['mr_td', 'rt_mr0', 'rt_mr1', 'rt_mr2'].every((k) => m[k] === td[k]));
-            if (!osOk) {  // defer, like the CLI: later checks can still refuse
-              deferred.push(['measurement_unapproved', '']);
-              out.push(`quote ${res.status} but ${entry ? 'its OS measurements (MRTD, RTMR0-2) are' : `configuration ${ch.slice(0, 10)}… is`} not approved in ${cfg.attestationPolicy.version} (CAN'T CERTIFY measurement_unapproved)`); continue;
+            if (!osOk) {
+              out.push(`${rep.model_name}: quote ${res.status} but ${entry ? 'its OS measurements (MRTD, RTMR0-2) are' : `configuration ${ch.slice(0, 10)}… is`} not approved in ${cfg.attestationPolicy.version}`); continue;
             }
-            approvedTd.set(String(rep.signing_address).toLowerCase(), td);
+            accepted.push({ rep, td });
             out.push(`quote ${res.status}${res.advisory_ids && res.advisory_ids.length ? ' (advisories ' + res.advisory_ids.join(',') + ')' : ''}, signer+nonce bound, debug off, MRCONFIGID and RTMR3 match, compose ${ch.slice(0, 10)}… and OS ${td.mr_td.slice(0, 10)}… approved by ${cfg.attestationPolicy.version}`);
+          }
+          // like the CLI: one accepted report, for the run's model, from the run's one signer; else defer (later checks can still refuse)
+          if (accepted.length !== 1 || used.size !== 1 || accepted[0].rep.model_name !== r.model_id) {
+            deferred.push(['measurement_unapproved', '']); out.push(`not exactly one approved report for ${r.model_id} (CAN'T CERTIFY measurement_unapproved)`);
+          } else {
+            acceptedRep = accepted[0].rep; approvedTd.set(String(acceptedRep.signing_address).toLowerCase(), accepted[0].td);
           }
           attMode = 'live';
           return `TDX checked in your browser: ${out.join('; ')}. ${gpu}`;
@@ -649,7 +657,7 @@
         await onStep('attestation', cfg.recorded ? 'info' : 'skip', cfg.recorded ? `recorded by fuin verify, not checked here: ${cfg.recorded}` : 'not checked here: the Intel TDX verifier did not load or the certificate has no quote. Run fuin verify.');
       }
       // the serving container, traced live from NEAR's attested deployment log when the model quote was checked here
-      const rep0 = reps[0], tdModel = rep0 && approvedTd.get(String(rep0.signing_address).toLowerCase());
+      const rep0 = acceptedRep, tdModel = rep0 && approvedTd.get(String(rep0.signing_address).toLowerCase());
       if (attMode === 'live' && tdModel) {
         await start('trace');
         try {

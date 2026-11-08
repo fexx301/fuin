@@ -126,6 +126,18 @@ def _(c):
     c["run"]["model_report"]["model_attestations"][0]["nvidia_payload"] = "[]"
 
 
+@fixture("shared-key-other-model-first", "VERIFIED", "a report for another model with the same signing key listed first; the verifier must use the accepted report (review 4), so this stays VERIFIED")
+def _(c):
+    reps = c["run"]["model_report"]["model_attestations"]
+    reps.insert(0, {**copy.deepcopy(reps[0]), "model_name": "other/model"})
+
+
+@fixture("edited-event-digest", "REFUSED attestation_invalid", "a logged RTMR3 event digest replaced; both verifiers compare each logged digest with the event (review 7)")
+def _(c):
+    ev = next(e for e in c["run"]["model_report"]["model_attestations"][0]["event_log"] if e["imr"] == 3)
+    ev["digest"] = "00" * 48
+
+
 @fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
     k = c["audit"]["k"]

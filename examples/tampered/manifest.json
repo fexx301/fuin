@@ -82,6 +82,16 @@
    "mutation": "an attestation report's GPU evidence replaced with a JSON list (review 2)"
   },
   {
+   "file": "shared-key-other-model-first.json",
+   "expected": "VERIFIED",
+   "mutation": "a report for another model with the same signing key listed first; the verifier must use the accepted report (review 4), so this stays VERIFIED"
+  },
+  {
+   "file": "edited-event-digest.json",
+   "expected": "REFUSED attestation_invalid",
+   "mutation": "a logged RTMR3 event digest replaced; both verifiers compare each logged digest with the event (review 7)"
+  },
+  {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"

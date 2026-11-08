@@ -348,7 +348,8 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
                 warnings.append(f"TCB status {acc[0]['quote_status']} advisories {acc[0]['advisories']}")
             ok("attestation", f"signer {acc[0]['signing_address']} quote {acc[0]['quote_status']}, NRAS {acc[0].get('nras_ok')}, "
                f"compose {acc[0]['compose_hash'][:12]}… under {pol_att['version']}")
-            rep = next(c for c in reports if c["signing_address"].lower() in used)
+            # the accepted report itself, not the first with this signer: instances can share a key (review 4)
+            rep = next(c for c in reports if c["signing_address"].lower() == acc[0]["signing_address"].lower() and c["model_name"] == r["model_id"])
             try:
                 tr = provenance.trace(rep, r["preflight_nonce"], acc[0]["td"])
             except provenance.TraceInvalid as e:
