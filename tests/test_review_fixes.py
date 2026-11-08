@@ -87,3 +87,21 @@ def test_5_nvidia_verdict_token_is_verified_not_just_decoded(monkeypatch):
     h, c, s = token().split(".")
     forged = enc({**json.loads(b.urlsafe_b64decode(c + "==")), "x-nvidia-overall-att-result": True, "eat_nonce": "cd" * 32})
     assert not A.nras_token_ok(f"{h}.{forged}.{s}", "cd" * 32)                       # claims edited after signing
+
+
+def test_10_tee_rounds_seal_only_settings_the_tee_can_rebuild():
+    from fuin import policy as P
+    M = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    ok = P.make_policy(37, {M: {"max_tokens": 4096, "temperature": 0}}, tee_wasm="11" * 32)
+    assert P.unsupported_reason(ok, 37, [M]) is None
+    for settings in ({"temperature": 0.5, "max_tokens": 4096}, {"max_tokens": 4096, "temperature": 0.5},
+                     {"chat_template_kwargs": {"enable_thinking": False}, "max_tokens": 4096}):
+        assert P.unsupported_reason(P.make_policy(37, {M: settings}, tee_wasm="11" * 32), 37, [M]), settings
+    assert P.unsupported_reason(P.make_policy(37, {M: {"temperature": 0.5, "max_tokens": 4096}}), 37, [M]) is None  # sampled: unchanged
+
+
+def test_10_every_published_policy_is_still_supported():
+    for f in sorted(CERT.parent.glob("cert-*.json")):
+        b = json.loads(f.read_text())["benchmark"]
+        from fuin import policy as P
+        assert P.unsupported_reason(b["policy"], b["n"], b["models"]) is None, f.name

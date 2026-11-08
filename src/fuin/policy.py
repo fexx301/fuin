@@ -89,6 +89,9 @@ def unsupported_reason(policy: dict, n: int, sealed_models: list[str]) -> str | 
         for m, s in policy["models"].items():
             if not isinstance(s, dict) or set(s) - ALLOWED_SETTINGS:
                 return f"unsupported generation settings for {m}"
+            # the TEE rebuilds each request from the canonical policy: integer or boolean settings, in sorted order (review 10)
+            if is_tee_round(policy) and (list(s) != sorted(s) or not all(type(v) in (int, bool) for v in s.values())):
+                return f"a TEE-checked round needs integer or boolean settings in sorted order ({m})"
     except (KeyError, TypeError, AttributeError):
         return "malformed policy"
     return None

@@ -533,6 +533,9 @@
         if (e3 && !tr) throw new CantCertify('policy_unsupported');
         req(jcs(Object.keys(b.policy.models).sort()) === jcs([...b.models].sort()) && r.model_id in b.policy.models, 'policy_mismatch');
         req(Object.values(b.policy.models).every((s) => Object.keys(s).every((x) => S.allowed_settings.includes(x))), 'policy_mismatch');
+        // the TEE rebuilds each request from the canonical policy: integer or boolean settings, in sorted order (review 10; fuin/policy.py)
+        if (tr) req(Object.values(b.policy.models).every((s) => jcs(Object.keys(s)) === jcs(Object.keys(s).sort())
+          && Object.values(s).every((v) => Number.isInteger(v) || typeof v === 'boolean')), 'policy_mismatch');
         if (tr) {  // zero-reveal: no sample at all; every item is re-scored in the TEE instead
           k = 0;
           req(a.mode === b.policy.audit.mode && a.k === 0 && a.indices.length === 0 && a.reveals.length === 0, 'audit_sample_mismatch');
