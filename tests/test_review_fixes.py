@@ -105,3 +105,12 @@ def test_10_every_published_policy_is_still_supported():
         b = json.loads(f.read_text())["benchmark"]
         from fuin import policy as P
         assert P.unsupported_reason(b["policy"], b["n"], b["models"]) is None, f.name
+
+
+def test_8_more_items_than_any_verifier_accepts_is_refused_before_sealing(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "MAX_ITEMS", 1)
+    f = tmp_path / "s.jsonl"
+    item = lambda i: {"question": f"Q{i}? Answer with the number only.", "answer": str(i), "answer_type": "numeric",
+                      "source": {"url": "u", "commit": "e2d2ea173cf462bcf518ecae5650984a221d5183", "path": "a.md", "line": i, "anchor": "x"}}
+    f.write_text("".join(json.dumps(item(i)) + "\n" for i in (1, 2)))
+    assert any("at most 1" in e for e in tooling.check_suite(str(f))["errors"])

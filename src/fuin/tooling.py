@@ -74,6 +74,8 @@ def check_suite(path: str) -> dict:
             seen_src.setdefault(key, i)
     if not items and not errors:
         errors.append("the suite has no items")
+    if len(items) > core.MAX_ITEMS:  # the registry contract would seal it, but no verifier could check it (review 8)
+        errors.append(f"{len(items)} items: a round can have at most {core.MAX_ITEMS:,}, the most the verifiers accept")
     return {"n": len(items), "errors": errors, "warnings": warnings, "items": items}
 
 

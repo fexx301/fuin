@@ -115,7 +115,7 @@ def _validate(c) -> None:
     for k in ("network", "account", "code_hash", "owner"):
         txt(reg.get(k), f"registry.{k}")
     txt(b.get("id"), "benchmark.id"); h32(b.get("root"), "benchmark.root"); h32(b.get("policy_hash"), "benchmark.policy_hash")
-    need(type(b.get("n")) is int and 1 <= b["n"] <= 1_000_000, "benchmark.n")
+    need(type(b.get("n")) is int and 1 <= b["n"] <= core.MAX_ITEMS, "benchmark.n")
     need(isinstance(b.get("models"), list) and all(isinstance(m, str) for m in b["models"]), "benchmark.models")
     need(isinstance(b.get("policy"), dict), "benchmark.policy")
     txt(b.get("seal_tx"), "benchmark.seal_tx"); num(b.get("seal_height"), "benchmark.seal_height")
