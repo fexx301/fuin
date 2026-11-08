@@ -148,6 +148,9 @@ def _validate(c) -> None:
         need(isinstance(it, dict), f"{w}.item")
         txt(it.get("question"), f"{w}.item.question"); txt(it.get("answer"), f"{w}.item.answer")
         need(it.get("answer_type") in ("numeric", "exact"), f"{w}.item.answer_type")
+        if it["answer_type"] == "numeric":  # finite and within 10^±100, as all three scorers can read it (core.sealed_number_ok)
+            need(core.sealed_number_ok(it["answer"]), f"{w}.item.answer")
+            need("tolerance" not in it or core.sealed_number_ok(it["tolerance"], tolerance=True), f"{w}.item.tolerance")
         h32(it.get("request_nonce"), f"{w}.item.request_nonce"); h32(x.get("salt"), f"{w}.salt")
         b64(x.get("request_b64"), f"{w}.request_b64"); b64(x.get("response_b64"), f"{w}.response_b64")
         for k in ("proof_benchmark", "proof_run"):

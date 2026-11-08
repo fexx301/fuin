@@ -67,6 +67,11 @@
    "mutation": "run.evidence (the attempt log's container) replaced with a string"
   },
   {
+   "file": "infinite-tolerance.json",
+   "expected": "REFUSED certificate_invalid",
+   "mutation": "a revealed numeric item's tolerance set to Infinity, which would mark any number correct (review 1)"
+  },
+  {
    "file": "changed-audit.json",
    "expected": "REFUSED audit_sample_mismatch",
    "mutation": "owner cherry-picks the sample: indices replaced by the first k items"

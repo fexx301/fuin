@@ -174,3 +174,20 @@ def seal_bound_nonce(item_nonce_hex: str, seal_block_hash_b58: str) -> str:
     """Request template v2: sha256("fuin-nonce-v2" ‖ sealed item nonce ‖ seal block hash). The seal block's hash doesn't
     exist until the seal lands, so no request with this nonce, and no answer signed over it, can predate the seal."""
     return sha256(b"fuin-nonce-v2", bytes.fromhex(item_nonce_hex), b58decode(seal_block_hash_b58)).hex()
+
+
+MAX_ITEMS = 1_000_000  # the most items one round may have (the verifier's bound; the registry contract doesn't cap it)
+NUMBER_EXP = 100       # a sealed numeric answer or tolerance must be finite with magnitude within 10^-100 .. 10^100
+
+
+def sealed_number_ok(s, tolerance: bool = False) -> bool:
+    """A numeric item's sealed answer or tolerance, as all three scorers can read it: a decimal string (Python's Decimal
+    syntax), finite (no Infinity or NaN), with an exponent the browser and TEE scorers can scale, and a tolerance >= 0."""
+    from decimal import Decimal, InvalidOperation
+    if not isinstance(s, str):
+        return False
+    try:
+        d = Decimal(s)
+    except InvalidOperation:
+        return False
+    return d.is_finite() and (d.is_zero() or -NUMBER_EXP <= d.adjusted() <= NUMBER_EXP) and (not tolerance or d >= 0)

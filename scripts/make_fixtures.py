@@ -111,6 +111,11 @@ def _(c):
     c["run"]["evidence"] = "x"
 
 
+@fixture("infinite-tolerance", "REFUSED certificate_invalid", "a revealed numeric item's tolerance set to Infinity, which would mark any number correct (review 1)")
+def _(c):
+    next(x for x in c["audit"]["reveals"] if x["item"]["answer_type"] == "numeric")["item"]["tolerance"] = "Infinity"
+
+
 @fixture("changed-audit", "REFUSED audit_sample_mismatch", "owner cherry-picks the sample: indices replaced by the first k items")
 def _(c):
     k = c["audit"]["k"]

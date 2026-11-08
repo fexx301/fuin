@@ -104,6 +104,13 @@
     if (!m || !(m[2] || m[3])) throw new Error('bad decimal');
     const frac = m[3] || ''; return { m: BigInt((m[1] === '-' ? '-' : '') + (m[2] || '') + frac || '0'), e: (m[4] ? parseInt(m[4], 10) : 0) - frac.length };
   }
+  function sealedNumberOk(s, tolerance) {  // fuin/core.py sealed_number_ok: a finite decimal, magnitude within 10^±100, tolerance >= 0
+    if (typeof s !== 'string') return false;
+    let d; try { d = decimal(s, true); } catch { return false; }
+    if (d.m === 0n) return true;
+    const adjusted = (d.m < 0n ? -d.m : d.m).toString().length - 1 + d.e;
+    return adjusted >= -100 && adjusted <= 100 && (!tolerance || d.m >= 0n);
+  }
   function absDiffLE(a, b, tol) {  // Python: the exact difference rounded to 28 significant digits, half-even, then compared
     const sc = (x, e) => x.m * 10n ** BigInt(x.e - e), e = Math.min(a.e, b.e);
     let m = sc(a, e) - sc(b, e), de = e; if (m < 0n) m = -m;
@@ -437,6 +444,10 @@
     a.reveals.forEach((x, j) => {
       const w = `audit.reveals[${j}]`; need(x && Number.isInteger(x.i) && x.item && typeof x.item === 'object', w);
       str(x.item.question, w + '.item.question'); str(x.item.answer, w + '.item.answer'); need(['numeric', 'exact'].includes(x.item.answer_type), w + '.item.answer_type');
+      if (x.item.answer_type === 'numeric') {  // finite and within 10^±100, as fuin/core.py sealed_number_ok
+        need(sealedNumberOk(x.item.answer, false), w + '.item.answer');
+        need(!('tolerance' in x.item) || sealedNumberOk(x.item.tolerance, true), w + '.item.tolerance');
+      }
       n32(x.item.request_nonce, w + '.item.request_nonce'); n32(x.salt, w + '.salt');
       for (const k of ['proof_benchmark', 'proof_run']) { need(Array.isArray(x[k]) && x[k].length <= 64, `${w}.${k}`); x[k].forEach((h, q) => n32(h, `${w}.${k}[${q}]`)); }
       b64(x.request_b64); b64(x.response_b64);
@@ -741,5 +752,5 @@
     return { outcome: 'VERIFIED', attestation: attMode, gpu: 'recorded', tee: teeMode, ground: groundMode, trace: traceMode, scope };
   }
 
-  root.FuinVerify = { verify, servedAs, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };
+  root.FuinVerify = { verify, servedAs, sealedNumberOk, jcs, auditSize, scoreText, scoreResponse, sha256, hex, b64 };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -46,16 +46,10 @@ def check_suite(path: str) -> dict:
             errors.append(f"{where}: answer must be a non-empty string (numbers as strings, e.g. \"1000\")")
         if t not in ("numeric", "exact"):
             errors.append(f"{where}: answer_type must be \"numeric\" or \"exact\"")
-        if t == "numeric" and isinstance(a, str):
-            try:
-                Decimal(a)
-            except InvalidOperation:
-                errors.append(f"{where}: numeric answer {a!r} is not a decimal number")
-        if "tolerance" in it:
-            try:
-                assert isinstance(it["tolerance"], str) and Decimal(it["tolerance"]) >= 0
-            except (AssertionError, InvalidOperation):
-                errors.append(f"{where}: tolerance must be a non-negative decimal string")
+        if t == "numeric" and isinstance(a, str) and not core.sealed_number_ok(a):
+            errors.append(f"{where}: numeric answer {a!r} is not a decimal number (finite, within 10^±{core.NUMBER_EXP})")
+        if "tolerance" in it and not core.sealed_number_ok(it["tolerance"], tolerance=True):
+            errors.append(f"{where}: tolerance must be a non-negative finite decimal string within 10^±{core.NUMBER_EXP}")
         if "accept" in it and not (isinstance(it["accept"], list) and all(isinstance(x, str) for x in it["accept"])):
             errors.append(f"{where}: accept must be a list of strings")
         elif t == "exact" and any(isinstance(x, str) and not scorer.extract(x) for x in [a, *it.get("accept", [])]):
