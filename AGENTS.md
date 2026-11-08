@@ -21,7 +21,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 - `README.md`, section "Try it": the commands and their expected output.
 - `evidence/<date>-<topic>/README.md`: transactions, recorded command output and probe write-ups.
-- `examples/tampered/manifest.json`: each fixture's single change and its expected verdict.
+- `examples/tampered/manifest.json`: each fixture's single change and its expected verdict (also tabled in `docs/REFUSALS.md`).
 
 ## Don't run
 
@@ -29,5 +29,5 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Scope
 
-- Limits are listed in the README and printed with every VERIFIED.
-- The three test sets (60, 60 and 300 items) are deliberately not in the repo. Only each round's audited sample (23, 23 and 28 items) is revealed, inside the certificates.
+- Limits are printed with every VERIFIED and listed word for word in `docs/LIMITS.md`.
+- The seven test sets (60, 60, 300, 155, 96, 96 and 37 items) are deliberately not in the repo. Only the sampled rounds' audited samples (23, 23 and 28 items, rounds 1–3) are revealed, inside the certificates; rounds 4–7 reveal nothing.

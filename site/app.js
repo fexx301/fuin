@@ -124,7 +124,7 @@
   const served = (e) => [...new Set(((e.recorded && e.recorded.trace && e.recorded.trace.services) || []).map((s) => s.model_path).filter(Boolean))].join(', ');
 
   /* ---------------- evidence links, pressed state ---------------- */
-  // Known disclosure per round: direct reveals plus items disclosed indirectly (README "Disclosure").
+  // Known disclosure per round: direct reveals plus items disclosed indirectly (docs/RESULTS.md "Disclosure").
   const DISCLOSURE = { 'near-dev-60-r1': { revealed: 23, indirect: 1 }, 'near-dev-60-r2': { revealed: 23, indirect: 0 }, 'near-dev-300-r3': { revealed: 28, indirect: 0 } };
   const TX = 'https://testnet.nearblocks.io/txns/';
   function evidenceLinks(entry, c) {
