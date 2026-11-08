@@ -284,10 +284,15 @@
       const img = String(svc.image ?? ''), m = img.match(/([a-z0-9][\w./-]*@sha256:[0-9a-f]{64})/), path = cmd.match(/--model-path\s+(\S+)/);
       const cut = cmd.indexOf('--lora-modules'), base = cut < 0 ? cmd : cmd.slice(0, cut), lora = cut < 0 ? '' : cmd.slice(cut);
       const hub = (path ? path[1] : base).match(/models--([\w.-]+)--([\w.-]+)\/snapshots\/([0-9a-f]+)/), pos = cmd.match(/^\s*(?:vllm\s+serve\s+)?([\w.-]+\/[\w.-]+)(\s|$)/);
+      const rev = JSON.stringify(svc.labels || {}).match(/model_revision:([0-9a-f]{7,40})/) || cmd.match(/--revision\s+([0-9a-f]{7,40})/);
       serving.push({ service: name, tag: a.tag, file: a.file, image: m ? m[1] : img, weights: hub ? `${hub[1]}/${hub[2]}` : (path ? path[1] : (pos ? pos[1] : '?')),
+        revision: hub ? hub[3] : (rev ? rev[1] : null), shaChecked: !!a.file_sha256,
         loras: [...lora.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((x) => x[1]).filter((n) => n !== rep.model_name), adapter: how.adapter });
     }
     if (!serving.length) throw new Untraced(`no deployed service serves ${rep.model_name}, by --served-model-name or as a LoRA adapter`);
+    // a trace has to pin what ran: a mutable tag, unknown weights or an unchecked compose file shows nothing (review 3; fuin/provenance.py)
+    for (const x of serving) if (!(/^[a-z0-9][\w./-]*@sha256:[0-9a-f]{64}$/.test(x.image) && x.weights !== '?' && x.revision && x.shaChecked))
+      throw new Untraced(`service ${x.service} isn't pinned: its image digest, weights, weights revision and compose sha256 are all required`);
     serving.sort((p, q) => (p.service < q.service ? -1 : p.service > q.service ? 1 : 0));
     return { repo, status: res.status, services: serving };
   }

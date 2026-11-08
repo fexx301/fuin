@@ -49,3 +49,12 @@ def test_2_malformed_nested_evidence_is_refused_not_a_crash():
 def test_2_every_published_certificate_still_passes_the_form_check():
     for f in sorted((CERT.parent).glob("cert-*.json")):
         verify._validate(json.loads(f.read_text()))
+
+
+def test_3_a_trace_must_pin_image_weights_revision_and_compose_hash():
+    from fuin import provenance
+    ok = {"service": "s", "image": "nearaidev/vllm@sha256:" + "ab" * 32, "model_path": "Qwen/Qwen3.8-27B", "model_revision": "1bae0e10",
+          "file_sha256_checked": True}
+    assert provenance.unpinned([ok]) is None
+    for k, v in (("image", "nearaidev/vllm:latest"), ("model_path", None), ("model_revision", None), ("file_sha256_checked", False)):
+        assert provenance.unpinned([ok, {**ok, "service": "t", k: v}]) == "t", k

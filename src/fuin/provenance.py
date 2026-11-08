@@ -140,7 +140,19 @@ def trace(report: dict, nonce_hex: str, td_model: dict | None = None) -> dict:
                         "adapter": how["adapter"]})
     if not serving:
         raise TraceUnavailable(f"no deployed service serves {model}, by --served-model-name or as a LoRA adapter")
+    loose = unpinned(serving)
+    if loose:
+        raise TraceUnavailable(f"service {loose} isn't pinned: its image digest, weights, weights revision and compose sha256 are all required")
     return {"repo": repo, "cm_quote_status": status, "services": sorted(serving, key=lambda s: s["service"])}
+
+def unpinned(serving: list[dict]) -> str | None:
+    """The first serving service whose trace doesn't pin what ran, or None. A trace has to pin it: a mutable image tag,
+    unknown weights or an unchecked compose file shows nothing (review 3). site/verify.js applies the same rule."""
+    for x in serving:
+        if not (re.fullmatch(r"[a-z0-9][\w./-]*@sha256:[0-9a-f]{64}", x["image"]) and x["model_path"] and x["model_revision"] and x["file_sha256_checked"]):
+            return x["service"]
+    return None
+
 
 # ---------------- build provenance: SLSA v1 that NEAR publishes for its images ----------------
 
