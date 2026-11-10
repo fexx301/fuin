@@ -16,6 +16,22 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sleep = (ms) => new Promise((r) => setTimeout(r, reduced ? 0 : ms));
   const short = (m) => m.split('/').pop();
+  // long lists open short: the first n children show, and one button reveals the rest
+  function clamp(box, n, what) {
+    if (box.nextElementSibling && box.nextElementSibling.classList.contains('more')) box.nextElementSibling.remove();
+    const kids = [...box.children];
+    if (kids.length <= n) return;
+    kids.slice(n).forEach((k) => (k.hidden = true));
+    const b = h('button', { class: 'chip more' }, `Show all ${kids.length} ${what}`);
+    b.addEventListener('click', () => { kids.forEach((k) => (k.hidden = false)); b.remove(); kids[n].tabIndex = -1; kids[n].focus({ preventScroll: true }); });
+    box.after(b);
+  }
+  // under the chart, only the chart's round shows its runs until "Show all rounds" is pressed
+  let roundShown = 0, allRounds = false;
+  function syncRounds() {
+    const box = $('#rounds'); box.classList.toggle('one', !allRounds);
+    [...box.children].forEach((c, i) => (c.hidden = !allRounds && i !== roundShown));
+  }
 
   /* ---------------- hero: dot-art hands + spinning seal ---------------- */
   const SEAL = '<path d="M35 25h190v78h-22V47H57v146h56v22H35z"/><path d="M225 125v90h-90v-22h68v-68z"/><path d="M79 69h102v22H101v80H79z"/><path d="M123 113h58v58h-58z"/>';
@@ -288,6 +304,9 @@
       }
       box.append(card);
     }
+    const all = h('button', { class: 'chip more' }, `Show all ${F.rounds.length} rounds`);
+    all.addEventListener('click', () => { allRounds = true; syncRounds(); all.remove(); });
+    box.after(all); syncRounds();
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); box.querySelectorAll('.bar i').forEach((b) => (b.style.width = b.dataset.w)); } }, ONSCREEN).observe(box);
   }
   // One round at a time: every model in a round answered the same sealed questions, so only within a round do bars compare.
@@ -303,8 +322,9 @@
     const label = (m) => { const s = short(m); const v = s.match(/^(.*?)-(abliterated)$/i); return v ? [v[1], 'abliterated'] : [s, '']; };
     let shown = false, cur = 0;
     const chips = $('#vizRounds');
+    const start = F.rounds.reduce((b, rd, i) => (rd.certs.length > F.rounds[b].certs.length ? i : b), 0);  // open on the round with the most models to compare
     F.rounds.forEach((rd, i) => {
-      const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${modeName(rd.certs[0].cert)}`);
+      const c = h('button', { class: 'chip' + (i === start ? ' on' : ''), 'aria-pressed': String(i === start) }, `Round ${rd.id.slice(-1)} · ${modeName(rd.certs[0].cert)}`);
       c.addEventListener('click', () => { press(chips, c); draw(i); }); chips.append(c);
     });
     function hide() { tip.hidden = true; }
@@ -331,7 +351,7 @@
       }
     }
     function draw(i) {
-      cur = i; hide();
+      cur = i; hide(); roundShown = i; syncRounds();
       const rd = F.rounds[i], n = rd.certs[0].cert.benchmark.n, zr = zeroReveal(rd.certs[0].cert);
       const rows = rd.certs.map((e) => ({ e, k: e.cert.run.total_score })).sort((a, b) => b.k - a.k);
       $('#vizTitle').textContent = `Round ${rd.id.slice(-1)}: share of ${n} sealed questions answered correctly`;
@@ -361,7 +381,7 @@
       if (shown) requestAnimationFrame(() => plot.querySelectorAll('.col').forEach((c) => c.style.setProperty('--v', c.dataset.final)));
     }
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') hide(); });
-    draw(0);
+    draw(start);
     new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); shown = true; plot.querySelectorAll('.col').forEach((c) => c.style.setProperty('--v', c.dataset.final)); } }, ONSCREEN).observe(plot);
   }
   function explorer() {
@@ -382,6 +402,7 @@
           h('div', { class: 'q' }, x.item.question, x.item.source ? h('a', { href: x.item.source.url, target: '_blank', rel: 'noopener' }, 'source') : ''),
           h('div', { class: 'a' }, h('span', { class: 'exp' }, 'expected ' + x.item.answer), ...lines.map((l) => l.el))));
       }
+      clamp(qa, 6, 'questions');
     };
     RR.forEach((rd, i) => { const c = h('button', { class: 'chip' + (i === 0 ? ' on' : ''), 'aria-pressed': String(i === 0) }, `Round ${rd.id.slice(-1)} · ${rd.cap.toLocaleString('en')} tokens`); c.addEventListener('click', () => { ri = i; press(tabs, c); draw(); lead(); }); tabs.append(c); });
     [['all', 'All revealed'], ['correct', 'Correct'], ['wrong', 'Wrong'], ['format', 'Format'], ['cut', 'Cut off']].forEach(([k, label], i) => {
@@ -392,17 +413,17 @@
   }
   function steps() {
     const S = [['Seal', 'The owner commits a Merkle root of the salted questions and the scoring policy on NEAR.'],
-      ['Run', 'Each question goes to a TEE model on NEAR AI Cloud. Its attested key signs the exact request and response.'],
+      ['Run', 'Each question goes to a TEE model on NEAR AI Cloud. Its attested key signs the exact request and response. In an asked-once round a TEE makes these calls itself, once per question.'],
       ['Commit', 'Each run\'s result root and total go on chain, numbered per model.'],
       ['Close', 'The round closes. No more runs can join it.'],
-      ['Sample', 'A finalized NEAR block after the close picks the audited items. Nobody knew it in advance.'],
-      ['Reveal', 'The sampled questions, salts and exact bytes are published with Merkle proofs.'],
-      ['Verify', 'Anyone checks every signature and commitment, re-derives the sample, re-scores the reveals, and checks the TEE\'s re-score of every answer.']];
+      ['Check', 'A NEAR block finalized after the close picks a sample to reveal, and a TEE scores every answer. A round can reveal nothing and rely on the TEE alone.'],
+      ['Verify', 'Anyone checks every signature and commitment against the chain, re-scores what was revealed, and checks the TEE\'s score of every answer.']];
     S.forEach(([t, d], i) => $('#steps').append(h('div', { class: 'panel step' }, h('b', {}, String(i + 1).padStart(2, '0')), h('h4', {}, t), h('p', {}, d))));
   }
   function refusals() {
     for (const f of F.manifest) { const cant = f.expected.startsWith('CANT'), ok = f.expected.startsWith('VERIFIED');
       $('#refList').append(h('div', { class: 'panel ref' + (cant ? ' cant' : ok ? ' ok' : '') }, h('code', {}, f.expected.replace('CANT_CERTIFY', "CAN'T CERTIFY")), h('p', {}, f.mutation.replace(/ \(review \d+\)/g, '')))); }
+    clamp($('#refList'), 8, 'tests');
   }
 
   /* ---------------- loading: hero first, then the heavy files with real progress ---------------- */
@@ -453,6 +474,7 @@
   }), { rootMargin: '-40% 0px -60% 0px' });
   document.querySelectorAll('header.hero, main section').forEach((s) => spy.observe(s));
   buildCoin(); hero(); steps();
+  document.querySelectorAll('#how .split ul').forEach((u) => clamp(u, 4, 'points'));
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); }));
   boot().catch((e) => { const vs = $('#verifyLoading'); if (vs) vs.textContent = 'Could not load the verifier: ' + e + '. Reload to try again.'; });
 })();

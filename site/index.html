@@ -57,7 +57,7 @@ html,body{background:#161616;margin:0}
   <p class="eyebrow">01 · Verify</p>
   <h2>Run the checks yourself. Then try to cheat.</h2>
   <p class="who">For benchmark owners who want to publish credible model comparisons while keeping their evaluation questions private. Leaderboards like NEAR's Delta League already rank models on a private eval set (Illia Polosukhin, Nov 6: <a href="https://x.com/ilblackdragon/status/2118587268776829036">results</a> · <a href="https://x.com/ilblackdragon/status/2118591003368296561">the private eval set</a>). <a href="https://github.com/fexx301/fuin/blob/main/docs/USE.md">Run your own round →</a></p>
-  <p class="lead">Pick a certificate. Your browser rebuilds the commitments, recovers every model signature, re-scores the revealed answers, asks NEAR which items the audit had to reveal, and checks the TEE's re-score of every answer. Then use the buttons to tamper with it the way a dishonest owner would, and watch the exact check that catches it.</p>
+  <p class="lead">Pick a certificate and your browser runs every check on it. Then tamper with it the way a dishonest owner would, and watch the exact check that catches it.</p>
   <div class="console">
     <aside class="panel picker" id="picker">
       <h4>Real certificates</h4>
@@ -73,7 +73,8 @@ html,body{background:#161616;margin:0}
       <div class="diff" id="diff"></div>
       <ul class="checks" id="checks"></ul>
       <div class="sr" id="announce" role="status" aria-live="polite"></div>
-      <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public archival RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses, including the approved application and OS measurements. Its collateral comes from a public mirror and is signed by Intel. So is the TEE score's OutLayer record: its quote, task hash, worker approval and the request and result on chain. The deployment trace runs here too: NEAR's attested deployment log, replayed to its compose files on GitHub. NVIDIA's GPU verdict service blocks browsers, so for the published certificates that one result is shown as recorded by the command-line verifier; a certificate you upload gets PARTLY CHECKED. The command line is the reference verifier.</p>
+      <p class="note">Runs entirely in your browser, with no account and no API key. NVIDIA's GPU verdict service blocks browsers, so for the published certificates that one result is shown as recorded by the command-line verifier, and a certificate you upload gets PARTLY CHECKED. The command line is the reference verifier.</p>
+      <details class="note"><summary>What your browser checks itself</summary>NEAR data comes from a public archival RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses, including the approved application and OS measurements. Its collateral comes from a public mirror and is signed by Intel. So is the TEE score's OutLayer record: its quote, task hash, worker approval and the request and result on chain. The deployment trace runs here too: NEAR's attested deployment log, replayed to its compose files on GitHub.</details>
     </div>
   </div>
 </div></section>
@@ -81,7 +82,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Seven independent rounds of private NEAR-developer questions (60, 60, 300, 155, 96, 96 and 37), each answer cited to a line of the NEAR docs. Each round was sealed before its run, and every run's total was scored over every answer inside a TEE on OutLayer, so hidden scores are checked exactly, not by sample. The rounds come in three kinds (below): rounds 1–3 also reveal an audited sample, rounds 4–6 reveal nothing, and in round 7 a TEE asked every question itself. Rounds 5–7 also encrypted every question and answer end to end, so NEAR's gateway never saw them. Round 6 runs all seven models NEAR serves in its own TEEs. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Seven rounds of private NEAR-developer questions (60, 60, 300, 155, 96, 96 and 37), each answer cited to a line of the NEAR docs. Every round was sealed before its run, and every score was computed over every answer inside a TEE. The scorer is strict: the number or name alone.</p>
   <figure class="panel viz" id="viz">
     <div class="viz-head">
       <figcaption><span class="viz-title" id="vizTitle"></span><span class="viz-sub" id="vizSub"></span></figcaption>
@@ -91,6 +92,7 @@ html,body{background:#161616;margin:0}
     <div class="viz-key" id="vizKey"></div>
     <div class="viz-tip" id="vizTip" role="tooltip" hidden></div>
   </figure>
+  <div class="rounds" id="rounds"></div>
   <div class="modes" aria-label="The three kinds of round">
     <div class="panel mode"><h3>Sampled</h3><p class="tag">rounds 1–3 · all models · 8,192-token cap</p>
       <p>The owner runs the models. After the round closes, a future NEAR block picks a sample of questions to reveal, and anyone can re-score them. The rest stay private. Still possible: the owner re-asking a question and keeping the best answer.</p></div>
@@ -99,8 +101,12 @@ html,body{background:#161616;margin:0}
     <div class="panel mode"><h3>Asked once</h3><p class="tag">round 7 · fast models only · 4,096-token cap</p>
       <p>A TEE asks every question itself, once, after the seal, and scores it there, so no answer was picked from several tries. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
   </div>
-  <div class="rounds" id="rounds"></div>
-  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6, and in round 6 it leads all seven models (38 of 96, 40 for its abliterated version). Removing refusal training made no measurable difference: +2 for DeepSeek, −1 for Qwen, inside each pair's 95% interval. GLM leads Qwen in all six rounds they both ran, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+  <div class="callout"><strong>What the scores show</strong><ul>
+    <li>DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6. In round 6 it leads all seven models: 38 of 96, and 40 for its abliterated version.</li>
+    <li>Removing refusal training made no measurable difference: +2 for DeepSeek and −1 for Qwen, inside each pair's 95% interval.</li>
+    <li>GLM leads Qwen in all six rounds they both ran, by 45 questions on the 300-question round.</li>
+    <li>The rounds use different questions, so compare models within a round. The weights are the quantized builds NEAR actually serves, not the full-precision checkpoints on public leaderboards.</li></ul>
+    <a href="https://github.com/fexx301/fuin/blob/main/docs/RESULTS.md">Full results, with cut-offs and what each round disclosed →</a></div>
 </div></section>
 
 <section class="band" id="explore" data-nav="results"><div class="wrap">
@@ -114,7 +120,7 @@ html,body{background:#161616;margin:0}
 
 <section class="band" id="how"><div class="wrap">
   <p class="eyebrow">04 · How it works</p>
-  <h2>Seal, run, commit, close, sample, reveal, verify.</h2>
+  <h2>Seal, run, commit, close, check, verify.</h2>
   <p class="lead">Each step leaves evidence a stranger can check. The NEAR registry contract has no access keys, so nobody can rewrite it.</p>
   <div class="steps" id="steps"></div>
   <div class="split" style="margin-top:22px">
