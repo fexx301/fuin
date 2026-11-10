@@ -4,7 +4,7 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 
 ## Reproduce
 
-- Quick check, about 2 minutes from a fresh clone: `uv sync`, then `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-deepseek-v4.1-flash-1017.json` (about 1 minute, VERIFIED) and `uv run pytest -q` (5 seconds, offline). Optional: `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` (about 4 minutes).
+- Quick check, about 2 minutes once dependencies are installed (the first `uv sync` can take 10 minutes on a slow connection): `uv sync`, then `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-deepseek-v4.1-flash-1017.json` (about 1 minute, VERIFIED) and `uv run pytest -q` (5 seconds, offline). Optional: `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` (about 4 minutes).
 - CAN'T CERTIFY with `evidence_unavailable` means a public service (NEAR's RPC, Intel or NVIDIA) didn't answer, not that the certificate is wrong: run the same command again.
 - Run `scripts/review.sh` from the repo root. It needs `uv` and network access, and takes about 30 minutes (allow 45), so run it in the background: it waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries a public service's rate limit (a retried line says so; a verdict is never retried). It ends with `ALL CHECKS PASSED` and exit code 0, or names what failed.
 - No account, API key or hidden test set is needed. The script unsets `NEARAI_API_KEY`.

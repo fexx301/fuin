@@ -10,7 +10,7 @@ Every VERIFIED prints the limits that apply to its certificate. This is the full
 
 For an enclave-asked round that passes the asked-once check, that limit reads instead:
 
-- Each item was asked once, inside the enclave; that rests on OutLayer's storage not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. An owner could still seal the same questions as another round and publish the better one: separate rounds aren't linked.
+- Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. A retried ask (one whose first request ran out of time, so no answer had left the enclave) is a second draw, and the owner sets the task's time limit: a single draw per item could differ from the total by at most the retried count. An owner could still seal the same questions as another round and publish the better one: separate rounds aren't linked.
 - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
 - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
 - The seal precedes the result commitment; this does not prove when inference happened.

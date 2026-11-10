@@ -7,7 +7,7 @@ Fūin (封印, pronounced *foo-een*) is Japanese for "seal": the test set is sea
   <img src="assets/fuin-logo.svg" alt="Fūin logo" width="320">
 </picture>
 
-Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is re-scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all. In round 7 a TEE made every model call itself and refused to ask any question twice, so no owner could re-ask and keep the best answer.
+Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all. In round 7 a TEE made every model call itself and recorded one answer per question and counted every retry (round 7 had one), so no owner could quietly re-ask and keep the best answer.
 
 Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
@@ -46,7 +46,7 @@ The rounds come in three kinds, each a trade-off:
 | Questions revealed | a sample, picked by a future NEAR block | none | none |
 | Who calls the model | the owner | the owner | a TEE, once per question, after the seal |
 | How scores are checked | anyone re-scores the sample; a TEE re-scores every answer | a TEE re-scores every answer | the TEE scores each answer as it asks |
-| Can the owner re-ask a question and keep the best answer? | yes (a printed limit) | yes (a printed limit) | no: the TEE refuses a second ask |
+| Can the owner re-ask a question and keep the best answer? | yes (a printed limit) | yes (a printed limit) | no: the TEE keeps one answer per question and counts any retry |
 | Models and token cap | all seven, 8,192 | all seven, 8,192 | fast models only, a smaller cap (DeepSeek-V4.1-Flash at 4,096) |
 | Rounds here | 1–3 | 4–6 | 7 |
 
@@ -80,7 +80,7 @@ Seven rounds of private questions, each answer cited to a line of [near/docs](ht
 
 ## For judges
 
-**Quick check (about 2 minutes from a fresh clone; needs [uv](https://docs.astral.sh/uv/) and network, no account or API key):**
+**Quick check (about 2 minutes once dependencies are installed; the first `uv sync` can take 10 minutes on a slow connection; needs [uv](https://docs.astral.sh/uv/) and network, no account or API key):**
 
 ```sh
 git clone https://github.com/fexx301/fuin && cd fuin
@@ -110,7 +110,7 @@ Every claim maps to a command:
 | Tampering is refused with a specific reason | `uv run python scripts/check_fixtures.py examples/tampered/manifest.json` | 39 `ok` lines, exit 0 |
 | Round 3's totals were re-scored over every answer inside a TEE, not only the sample | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-300-r3-glm-5.3-flash.json` | `[pass] tee score: all 300 items rebuilt and re-scored inside an OutLayer TDX enclave … total 122/300 and both roots match` |
 | A round can reveal nothing and still be checked, with no answer predating its seal | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-155-r4-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] reveals: none: a TEE-scored round reveals nothing …`; `[pass] tee score: all 155 items rebuilt and re-scored …: total 84/155 …`; fixtures `zero-reveal-unscored`, `zero-reveal-scorer-swapped` |
-| A zero-reveal round's answer keys come from their cited sources | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-glm-5.3-flash.json` | `[pass] answer keys: 92/96 answer keys appear in their cited line of near/docs at e2d2ea17, checked inside an OutLayer TDX enclave …; 4 flagged, not checked …: items 14, 35, 46, 94`; fixtures `ground-other-round`, `ground-hidden-flag`, `ground-fork-commit`, `ground-unpinned-build` |
+| A zero-reveal round's answer keys appear in the docs line they cite (a string match, not a check that the key is the right answer) | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r6-glm-5.3-flash.json` | `[pass] answer keys: 92/96 answer keys appear in their cited line of near/docs at e2d2ea17, checked inside an OutLayer TDX enclave …; 4 flagged, not checked …: items 14, 35, 46, 94`; fixtures `ground-other-round`, `ground-hidden-flag`, `ground-fork-commit`, `ground-unpinned-build` |
 | Each answer was asked once, by a TEE, not by the owner (no re-asking to keep the best answer) | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-37-r7-deepseek-v4.1-flash-1017.json` | `VERIFIED`; `[pass] asked once: all 37 answers asked once inside an OutLayer TDX enclave by asker dbbb286b744c… in ask.fuin.testnet/asker … 1 retried ask … every request rebuilt with the seal block's hash … equals the signed one, so every ask came after the seal … ask.fuin.testnet/asker was locked at the seal …`; fixtures `asked-unscored`, `asked-unchecked`, `asked-other-project`, `asked-total-edited`, `asked-check-edited`, `asked-hidden-retry` |
 | Questions and answers can stay end-to-end encrypted, so NEAR's gateway never sees them | `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-96-r5-glm-5.3-flash.json` | `VERIFIED`; the policy line ends `fuin-request-v3 (end-to-end encrypted)`, and the limits print the end-to-end-encryption line; probe: `evidence/2026-11-05-e2ee-probe/` |
 | The TEE scorer that ran is this repository's code | `tee/build-docker.sh` (any host with Docker; about 1.5 minutes once the image is pulled) | prints `b301d22b…`, the current pin in `policy/tee-v2.json` (scorer v9: scores as v7, grounds answer keys, runs the asked-check); `ask/build-docker.sh aaa2083` prints `dbbb286b…`, the asker locked in `ask.fuin.testnet/asker`. The earlier accepted builds rebuild the same way from their recorded commits: v8 `bb0d9a5d…` (round 7's grounding, `39a2da3`), v7 `acd9286f…` (groundings of rounds 4–6, `58523c7`), v2 `dabae968…` (rounds 1–4, `6381ee9`), v3 `2614ddaa…` (round 5, `907aec0`), v4 `cd36c486…` (the v4 rehearsal, `54a5b6e`), v5 `86db8213…` (`170c488`), v6 `67c2292e…` (round 6, `6b0705c`) |
@@ -181,7 +181,7 @@ Every VERIFIED prints the limits that apply to its certificate. In short:
 
 - Scores are checked on the revealed sample, and on every answer through the TEE score. The TEE score trusts Intel TDX, OutLayer's worker approvals and its key service.
 - In a round that reveals nothing, only the owner can see the questions. Answer keys are checked only against the docs line they cite, which doesn't prove a key is the right answer.
-- In rounds 1–6 an owner could re-ask a sealed question and commit the best signed answer, and no certificate could show it. Round 7's asked-once check rules that out; it rests on OutLayer's storage not being rolled back.
+- In rounds 1–6 an owner could re-ask a sealed question and commit the best signed answer, and no certificate could show it. In round 7 a TEE asked each question itself and kept one answer; a retry (one in round 7) is counted, and a single draw per item could differ from the total by at most that count. This rests on OutLayer's storage not being rolled back.
 - Instances of a model can share a signing key, so a signature doesn't identify the serving instance. Accepted configurations are recorded from NEAR's attested reports, not rebuilt from source.
 - Verification is account-free but not offline: it needs the public services listed under [Try it](#try-it-no-account-no-api-key-no-test-set).
 

@@ -7,7 +7,7 @@ The first public release, built at NEAR HACKATHON.
 **What it does.** Fūin publishes a private benchmark result that anyone can check without an account and without the test set:
 - the questions are sealed on NEAR before any model runs;
 - every answer carries a signature from the model's attested TEE key on NEAR AI Cloud;
-- every answer is re-scored inside a TEE on OutLayer.
+- every answer is scored inside a TEE on OutLayer.
 
 **Three kinds of round:**
 - **sampled:** a future NEAR block picks the questions to reveal;

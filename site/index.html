@@ -128,7 +128,7 @@ html,body{background:#161616;margin:0}
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
-      <li>In an enclave-asked round (round 7), a TEE made each model call itself and refused to ask any question twice, in a project nobody can change, so no answer was picked from several tries.</li>
+      <li>In an enclave-asked round (round 7), a TEE made each model call itself, in a project nobody can change, and kept one answer per question; any retry is counted and printed (round 7 had one), so no answer was quietly picked from several tries.</li>
       <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE, so no key was invented; keys that don't appear are flagged by number (rounds 4–7: 374 of 384 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>

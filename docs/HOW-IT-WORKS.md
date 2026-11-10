@@ -9,7 +9,7 @@ Every round seals its questions on NEAR first, and every certificate is checked 
 | Questions revealed | a sample, picked by a future NEAR block | none | none |
 | Who calls the model | the owner | the owner | a TEE, once per question, after the seal |
 | How scores are checked | anyone re-scores the sample; a TEE re-scores every answer | a TEE re-scores every answer | the TEE scores each answer as it asks |
-| Can the owner re-ask a question and keep the best answer? | yes (a printed limit) | yes (a printed limit) | no: the TEE refuses a second ask |
+| Can the owner re-ask a question and keep the best answer? | yes (a printed limit) | yes (a printed limit) | no: the TEE keeps one answer per question and counts any retry |
 | Models and token cap | all seven, 8,192 | all seven, 8,192 | fast models only, a smaller cap (DeepSeek-V4.1-Flash at 4,096) |
 | Rounds here | 1–3 | 4–6 | 7 |
 
