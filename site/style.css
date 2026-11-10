@@ -204,7 +204,7 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .refusals { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .ref { padding: 16px 18px; }
 .ref code { background: none; padding: 0; color: #ff8b7c; font-size: 12.5px; }
-.ref.cant code { color: var(--warn); }
+.ref.cant code { color: var(--warn); } .ref.ok code { color: var(--pass); }
 .ref p { margin: 6px 0 0; font-size: 13.5px; color: #bdb9b0; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 .split .panel { padding: 22px 24px; }

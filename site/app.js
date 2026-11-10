@@ -282,8 +282,8 @@
           h('div', { class: 'bar' }, bar),
           h('div', { class: 'pills' }, ...(zr ? [h('span', { class: 'pill' }, 'nothing revealed')] : [h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
             h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)]),
-            ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE ${zr ? 'scored' : 're-scored'} all ${c.benchmark.n}`)] : [])),
-            ...(c.run.evidence && c.run.evidence.tee_asked ? [h('span', { class: 'pill ok', title: 'Every question asked once by the asker inside an OutLayer TDX enclave, after the seal, and scored there; checked by fuin verify' }, `asked once in a TEE, all ${c.benchmark.n}`)] : []),
+            ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE ${zr ? 'scored' : 're-scored'} all ${c.benchmark.n}`)] : []),
+            ...(c.run.evidence && c.run.evidence.tee_asked ? [h('span', { class: 'pill ok', title: 'Every question asked once by the asker inside an OutLayer TDX enclave, after the seal, and scored there; checked by fuin verify' }, `asked once in a TEE, all ${c.benchmark.n}`)] : [])),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
@@ -401,8 +401,8 @@
     S.forEach(([t, d], i) => $('#steps').append(h('div', { class: 'panel step' }, h('b', {}, String(i + 1).padStart(2, '0')), h('h4', {}, t), h('p', {}, d))));
   }
   function refusals() {
-    for (const f of F.manifest) { const cant = f.expected.startsWith('CANT');
-      $('#refList').append(h('div', { class: 'panel ref' + (cant ? ' cant' : '') }, h('code', {}, f.expected.replace('CANT_CERTIFY', "CAN'T CERTIFY")), h('p', {}, f.mutation))); }
+    for (const f of F.manifest) { const cant = f.expected.startsWith('CANT'), ok = f.expected.startsWith('VERIFIED');
+      $('#refList').append(h('div', { class: 'panel ref' + (cant ? ' cant' : ok ? ' ok' : '') }, h('code', {}, f.expected.replace('CANT_CERTIFY', "CAN'T CERTIFY")), h('p', {}, f.mutation.replace(/ \(review \d+\)/g, '')))); }
   }
 
   /* ---------------- loading: hero first, then the heavy files with real progress ---------------- */
