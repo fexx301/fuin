@@ -67,12 +67,11 @@ html,body{background:#161616;margin:0}
       <label class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a certificate file to verify">Drop or choose your own <code>cert.json</code><input type="file" id="file" accept=".json,application/json" hidden></label>
     </aside>
     <div class="panel stage">
-      <div class="stage-head"><div><div class="t" id="certTitle">—</div><div class="meta" id="certMeta"></div></div></div>
+      <div class="stage-head"><div class="who-cert"><div class="t" id="certTitle">—</div><div class="meta" id="certMeta"></div></div><div class="stamp" id="stamp" aria-hidden="true"></div></div>
       <p class="note" id="verifyLoading">Loading the verifier…</p>
       <div class="cheat" id="cheat"><span class="lbl">Try to cheat</span></div>
       <div class="diff" id="diff"></div>
       <ul class="checks" id="checks"></ul>
-      <div class="stamp" id="stamp" aria-hidden="true"></div>
       <div class="sr" id="announce" role="status" aria-live="polite"></div>
       <p class="note">Runs entirely in your browser, with no account and no API key. NEAR data comes from a public archival RPC. The Intel TDX quote is verified here too, with Phala's WebAssembly build of the same <code>dcap-qvl</code> verifier the command line uses, including the approved application and OS measurements. Its collateral comes from a public mirror and is signed by Intel. So is the TEE score's OutLayer record: its quote, task hash, worker approval and the request and result on chain. The deployment trace runs here too: NEAR's attested deployment log, replayed to its compose files on GitHub. NVIDIA's GPU verdict service blocks browsers, so for the published certificates that one result is shown as recorded by the command-line verifier; a certificate you upload gets PARTLY CHECKED. The command line is the reference verifier.</p>
     </div>

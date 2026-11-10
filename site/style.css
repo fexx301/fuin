@@ -77,7 +77,8 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .drop { margin-top: 6px; border: 1px dashed #3a3a37; border-radius: 10px; padding: 14px; color: var(--muted); font-size: 13px; text-align: center; cursor: pointer; transition: border-color .2s, color .2s; }
 .drop:hover, .drop.over { border-color: var(--seal); color: var(--bone); }
 .stage { padding: 22px 24px 24px; position: relative; overflow: hidden; min-height: 620px; }
-.stage-head { min-height: 96px; display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.stage-head { min-height: 96px; display: flex; justify-content: space-between; gap: 14px 18px; align-items: flex-start; flex-wrap: wrap; }
+.stage-head .who-cert { flex: 1 1 0; min-width: 240px; }
 .stage-head .t { font-size: 20px; font-weight: 700; }
 .stage-head .meta { font: 13px var(--mono); color: var(--muted); margin-top: 4px; }
 .cheat { margin: 18px 0 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -89,6 +90,7 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .checks { list-style: none; margin: 16px 0 0; padding: 0; }
 .checks li { display: grid; grid-template-columns: 26px 1fr; gap: 4px 12px; padding: 11px 0; border-bottom: 1px solid #262624; opacity: .45; transition: opacity .3s; }
 .checks li.active, .checks li.pass, .checks li.fail, .checks li.info, .checks li.skip { opacity: 1; }
+.checks li.na { opacity: .7; } .checks li.na .ic { border-color: #4a4a47; color: var(--muted); }  /* evidence this kind of round doesn't carry */
 .checks .ic { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #4a4a47; display: grid; place-items: center; font: 700 12px var(--mono); margin-top: 1px; }
 .checks li.running .ic { border-color: var(--bone); border-top-color: transparent; animation: rot .7s linear infinite; }
 .checks li.pass .ic { border-color: var(--pass); color: var(--pass); }
@@ -100,12 +102,13 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .checks .nm small { font: 12px var(--mono); color: var(--muted); font-weight: 400; margin-left: 8px; }
 .checks .dt { grid-column: 2; font: 12.5px var(--mono); color: var(--muted); word-break: break-word; }
 .checks li.fail .dt { color: #ff8b7c; }
-.stamp { position: absolute; right: 26px; top: 16px; padding: 12px 18px; border: 4px solid currentColor; border-radius: 10px; font: 800 26px/1 var(--mono);
-  letter-spacing: .06em; transform: rotate(-8deg) scale(1); opacity: 0; pointer-events: none; text-align: center; background: #1f1f1ee6; }
-.stamp small { display: block; font: 600 12px var(--mono); letter-spacing: .02em; margin-top: 6px; }
+/* the verdict stamp: in the head row beside the title (under it on a narrow screen), never on top of the title or its links */
+.stamp { flex: none; max-width: 100%; margin: 2px 4px 8px 0; padding: 12px 18px; border: 4px solid currentColor; border-radius: 10px; font: 800 26px/1 var(--mono);
+  letter-spacing: .06em; transform: rotate(-4deg) scale(1); opacity: 0; pointer-events: none; text-align: center; background: #1f1f1ee6; }
+.stamp small { display: block; font: 600 12px/1.35 var(--mono); letter-spacing: .02em; margin: 6px auto 0; max-width: 30ch; overflow-wrap: anywhere; text-wrap: balance; }
 .stamp.show { animation: stamp .45s cubic-bezier(.2, .9, .3, 1.3) forwards; }
 .stamp.ok { color: var(--pass); } .stamp.bad { color: var(--seal); } .stamp.cant { color: var(--warn); }
-@keyframes stamp { 0% { opacity: 0; transform: rotate(-16deg) scale(2.2); } 100% { opacity: 1; transform: rotate(-8deg) scale(1); } }
+@keyframes stamp { 0% { opacity: 0; transform: rotate(-12deg) scale(1.8); } 100% { opacity: 1; transform: rotate(-4deg) scale(1); } }
 .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
 .diff { margin-top: 12px; font: 12.5px var(--mono); color: #ff8b7c; background: #2a1d1b; border: 1px solid #4a2a25; border-radius: 8px; padding: 10px 12px; display: none; }
 .diff.show { display: block; }
@@ -218,7 +221,6 @@ footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wr
   .steps { grid-template-columns: 1fr 1fr; }
   .qa { grid-template-columns: 40px 1fr; } .qa .a { grid-column: 2; }
   nav .links { display: none; }
-  .stamp { top: auto; bottom: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .coin, .coin-glow, .checks li.running .ic { animation: none; }
@@ -229,7 +231,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wr
 /* review fixes: status labels, full answers, links, mobile menu, screen-reader text */
 .checks .st { font: 600 11px var(--mono); margin-left: 10px; color: var(--muted); letter-spacing: .02em; }
 .checks li.pass .st { color: var(--pass); } .checks li.fail .st { color: #ff8b7c; } .checks li.info .st, .checks li.skip .st { color: var(--warn); }
-.who { color: var(--bone); font-size: 16px; max-width: 70ch; margin: -14px 0 26px; padding-left: 14px; border-left: 2px solid var(--seal); }
+.who { color: var(--bone); font-size: 16px; max-width: 70ch; margin: 4px 0 26px; padding-left: 14px; border-left: 2px solid var(--seal); }
 .who a { white-space: nowrap; }
 .links { font: 12px var(--mono); color: var(--muted); margin-top: 8px; } .links a, .stage-head .meta a { color: var(--muted); }
 .links a:hover, .stage-head .meta a:hover { color: var(--bone); }

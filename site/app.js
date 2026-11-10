@@ -181,12 +181,12 @@
     const ul = $('#checks'); ul.innerHTML = '';
     for (const [id, name, where] of STEPS) ul.append(h('li', { id: 'ck-' + id }, h('span', { class: 'ic', 'aria-hidden': 'true' }), h('div', { class: 'nm' }, name, h('small', {}, where), h('span', { class: 'st' }, '')), h('div', { class: 'dt' }, '')));
   }
-  async function onStep(id, state, detail) {
+  async function onStep(id, state, detail, label) {
     const li = $('#ck-' + id); if (!li) return;
     li.className = state === 'running' ? 'active running' : state;
-    $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : '';
+    $('.ic', li).textContent = state === 'pass' ? '✓' : state === 'fail' ? '✕' : state === 'info' || state === 'skip' ? '!' : state === 'na' ? '–' : '';
     $('.st', li).textContent = id === 'attestation' && state === 'pass' ? `TDX checked now · GPU ${gpuRecorded ? 'recorded' : 'not checked'}`
-      : { pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', running: '' }[state] ?? '';
+      : label || ({ pass: 'checked now', fail: 'failed', info: 'recorded evidence', skip: 'not checked', na: "doesn't apply", running: '' }[state] ?? '');
     if (detail) $('.dt', li).textContent = detail;
     await sleep(state === 'running' ? 260 : 90);
   }
@@ -225,9 +225,13 @@
     renderChecks(); $('#stamp').className = 'stamp';
     const res = await V.verify(cert, { supported: F.supported, attested: F.attested_models, registry: F.registry, rpc: F.rpc, rpcFallback: F.rpc_fallback, pccs: F.pccs, attestationPolicy: F.attestation_policy, tee: F.tee, recorded: recordedLine(entry, !!mutate) },
       (i, st, d) => (id === running ? onStep(i, st, d) : null));
-    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_score)) await onStep('tee', 'skip', cert.run && cert.run.evidence && cert.run.evidence.tee_asked ? 'an asked-once round: the TEE scored each answer as it asked it (see "Every answer asked once, in a TEE" below)' : 'this certificate carries no TEE score');
-    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_ground)) await onStep('ground', 'skip', 'this certificate carries no answer-key check');
-    if (id === running && !(cert.run && cert.run.evidence && cert.run.evidence.tee_asked)) await onStep('asked', 'skip', 'this round was not asked inside a TEE');
+    // optional evidence a certificate doesn't carry: grey ("na") when the round's kind doesn't call for it, amber when a zero-reveal round lacks it
+    const ev = (cert.run && cert.run.evidence) || {}, zr = zeroReveal(cert);
+    if (id === running && !ev.tee_score) await (ev.tee_asked
+      ? onStep('tee', 'na', 'an asked-once round: the TEE scored each answer as it asked it (see "Every answer asked once, in a TEE" below)')
+      : onStep('tee', zr ? 'skip' : 'na', 'this certificate carries no TEE score', zr ? '' : 'not included'));
+    if (id === running && !ev.tee_ground) await onStep('ground', zr ? 'skip' : 'na', 'this certificate carries no answer-key check', zr ? '' : 'not included');
+    if (id === running && !ev.tee_asked) await onStep('asked', 'na', 'the owner made the model calls in this round; only an asked-once round has a TEE make them');
     if (id === running) stamp(res);
   }
   function picker() {
