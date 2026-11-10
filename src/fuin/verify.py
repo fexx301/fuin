@@ -30,8 +30,12 @@ LIMITS = [
     "Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model "
     "answered correctly, though not what they ask.",
 ]
-LIMIT_SAMPLING, LIMIT_REVEALS, LIMIT_TIMING = LIMITS[4], LIMITS[5], LIMITS[6]
-LIMIT_RESAMPLE = next(x for x in LIMITS if x.startswith("An owner could send the same sealed request"))
+# looked up by wording, not position: inserting a limit once shifted these and printed the wrong set for rounds 4-7
+_limit = lambda start: next(x for x in LIMITS if x.startswith(start))
+LIMIT_SAMPLING = _limit("Sampling assumes")
+LIMIT_REVEALS = _limit("Reveals permanently disclose")
+LIMIT_TIMING = _limit("The seal precedes the result commitment")
+LIMIT_RESAMPLE = _limit("An owner could send the same sealed request")
 ASKED_LIMIT = ("Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage "
                "not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. A retried ask (one whose "
                "first request ran out of time, so no answer had left the enclave) is a second draw, and the owner sets the task's time "
