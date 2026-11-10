@@ -141,7 +141,7 @@ One verification takes about 40 seconds.
    - `uv run pytest`: 157 offline tests.
    - `cd contract && cargo test`: 15 tests.
    - `cd tee && cargo test`: the TEE scorer against Python on 3,600 generated cases, plus signed synthetic rounds.
-5. **Try it in a browser:** open `site/index.html`. The page verifies certificates in the browser and lets you tamper with one live. It runs every local check, the live NEAR and OutLayer checks, the Intel TDX quote and the deployment trace. NVIDIA's GPU verdict can't run in a browser, so a published certificate shows `fuin verify`'s recorded result for it, matched to its exact bytes, and an uploaded one gets PARTLY CHECKED.
+5. **Try it in a browser:** open [fexx301.github.io/fuin](https://fexx301.github.io/fuin/), or `site/index.html` from the clone. The page verifies certificates in the browser and lets you tamper with one live. It runs every local check, the live NEAR and OutLayer checks, the Intel TDX quote and the deployment trace. NVIDIA's GPU verdict can't run in a browser, so a published certificate shows `fuin verify`'s recorded result for it, matched to its exact bytes, and an uploaded one gets PARTLY CHECKED.
 
 ## NEAR tools used
 
