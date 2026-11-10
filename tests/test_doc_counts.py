@@ -1,4 +1,4 @@
-"""Every count the docs state (rounds, certificates, answers, fixtures) matches the artifacts it describes."""
+"""Every count the docs and the page state (rounds, certificates, answers, fixtures) matches the artifacts it describes."""
 import json
 import re
 from collections import Counter
@@ -22,6 +22,8 @@ def test_doc_counts_match_the_artifacts():
     want = {
         r"(\d+) `ok` lines": len(fixtures),
         r"(\d+) tamper fixtures": len(fixtures),
+        r"all (\d+) fixtures": len(fixtures),
+        r"(\d+) tests of tampering": len(fixtures),
         r"(?<!other )\b(\d+) (?:real )?certificates": len(certs),
         r"The other (\d+) certificates": len(certs) - 1,
         r"all (\w+) totals": len(certs),
@@ -31,8 +33,8 @@ def test_doc_counts_match_the_artifacts():
         r"(\d+) are REFUSED": kinds["REFUSED"],
         r"(\d+) are CAN'T CERTIFY": kinds["CANT_CERTIFY"],
     }
-    lists = r"rounds of private questions \(([\d, and]+)\)|test sets \(([\d, and]+) items\)"
-    text = {p: p.read_text() for p in [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "CHANGELOG.md", *ROOT.glob("docs/*.md")]}
+    lists = r"rounds of private (?:NEAR-developer )?questions \(([\d, and]+)\)|test sets \(([\d, and]+) items\)"
+    text = {p: p.read_text() for p in [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "CHANGELOG.md", ROOT / "site/index.html", *ROOT.glob("docs/*.md")]}
     for pattern, expected in want.items():
         found = [(p.name, m.group(m.lastindex)) for p, t in text.items() for m in re.finditer(pattern, t)]
         found = [(n, g) for n, g in found if g.lower() in WORDS or g[0].isdigit()]

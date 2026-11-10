@@ -59,7 +59,7 @@ html,body{background:#161616;margin:0}
 <section class="band" id="verify"><div class="wrap">
   <p class="eyebrow">01 · Verify</p>
   <h2>Run the checks yourself. Then try to cheat.</h2>
-  <p class="who">For benchmark owners who want to publish credible model comparisons while keeping most of their evaluation questions private. <a href="https://github.com/fexx301/fuin#audit-your-own-suite">Audit your own suite →</a></p>
+  <p class="who">For benchmark owners who want to publish credible model comparisons while keeping most of their evaluation questions private. <a href="https://github.com/fexx301/fuin/blob/main/docs/USE.md">Run your own round →</a></p>
   <p class="lead">Pick a certificate. Your browser rebuilds the commitments, recovers every model signature, re-scores the revealed answers, asks NEAR which items the audit had to reveal, and checks the TEE's re-score of every answer. Then use the buttons to tamper with it the way a dishonest owner would, and watch the exact check that catches it.</p>
   <div class="console">
     <aside class="panel picker" id="picker">
@@ -104,7 +104,7 @@ html,body{background:#161616;margin:0}
       <p>A TEE asks every question itself, once, after the seal, and scores it there, so no answer was picked from several tries. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
   </div>
   <div class="rounds" id="rounds"></div>
-  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads all three rounds it ran, and in round 6 it leads all seven models (38 of 96, 40 for its abliterated version). Removing refusal training made no measurable difference: +2 for DeepSeek, −1 for Qwen, inside each pair's 95% interval. GLM leads Qwen in all six rounds they both ran, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
+  <div class="callout">DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6, and in round 6 it leads all seven models (38 of 96, 40 for its abliterated version). Removing refusal training made no measurable difference: +2 for DeepSeek, −1 for Qwen, inside each pair's 95% interval. GLM leads Qwen in all six rounds they both ran, by 45 questions on the 300-question round. In the audited samples, most of Qwen's misses are wrong answers rather than cut-offs, and in round 3 GLM loses more answers to the token cap yet still leads. The rounds use different questions, so they show consistent leads, not a measured cause. The weights shown are what NEAR actually serves, traced from its attested deployment log at each run's preflight: quantized builds, not the full-precision checkpoints on public leaderboards.</div>
 </div></section>
 
 <section class="band" id="explore"><div class="wrap">
@@ -127,7 +127,7 @@ html,body{background:#161616;margin:0}
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
       <li>In an enclave-asked round (round 7), a TEE made each model call itself and refused to ask any question twice, in a project nobody can change, so no answer was picked from several tries.</li>
-      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE, so no key was invented; keys that don't appear are flagged by number (rounds 4–6: 337 of 347 found, 10 flagged).</li>
+      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE, so no key was invented; keys that don't appear are flagged by number (rounds 4–7: 374 of 384 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
@@ -146,7 +146,7 @@ html,body{background:#161616;margin:0}
 
 <section class="band" id="refusals"><div class="wrap">
   <p class="eyebrow">05 · Refusals</p>
-  <h2>24 tests of tampering, unsupported models and missing evidence.</h2>
+  <h2>39 tests of tampering, malformed evidence, unsupported models and missing evidence.</h2>
   <p class="lead">Each fixture makes one change to a real certificate, or withholds a service the verifier needs. The command-line verifier must give exactly this verdict, at the check that catches it. <code>scripts/review.sh</code> runs them all.</p>
   <div class="refusals" id="refList"></div>
 </div></section>
@@ -155,7 +155,7 @@ html,body{background:#161616;margin:0}
   <p class="eyebrow">06 · Reproduce</p>
   <h2>Check everything on your own machine.</h2>
   <p class="lead">No account, no API key, no test set. About 30 minutes (allow 45); run it in the background.</p>
-  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 24 fixtures and the tests</span>
+  <pre class="cmd"><button class="btn copy" data-copy="git clone https://github.com/fexx301/fuin && cd fuin && ./scripts/review.sh">Copy</button><span class="c"># every certificate, all 39 fixtures and the tests</span>
 git clone https://github.com/fexx301/fuin &amp;&amp; cd fuin
 ./scripts/review.sh
 
