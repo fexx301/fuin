@@ -441,6 +441,13 @@
   }
   const menu = $('#menuBtn'); menu.addEventListener('click', () => { const open = document.body.classList.toggle('menu-open'); menu.setAttribute('aria-expanded', String(open)); });
   document.querySelectorAll('nav .links a').forEach((a) => a.addEventListener('click', () => { document.body.classList.remove('menu-open'); menu.setAttribute('aria-expanded', 'false'); }));
+  // nav: mark the link of the section crossing a line 40% down the screen; the hero and sections without a link clear it
+  const spy = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    const href = '#' + (e.target.dataset.nav || e.target.id);
+    document.querySelectorAll('nav .links a').forEach((a) => a.getAttribute('href') === href ? a.setAttribute('aria-current', 'location') : a.removeAttribute('aria-current'));
+  }), { rootMargin: '-40% 0px -60% 0px' });
+  document.querySelectorAll('header.hero, main section').forEach((s) => spy.observe(s));
   buildCoin(); hero(); steps();
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1400); }));
   boot().catch((e) => { const vs = $('#verifyLoading'); if (vs) vs.textContent = 'Could not load the verifier: ' + e + '. Reload to try again.'; });
