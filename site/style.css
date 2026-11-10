@@ -28,7 +28,9 @@ nav .links a:hover::after, nav .links a:focus-visible::after { transform: scaleX
 @media (prefers-reduced-motion: reduce) { nav .links a::after { transition: none; } }
 
 /* ---------- hero ---------- */
-.hero { position: relative; height: 100vh; min-height: 640px; overflow: hidden; }
+/* One centred column. The hands are drawn by app.js in the space --hands-h reserves above the copy, and the two are centred
+   together as a group; a short screen grows the hero rather than letting the hands cover the headline. */
+.hero { position: relative; min-height: min(100vh, 1080px); min-height: min(100svh, 1080px); overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding: 74px 0 7vh; }
 #dots { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
 .coin-tilt { position: absolute; width: var(--coin, 108px); height: var(--coin, 108px); transform: translate(-50%, -50%); perspective: 700px; z-index: 3; pointer-events: none; }
 .coin { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: spin 9s linear infinite; }
@@ -39,21 +41,19 @@ nav .links a:hover::after, nav .links a:focus-visible::after { transform: scaleX
   background: radial-gradient(circle, #d04a3b2e 0%, #d04a3b0d 35%, transparent 65%); animation: breathe 4.5s ease-in-out infinite; z-index: -1; }
 @keyframes spin { to { transform: rotateY(360deg); } }
 @keyframes breathe { 50% { opacity: .55; transform: translate(-50%, -50%) scale(.9); } }
-.hero-copy { position: absolute; left: 0; right: 0; bottom: 7vh; z-index: 4; }
-.kicker { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--seal); margin: 0 0 18px; }
+.hero-copy { position: relative; z-index: 4; margin-top: var(--hands-h, 240px); text-align: center; }
+.kicker { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--seal); margin: 0 0 20px; }
 h1, h2 { text-wrap: balance; }
-.hero h1 { font-size: clamp(32px, 4.4vw, 60px); line-height: 1.05; letter-spacing: -.02em; margin: 0; font-weight: 750; max-width: 24ch; }
-.hero h1 span { color: var(--muted); font-weight: 600; }
-.hero p.sub { color: #c9c5bd; font-size: 18px; max-width: 58ch; margin: 18px 0 26px; }
-.cta { display: flex; gap: 14px; flex-wrap: wrap; }
+.hero h1 { font-size: clamp(34px, 5vw, 76px); line-height: 1.04; letter-spacing: -.025em; margin: 0; font-weight: 750; }
+.hero p.sub { color: #c9c5bd; font-size: clamp(17px, 1.3vw, 21px); line-height: 1.5; max-width: 58ch; margin: 22px auto 30px; text-wrap: balance; }
+.cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.hero .btn { padding: 14px 26px; font-size: 15px; }
+.hero .btn.primary { box-shadow: 0 0 34px #d04a3b4d; }
 .btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 999px; border: 1px solid var(--line); background: #1f1f1ecc;
   color: var(--bone); font: 600 14px var(--sans); text-decoration: none; cursor: pointer; transition: transform .15s, border-color .2s, background .2s; }
 .btn:hover { transform: translateY(-1px); border-color: #4a4a47; }
 .btn.primary { background: var(--seal); border-color: var(--seal); color: #fff; }
 .btn.primary:hover { background: #e05645; }
-.scroll-hint { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); color: var(--dim); font: 12px var(--mono); z-index: 4; letter-spacing: .1em; }
-.pron { font: 13px var(--mono); color: var(--muted); margin-top: 14px; }
-.hero p.cite { font: 15px/1.5 var(--sans); color: var(--muted); margin: -20px 0 16px; }  /* the Delta League line: body font for reading, kept tight so the copy clears the hands */
 
 /* ---------- sections ---------- */
 section.band { padding: 110px 0; border-top: 1px solid var(--line); }
@@ -207,7 +207,7 @@ h2 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -.01
 .split ul { margin: 8px 0 0; padding-left: 18px; color: #c9c5bd; font-size: 14.5px; }
 pre.cmd { background: #111; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow: auto; font-size: 13.5px; color: #e9e5dc; position: relative; }
 pre.cmd .c { color: var(--dim); }
-#repro p.cite { font: 15px/1.5 var(--sans); color: var(--muted); margin: 20px 0 0; max-width: 80ch; }  /* the outside pilot: body font, like the hero citation */
+#repro p.cite { font: 15px/1.5 var(--sans); color: var(--muted); margin: 20px 0 0; max-width: 80ch; }  /* the outside pilot */
 .copy { position: absolute; top: 10px; right: 10px; }
 footer { padding: 40px 0 60px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
 footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
@@ -243,12 +243,6 @@ nav .menu { display: none; background: #1f1f1ecc; color: var(--bone); border: 1p
   body.menu-open nav .links { display: flex; position: absolute; top: 64px; right: 16px; flex-direction: column; gap: 14px; background: #1f1f1e; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
 }
 
-/* phones: the copy flows below the hands instead of being pinned to the bottom; app.js sets --copy-top from the hand art's size.
-   On tall screens the copy still sits at the bottom; on short ones the hero grows rather than letting the hands cover the headline. */
-@media (max-width: 760px) {
-  .hero { height: auto; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; justify-content: flex-end; }
-  .hero-copy { position: relative; bottom: auto; margin-top: var(--copy-top, 220px); padding-bottom: 7vh; }
-  .kicker { letter-spacing: .06em; }
-}
+@media (max-width: 760px) { .kicker { letter-spacing: .06em; line-height: 1.5; } }
 /* explorer rows: let long identifiers wrap instead of widening the grid past a narrow phone screen */
 .qa > * { min-width: 0; } .qa .q, .qa .a { overflow-wrap: anywhere; }

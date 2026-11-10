@@ -37,14 +37,14 @@
       dpr = Math.min(devicePixelRatio || 1, 2); W = cv.clientWidth;
       const scale = W < 760 ? 1.9 : 1.3, bw = W * scale, cw = bw / cols, ch = cw * (36.437 / 19.313), bh = rows.length * ch;
       const sealPx = Math.max(78, Math.min(150, W * 0.085));
-      // phones: the copy flows below the hands (CSS reads --copy-top), so a short screen grows the hero instead of overlapping them
-      const narrow = matchMedia('(max-width: 760px)').matches, under = $('nav').offsetHeight + 8;
-      if (narrow) cv.parentElement.style.setProperty('--copy-top', Math.round(under + Math.max(bh, sealPx) + 24) + 'px');
-      H = cv.clientHeight;  // read after --copy-top: the hero may have grown
+      // the hands sit in the space CSS reserves above the copy (--hands-h); hands and copy are centred as one group,
+      // and a short screen grows the hero instead of overlapping them
+      const art = Math.max(bh, sealPx), gap = Math.max(24, Math.min(44, innerHeight * 0.045));
+      cv.parentElement.style.setProperty('--hands-h', Math.round(art + gap) + 'px');
+      H = cv.clientHeight;  // read after --hands-h: the hero may have grown
       cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // phones: centre the hands between the header and the copy; desktop keeps its fixed proportion
-      const top = narrow ? Math.max(under, (under - 8 + $('.hero-copy').offsetTop) / 2 - bh / 2) : H * 0.31 - bh / 2;
-      band = { cw, ch, off: (W - bw) / 2, h: bh, top };
+      const top = $('.hero-copy').offsetTop - gap - (art + bh) / 2;
+      band = { cw, ch, off: W / 2 - HERO.hands.gap.x * bw, h: bh, top };  // the seal sits on the page's centre line, where the copy is centred
       // pull the hands in: fingertip gap ≈ 1.6 seal widths, whatever the screen size
       const mid = cols / 2; let lt = 0, rt = cols;
       rows.forEach((r) => [...r].forEach((c, i) => { if (c !== ' ') { if (i < mid && i > lt) lt = i; if (i >= mid && i < rt) rt = i; } }));
