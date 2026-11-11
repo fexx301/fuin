@@ -41,6 +41,25 @@ One JSON object per line in a file outside git, for example `private/suites/mine
 - `exact` compares case-insensitively; list alternatives in `accept`.
 - An optional `source` (for example `{"url": "..."}`) is revealed only for audited items.
 
+### What makes a good question
+
+A script-generated question comes from a program and a template, such as "What is 4821 × 37?" repeated with new numbers. Every question is then the same task with different values, and the answer is computed, not known. Such a set runs fine, but it tests one narrow skill, so the scores don't say which model is better at your work. A real question is one a person wrote because the answer matters in their work, with an answer a person looked up or confirmed.
+
+1. **Pick one task you would really use a model for:** questions about a tool or standard your team uses, reading an error message or a config, facts from your field that people often get wrong.
+2. **Collect questions from real material:** things new teammates ask, mistakes you have seen, support questions, defaults, limits, error codes, version changes.
+3. **The model must be able to answer** from what it knows or from what you give it. Ask about knowledge in your field, or put the snippet it needs (a log line, a short config, a paragraph) inside the question. A fact that exists only inside your company, and isn't in the question, scores zero for every model and teaches you nothing.
+4. **One exact answer each:** a number, or a short name or term. Avoid yes/no questions (a guess is right half the time) and questions that ask for an explanation or an opinion.
+5. **Check every answer against its source** before you start, and ask a second person to spot-check ten. A wrong answer key marks a correct model wrong.
+6. **Mix easy and hard,** and cover the whole task, not one corner of it.
+7. **Write them yourself.** An assistant can tidy the wording, but each question should come from your material and each answer should be checked by you. Don't have a program or a model mass-produce them.
+
+| Script-generated | Real |
+|---|---|
+| "What is 918 + 4407? Answer with the number only." | "What HTTP status code does our public API standard use for a request that is valid but rate-limited? Answer with the number only." |
+| "What is the 7th letter of the word 'certificate'?" | "In this log line, which component timed out? Answer with the name only." followed by the log line |
+
+`fuin check` (the first thing step 4 runs) points out questions that contain their own answer, duplicates, and questions that don't say what form to answer in.
+
 ## 4A. A private round (recommended): nothing revealed
 
 Every question and answer is encrypted end to end between you and each model's attested TEE key, so NEAR's gateway never sees them. Every answer is then re-scored inside OutLayer's TEE, and no question is revealed. The trade-off is that only you can see whether your questions and answers are any good.
