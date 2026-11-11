@@ -1,0 +1,22 @@
+Suite private/suites/pub3.jsonl: 3 items
+  ✓ every item is well formed
+  disclosure: 3 items → a TEE-scored round reveals nothing: every item is re-scored inside OutLayer's TEE by the sealed scorer build, and all 3 stay private.
+  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed
+Prerequisites:
+  ✓ NEARAI_API_KEY set (environment or .env)
+  ✓ near-cli-rs found (~/.cargo/bin/near)
+  ✓ Qwen/Qwen3.8-27B is in the verifier's attestation policy
+  ✓ registry registry.fuin.testnet reachable, code pinned and locked
+  ✓ owner fuin.testnet exists, 6.226 NEAR
+  ✓ GitHub CLI signed in (the encrypted round goes to a secret gist, deleted after the TEE fetches it)
+Ready to seal.
+TEE-scored round. You run the models, nothing is revealed, and every answer is re-scored inside OutLayer's TEE. Only you can check your questions and answer keys. Still possible: re-asking a question and committing the best answer (a printed limit).
+Questions and answers are encrypted end to end to each model's attested key; NEAR's gateway sees the model, the settings, the timing and the sizes, not the text.
+The encrypted round is hosted on a secret gist only while the TEE fetches it, then deleted.
+3 items → a TEE-scored round reveals nothing: every item is re-scored inside OutLayer's TEE by the sealed scorer build, and all 3 stay private.
+Sealing eval-private-1: n=3, TEE-scored by scorer b301d22b23f2…, nothing revealed. Questions and answers end-to-end encrypted (template v3).
+== fuin run --id eval-private-1 --model Qwen/Qwen3.8-27B --parallel 1
+  0: score 1  finish stop
+  1: score 1  finish stop
+  2: score 1  finish stop
+== fuin commit --id eval-private-1 --model Qwen/Qwen3.8-27B

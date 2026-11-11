@@ -1,0 +1,80 @@
+Suite private/suites/pub3.jsonl: 3 items
+  ✓ every item is well formed
+  disclosure: 3 items → the audit reveals k=3 (100.0%) per round and keeps 0 hidden; detection power 100.00% for ≥1 incorrect scores. Each later round of the same suite draws a new sample.
+  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed
+Prerequisites:
+  ✓ NEARAI_API_KEY set (environment or .env)
+  ✓ near-cli-rs found (~/.cargo/bin/near)
+  ✓ Qwen/Qwen3.8-27B is in the verifier's attestation policy
+  ✓ z-ai/glm-5.3-flash is in the verifier's attestation policy
+  ✓ registry registry.fuin.testnet reachable, code pinned and locked
+  ✓ owner fuin.testnet exists, 6.233 NEAR
+Ready to seal.
+Sampled round. You run the models. After the close, a future NEAR block picks the audited questions; those questions and answers become public and anyone can re-score them, and the rest stay private. Still possible: re-asking a question and committing the best answer (a printed limit).
+3 items → the audit reveals k=3 (100.0%) per round and keeps 0 hidden; detection power 100.00% for ≥1 incorrect scores. Each later round of the same suite draws a new sample.
+Sealing eval-sampled-1: n=3, audit reveals k=3 of 3 items per round (D=1).
+== fuin run --id eval-sampled-1 --model Qwen/Qwen3.8-27B --parallel 1
+  0: score 1  finish stop
+  1: score 1  finish stop
+  2: score 1  finish stop
+== fuin commit --id eval-sampled-1 --model Qwen/Qwen3.8-27B
+Committed Qwen/Qwen3.8-27B run 0: 3/3
+== fuin run --id eval-sampled-1 --model z-ai/glm-5.3-flash --parallel 1
+  0: score 1  finish stop
+  1: score 1  finish stop
+  2: score 1  finish stop
+== fuin commit --id eval-sampled-1 --model z-ai/glm-5.3-flash
+Committed z-ai/glm-5.3-flash run 0: 3/3
+== fuin close --id eval-sampled-1
+== fuin reveal --id eval-sampled-1 --out certs
+certs/cert-eval-sampled-1-qwen3.8-27b.json
+certs/cert-eval-sampled-1-glm-5.3-flash.json
+== fuin verify certs/cert-eval-sampled-1-glm-5.3-flash.json certs/cert-eval-sampled-1-qwen3.8-27b.json
+certs/cert-eval-sampled-1-glm-5.3-flash.json: VERIFIED
+  [pass] rows: 3 items, scores in {0,1}, total 3/3
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=3
+  [pass] signatures: 3/3 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 3/3 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x3b753b4406613c5e70ae640508632b600424fa0c quote UpToDate, NRAS True, compose a0e3c6f4f21a… under attestation-v10
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-glm53-w4afp8-tp2-r1 @v0.0.554 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040; model-sg-glm53-w4afp8-tp2-r2 @v0.0.554 prod/GLM-5.3-Flash-SGL-TP2x4-W4AFP8-V12Q8.yaml image …e20af033d681 weights GLM-5.3-Flash-W4AFP8 rev 99f1fa7040 (+4 more replicas)
+  [pass] build provenance: nearaidev/sglang@…21f133cc built by github.com/nearai/cvm-compose-files .github/workflows/publish-glm53-admission-reserve.yaml @7c473970 (SLSA v1, sigstore); nearaidev/sglang@…f033d681 built by github.com/nearai/cvm-compose-files .github/workflows/publish-glm53-admission-reserve.yaml @79de066b (SLSA v1, sigstore)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 277210970 < commit 277211118 < close 277211143; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] audit sample: seed block 277211145 (first final block ≥ close+2); indices [0, 1, 2]
+  scope: signature evidence verified; commitments and total consistent (3/3); audit passed 3/3 with zero mismatches; detection power 100.0000% for ≥1 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 3, unrevealed 0 (indirect disclosure, such as shared sources, is not computed here)
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - An owner could send the same sealed request more than once and commit the best signed answer; every signature stays valid, so a certificate can't show that.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+   - The registry contract is locked (no access keys), and its code rebuilds byte for byte from contract/ on macOS arm64 with the recorded toolchain (GitHub's runners: .github/workflows/registry-rebuild.yml), not on Linux; the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
+certs/cert-eval-sampled-1-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 3 items, scores in {0,1}, total 3/3
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=3
+  [pass] signatures: 3/3 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 3/3 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose e8416a02d6f7… under attestation-v10
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.554 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 277210970 < commit 277211055 < close 277211143; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] audit sample: seed block 277211145 (first final block ≥ close+2); indices [0, 1, 2]
+  scope: signature evidence verified; commitments and total consistent (3/3); audit passed 3/3 with zero mismatches; detection power 100.0000% for ≥1 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 3, unrevealed 0 (indirect disclosure, such as shared sources, is not computed here)
+  warning: image lmsysorg/sglang@…d85856b1: no published build provenance (SLSA)
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - An owner could send the same sealed request more than once and commit the best signed answer; every signature stays valid, so a certificate can't show that.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+   - The registry contract is locked (no access keys), and its code rebuilds byte for byte from contract/ on macOS arm64 with the recorded toolchain (GitHub's runners: .github/workflows/registry-rebuild.yml), not on Linux; the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.

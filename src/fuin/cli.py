@@ -158,7 +158,7 @@ def _dispatch(a) -> int:
         if res["errors"]:  # a seal can't be undone: refuse a broken suite
             print("Not sealing: the suite has errors. Run `fuin check` for details.\n" + "\n".join("  ✗ " + e for e in res["errors"][:10]))
             return 1
-        print(tooling.disclosure(res["n"], tee=a.tee or a.ask))
+        print(tooling.disclosure(res["n"], tee=a.tee or a.ask, asked=a.ask))
         tee_wasm, ask_with = None, None
         if a.tee and a.ask:
             raise SystemExit("--tee and --ask are two kinds of zero-reveal round: pick one")

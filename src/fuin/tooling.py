@@ -80,7 +80,10 @@ def check_suite(path: str) -> dict:
     return {"n": len(items), "errors": errors, "warnings": warnings, "items": items}
 
 
-def disclosure(n: int, tee: bool = False) -> str:
+def disclosure(n: int, tee: bool = False, asked: bool = False) -> str:
+    if asked:
+        return (f"{n} items → an asked-once round reveals nothing: a TEE asks every item itself, after the seal, and scores it "
+                f"there, and all {n} stay private.")
     if tee:
         return (f"{n} items → a TEE-scored round reveals nothing: every item is re-scored inside OutLayer's TEE by the sealed "
                 f"scorer build, and all {n} stay private.")
@@ -276,7 +279,7 @@ def print_check(path: str, owner_account: str | None, models: list[str], tee: bo
         print(f"  ! {w}")
     if not res["errors"]:
         print(f"  ✓ every item is well formed")
-        print(f"  disclosure: {disclosure(res['n'], tee)}")
+        print(f"  disclosure: {disclosure(res['n'], tee, mode == 'ask')}")
         print("  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed")
     print("Prerequisites:")
     pre = prerequisites(owner_account, models, mode, host, max_tokens)
