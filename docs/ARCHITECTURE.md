@@ -34,6 +34,7 @@ A map for someone opening the code for the first time: what each part does, what
 | `verify.py` | The verifier. Checks form first, then everything offline, then the network; an outage defers, never decides. |
 | `policyupdate.py` | Drafts the next attestation policy when NEAR redeploys a model. Approves nothing. |
 | `tooling.py`, `diagnose.py`, `cli.py` | `fuin check` and `fuin status`, the revealed-miss reading aid, and the command line. `fuin evaluate` runs whatever step `status` names next. |
+| `cost.py` | The cost bound before a seal, the `--max-spend` limit during a run, and measured usage from the signed answers. |
 | `report.py` | `fuin report`: a shareable HTML and JSON report from certificates and their verdicts. Compares only what is comparable; shows no question. |
 
 ## What is trusted, and where it's checked

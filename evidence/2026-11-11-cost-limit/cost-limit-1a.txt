@@ -1,0 +1,24 @@
+Suite private/suites/pub6.jsonl: 6 items
+  ✓ every item is well formed
+  disclosure: 6 items → the audit reveals k=6 (100.0%) per round and keeps 0 hidden; detection power 100.00% for ≥1 incorrect scores. Each later round of the same suite draws a new sample.
+  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed
+Prerequisites:
+  ✓ NEARAI_API_KEY set (environment or .env)
+  ✓ near-cli-rs found (~/.cargo/bin/near)
+  ✓ Qwen/Qwen3.8-27B is in the verifier's attestation policy
+  ✓ registry registry.fuin.testnet reachable, code pinned and locked
+  ✓ owner fuin.testnet exists, 6.190 NEAR
+Cost before you start (a bound, not a forecast and not a bill):
+  Model calls (NEAR AI Cloud, real money), at the catalog prices read just now:
+    Qwen/Qwen3.8-27B: $0.04 in / $1.35 out per million tokens; at most $0.03 if all 6 answers used the whole 4,096-token cap
+    Round: at most $0.03 with one attempt per question. A question gets up to 3 attempts each time the command runs, and a failed call can still be billed, so only --max-spend caps the total.
+    docs/COSTS-AND-DEPENDENCIES.md lists what the published rounds actually used, which was far below the cap.
+  Chain and enclave fees (NEAR testnet, free from the faucet): about 0.001 NEAR: 3 registry calls at about 0.0002 each
+Ready to seal.
+Sampled round. You run the models. After the close, a future NEAR block picks the audited questions; those questions and answers become public and anyone can re-score them, and the rest stay private. Still possible: re-asking a question and committing the best answer (a printed limit).
+6 items → the audit reveals k=6 (100.0%) per round and keeps 0 hidden; detection power 100.00% for ≥1 incorrect scores. Each later round of the same suite draws a new sample.
+Sealing cost-limit-1: n=6, audit reveals k=6 of 6 items per round (D=1).
+== fuin run --id cost-limit-1 --model Qwen/Qwen3.8-27B --parallel 4 --max-spend 0.012
+  1: score 1  finish stop
+  0: score 1  finish stop
+spending limit $0.01 reached: $0.0111 is spent or reserved, so item 2 was not sent. Nothing is lost: run the same command again with a higher --max-spend

@@ -1,0 +1,39 @@
+Resuming cost-limit-1: a sampled round sealed at height 277244445, not encrypted, token cap 4096. What was sealed stands: the suite file, --e2ee and --max-tokens are not read again.
+== fuin run --id cost-limit-1 --model Qwen/Qwen3.8-27B --parallel 4 --max-spend 0.05
+  5: score 1  finish stop
+  4: score 1  finish stop
+  2: score 1  finish stop
+  3: score 1  finish stop
+== fuin commit --id cost-limit-1 --model Qwen/Qwen3.8-27B
+Committed Qwen/Qwen3.8-27B run 0: 6/6
+== fuin close --id cost-limit-1
+== fuin reveal --id cost-limit-1 --out certs
+certs/cert-cost-limit-1-qwen3.8-27b.json
+== fuin verify certs/cert-cost-limit-1-qwen3.8-27b.json
+certs/cert-cost-limit-1-qwen3.8-27b.json: VERIFIED
+  [pass] rows: 6 items, scores in {0,1}, total 6/6
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; k=6
+  [pass] signatures: 6/6 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: 6/6 revealed items: proofs pass, exact request rebuilt, re-score matches (0 mismatches)
+  [pass] attestation: signer 0x835ab53d20294ef795906dff21ae4c045336aa26 quote UpToDate, NRAS True, compose e8416a02d6f7… under attestation-v10
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.554 prod/small-models.yaml image …137fd85856b1 weights Qwen3.8-27B-FP8 rev 017b9c7af6
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 277244445 < commit 277244480 < close 277244494; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] audit sample: seed block 277244496 (first final block ≥ close+2); indices [0, 1, 2, 3, 4, 5]
+  scope: signature evidence verified; commitments and total consistent (6/6); audit passed 6/6 with zero mismatches; detection power 100.0000% for ≥1 incorrect item scores under the stated sampling assumptions (not the probability that the total is correct); directly revealed 6, unrevealed 0 (indirect disclosure, such as shared sources, is not computed here)
+  warning: image lmsysorg/sglang@…d85856b1: no published build provenance (SLSA)
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - An owner could send the same sealed request more than once and commit the best signed answer; every signature stays valid, so a certificate can't show that.
+   - Sampling assumes the selected future finalized block is unpredictable and not adversarially biased (SHA-256 as a pseudorandom expander); not validator-proof randomness.
+   - Reveals permanently disclose the sampled questions and answers; later rounds grow the disclosed union.
+   - The seal precedes the result commitment; this does not prove when inference happened.
+   - The registry contract is locked (no access keys), and its code rebuilds byte for byte from contract/ on macOS arm64 with the recorded toolchain (GitHub's runners: .github/workflows/registry-rebuild.yml), not on Linux; the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
+Measured so far (tokens from the signed answers; dollars at the catalog price read just now, not a bill):
+  Qwen/Qwen3.8-27B: 6 answers, 401 prompt + 252 completion tokens = under $0.01
+  A call still in flight when a process is killed leaves no record here. NEAR AI's dashboard is the bill.

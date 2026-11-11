@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 (2026-11-11)
+
+- **Cost bound:** `fuin check` and `fuin evaluate` print, before a seal, the most the model calls can cost at NEAR AI's catalog prices, with chain and enclave fees on their own line. A bound, not a forecast.
+- **`--max-spend USD`** on `fuin evaluate`, `run` and `ask`: stops before a call could take the round's spend past the limit, counting calls in flight and failed calls at their bound, and leaves the round resumable. With a limit set and no readable price, nothing is sent.
+- **`fuin cost --id ID`:** the tokens a round's signed answers used, with dollars computed at the current catalog price. Evidence: `evidence/2026-11-11-cost-limit/`.
+- **README:** a short "Next" section for what isn't built.
+
 ## 1.1.0 (2026-11-11)
 
 - **`fuin evaluate`:** one guided, resumable command for a whole round: check, an explanation of the chosen kind of round, seal, run or ask, commit, close, score, certificates, verify. It runs the step `fuin status` names, so the two can't disagree. Evidence: `evidence/2026-11-11-guided-command/`.

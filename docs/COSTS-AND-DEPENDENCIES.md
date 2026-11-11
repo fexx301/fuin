@@ -32,6 +32,8 @@ A 96-question TEE-scored round with one model is a few thousandths of testnet NE
 
 **Verifying costs nothing.** `fuin verify` and the browser verifier need no account, no key and no payment. They only read public services (below).
 
+**Before and during your own round.** `fuin check` and `fuin evaluate` print a bound on the model calls before you seal: every answer using its whole cap, at the catalog prices read at that moment. It is a bound, not a forecast: the rounds above used a fraction of their caps. `--max-spend USD` stops a run before a call could take the round's spend past that amount, counting calls in flight and failed calls at their bound, and leaves the round resumable. `fuin cost --id ID` shows the tokens the signed answers actually used. NEAR AI's dashboard remains the bill.
+
 ## What Fūin depends on, and what happens when each is down
 
 The verifier is built so that **an outage can only delay a verdict, never change it**. When a service it needs doesn't answer, the result is CAN'T CERTIFY `evidence_unavailable` (exit code 2), and every check that needs no network has already run, so tampering is still REFUSED offline. It never prints VERIFIED or REFUSED because a service was down. Run it again later.

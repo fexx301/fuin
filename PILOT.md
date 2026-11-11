@@ -71,6 +71,8 @@ uv run --env-file .env fuin evaluate private/suites/mine.jsonl --id pilot-1 --ow
     --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash --tee --e2ee --out pilot-certs
 ```
 
+Before it seals, it prints the most the model calls can cost. To cap what you spend, add `--max-spend 1` (US dollars): it stops before a call could pass that, and the same command with a higher number carries on.
+
 If it stops for any reason (a dropped connection, a closed laptop), run the same command again: it skips what is done and never asks a model twice. `uv run fuin status --id pilot-1 --out pilot-certs` shows where the round stands at any point. Please note each time it stopped and what the message said.
 
 ## 4B. A sampled round: a sample of the questions revealed
@@ -108,7 +110,7 @@ The browser checks everything except the GPU attestation (NVIDIA's service doesn
 | Writing the suite (step 3) | |
 | Check → certificates, your hands-on time (step 4) | |
 | Waiting for model runs | |
-| NEAR AI cost (dashboard before/after) | |
+| NEAR AI cost (dashboard before/after), and the "Measured" lines the command printed at the end | |
 | Testnet NEAR spent (wallet before/after) | |
 | Each time the command stopped or failed: the message, and what got it going again | |
 | Each time you needed help from Fūin's builder, and for what | |

@@ -172,8 +172,16 @@ fuin verify cert.json       # VERIFIED, REFUSED or CAN'T CERTIFY, with every che
 ```
 
 - **In CI:** a GitHub Action (`uses: fexx301/fuin@v1`) fails the step unless every certificate is VERIFIED.
-- **Your own private round:** `fuin evaluate` runs a whole round in one resumable command (or step by step: `fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`), and `fuin report` turns the certificates into a page to share: see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
+- **Your own private round:** `fuin evaluate` runs a whole round in one resumable command (or step by step: `fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`), `fuin report` turns the certificates into a page to share, and `--max-spend` caps what the model calls can cost: see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
 - **A second person trying it:** [PILOT.md](https://github.com/fexx301/fuin/blob/main/PILOT.md) is a step-by-step kit. A fellow builder ran it unmodified on Windows 11 under WSL2.
+
+## Next
+
+Not built. Each waits for a reason:
+
+- **A second pilot on a real workload:** another team's own private questions, verified by a separate person, published as a case study. Planned; not run yet.
+- **Structured-output scoring:** JSON fields, required values and numeric tolerances scored inside the TEE. It needs a new scorer in Python, Rust and the browser and a new certificate version, so it waits for a pilot that needs it.
+- **Pre-registered campaigns:** an owner declares the models and attempts before running, so a verifier can see whether the published results account for all of them. The registry contract is locked, so this needs a new registry. It could not expose rehearsals made outside the campaign or under another account.
 
 ## Limits
 

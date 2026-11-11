@@ -30,6 +30,8 @@ uv run --env-file .env fuin evaluate my-suite.jsonl --id my-bench-1 --owner you.
 #   add --tee --e2ee for a private round (nothing revealed), or --ask --e2ee to have a TEE ask every question once
 ```
 
+Before it seals, it prints the most the model calls can cost and, apart from that, the testnet fees. Add `--max-spend 2` to stop before a call could take the round past two dollars; when it stops, run the same command with a higher limit. `fuin cost --id my-bench-1` shows what the signed answers actually used.
+
 If it stops for any reason, run the same command again: it skips what is done. Flags that disagree with what was sealed are refused. Then make a report to share ([below](#share-a-report)).
 
 The same round, one step at a time:

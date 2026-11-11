@@ -95,7 +95,7 @@ class Budget:
             self.used += min(actual, reserved) - reserved
 
     def stop(self, what: str) -> str:
-        return (f"spending limit ${self.limit:.2f} reached: ${self.used:.4f} is spent or reserved, so {what} was not sent. "
+        return (f"spending limit ${self.limit} reached: ${self.used:.4f} is spent or reserved, so {what} was not sent. "
                 "Nothing is lost: run the same command again with a higher --max-spend")
 
 
