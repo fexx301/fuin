@@ -51,6 +51,8 @@ if command -v cargo >/dev/null; then
   # The TEE scorer pins Rust 1.95.0; skipped rather than downloading a toolchain for you.
   if rustup toolchain list 2>/dev/null | grep -q '^1\.95\.0'; then
     (cd tee && cargo test -q --release 2>&1 | grep "test result" | grep -v " 0 passed" ; exit "${PIPESTATUS[0]}") || fail=1
+    # the asker's record protocol: every interleaving of overlapping, killed and restarted asks
+    (cd ask && cargo test -q --release 2>&1 | grep "test result" | grep -v " 0 passed" ; exit "${PIPESTATUS[0]}") || fail=1
   else
     echo "TEE scorer tests skipped: needs the pinned toolchain (rustup toolchain install 1.95.0 --target wasm32-wasip2)"
   fi
@@ -67,19 +69,19 @@ if docker info >/dev/null 2>&1; then
   else
     echo "TEE scorer rebuild skipped: tee/build-docker.sh could not complete (image pull, network or disk), not counted as a failure"
   fi
-  # The asker in its locked project must rebuild from ask/ too: its code can never change, so it has to be this code.
-  apin=$(python3 -c 'import json;a=json.load(open("policy/tee-v2.json")).get("askers",[]);print(a[-1]["wasm_sha256"] if a else "")')
-  acommit=$(python3 -c 'import json;a=json.load(open("policy/tee-v2.json")).get("askers",[]);print(a[-1].get("commit","") if a else "")')
-  if [ -n "$apin" ]; then
+  # Each asker in a locked project must rebuild from ask/ too: its code can never change, so it has to be this code.
+  while read -r apin acommit; do
+    [ -n "$apin" ] || continue
     # a shallow clone (CI) lacks the asker's recorded commit: fetch just that commit
     [ -z "$acommit" ] || git cat-file -e "$acommit^{commit}" 2>/dev/null || git fetch -q --depth=1 origin "$acommit" 2>/dev/null || true
     if out=$(ask/build-docker.sh $acommit 2>/dev/null) && built=$(printf '%s\n' "$out" | tail -1 | cut -d' ' -f1) && [ ${#built} -eq 64 ]; then
-      if [ "$built" = "$apin" ]; then echo "Asker rebuilt with ask/build-docker.sh at its recorded commit $acommit: sha256 $built = the pinned asker in policy/tee-v2.json"
+      if [ "$built" = "$apin" ]; then echo "Asker rebuilt with ask/build-docker.sh at its recorded commit $acommit: sha256 $built = a pinned asker in policy/tee-v2.json"
       else echo "Asker rebuilt as $built, pin is $apin"; fail=1; fi
     else
       echo "Asker rebuild skipped: ask/build-docker.sh could not complete (image pull, network or disk), not counted as a failure"
     fi
-  fi
+  done < <(python3 -c 'import json
+for a in json.load(open("policy/tee-v2.json")).get("askers", []): print(a["wasm_sha256"], a.get("commit", ""))')
 else
   echo "TEE scorer and asker rebuilds skipped: need Docker (tee/build-docker.sh, ask/build-docker.sh)"
 fi
