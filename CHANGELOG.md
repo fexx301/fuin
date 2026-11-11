@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 (2026-11-11)
+
+- **Attestation policy v10:** accepts the deployments NEAR rolled out to its model CVMs between Nov 8 and Nov 11, so new rounds pass preflight again. Published certificates were never affected. Review: `evidence/2026-11-11-attestation-policy-v10/`.
+- **Limits:** zero-reveal and asked-once rounds print the right limits (the re-ask limit was missing from rounds 4–6), and the asked-once limit states that overlapping asks could undercount retries. From blind review 4: `evidence/2026-11-10-blind-review-4/`.
+- **Fixture check:** retries when NEAR AI's model catalog doesn't answer.
+
 ## 1.0.0 (2026-11-11)
 
 The first public release, built at NEAR HACKATHON.
