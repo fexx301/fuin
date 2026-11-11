@@ -99,7 +99,7 @@ html,body{background:#161616;margin:0}
     <div class="panel mode"><h3>TEE-scored</h3><p class="tag">rounds 4–6 · all models · 8,192-token cap</p>
       <p>The owner runs the models, and nothing is revealed: every answer is re-scored inside a TEE instead. Still possible: the owner re-asking a question and keeping the best answer.</p></div>
     <div class="panel mode"><h3>Asked once</h3><p class="tag">round 7 · fast models only · 4,096-token cap</p>
-      <p>A TEE asks every question itself, once, after the seal, and scores it there, so no answer was picked from several tries. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
+      <p>A TEE asks every question itself, after the seal, and scores it there. It keeps one answer per question and counts any retry (round 7 had one), so the owner can't quietly re-ask within the round. Still possible: sealing the same questions as a separate round and publishing the better one. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
   </div>
   <div class="callout"><strong>What the scores show</strong><ul>
     <li>DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6. In round 6 it leads all seven models: 38 of 96, and 40 for its abliterated version.</li>
@@ -128,8 +128,8 @@ html,body{background:#161616;margin:0}
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
-      <li>In an enclave-asked round (round 7), a TEE made each model call itself, in a project nobody can change, and kept one answer per question; any retry is counted and printed (round 7 had one), so no answer was quietly picked from several tries.</li>
-      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE, so no key was invented; keys that don't appear are flagged by number (rounds 4–7: 374 of 384 found, 10 flagged).</li>
+      <li>In an enclave-asked round (round 7), a TEE made each model call itself, in a project nobody can change, and kept one answer per question; any retry is counted and printed (round 7 had one), so no answer was quietly picked from several tries within the round. Separate rounds aren't linked.</li>
+      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE. That catches a key that appears nowhere in its line (an invented value, a typo); it doesn't show the key is the right answer. Keys that don't appear are flagged by number (rounds 4–7: 374 of 384 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>

@@ -288,7 +288,7 @@
       const n = rd.certs[0].cert.benchmark.n, dis = DISCLOSURE[rd.id] || { revealed: rd.certs[0].cert.audit.reveals.length, indirect: 0 }, known = dis.revealed + dis.indirect;
       const zr = zeroReveal(rd.certs[0].cert);
       const card = h('div', { class: 'panel round' }, h('h3', {}, rd.id), h('div', { class: 'meta' }, zr
-        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, ` + (askedRound(rd.certs[0].cert) ? 'every question asked once and scored inside a TEE, which made the model calls itself' : 'every answer scored inside a TEE') + (encrypted(rd.certs[0].cert) ? '; questions and answers end-to-end encrypted, never seen by NEAR\'s gateway' : '')
+        ? `${rd.cap}-token cap · reasoning on · nothing revealed: all ${n} hidden, ` + (askedRound(rd.certs[0].cert) ? 'every question asked and scored by a TEE, which made the model calls itself: one answer kept each, retries counted' : 'every answer scored inside a TEE') + (encrypted(rd.certs[0].cert) ? '; questions and answers end-to-end encrypted, never seen by NEAR\'s gateway' : '')
         : `${rd.cap}-token cap · reasoning on · ${dis.revealed} revealed` + (dis.indirect ? ` + ${dis.indirect} indirectly disclosed` : '') + ` · ${n - known} of ${n} hidden`));
       for (const e of rd.certs) {
         const c = e.cert, bd = breakdown(c), pct = (100 * c.run.total_score) / c.benchmark.n;
@@ -299,7 +299,7 @@
           h('div', { class: 'pills' }, ...(zr ? [h('span', { class: 'pill' }, 'nothing revealed')] : [h('span', { class: 'pill' }, `revealed ${c.audit.reveals.length}:`), h('span', { class: 'pill ok' }, `${bd.correct} correct`), h('span', { class: 'pill bad' }, `${bd.wrong} wrong`),
             h('span', { class: 'pill fmt' }, `${bd.format} format`), h('span', { class: 'pill cut' }, `${bd.cut} cut off`)]),
             ...(c.run.evidence && c.run.evidence.tee_score ? [h('span', { class: 'pill ok', title: 'Every answer re-scored inside an OutLayer TDX enclave from the sealed bytes; checked by fuin verify' }, `TEE ${zr ? 'scored' : 're-scored'} all ${c.benchmark.n}`)] : []),
-            ...(c.run.evidence && c.run.evidence.tee_asked ? [h('span', { class: 'pill ok', title: 'Every question asked once by the asker inside an OutLayer TDX enclave, after the seal, and scored there; checked by fuin verify' }, `asked once in a TEE, all ${c.benchmark.n}`)] : [])),
+            ...(c.run.evidence && c.run.evidence.tee_asked ? [h('span', { class: 'pill ok', title: 'Every question asked by the asker inside an OutLayer TDX enclave, after the seal, and scored there: one answer kept per question, any retry counted; checked by fuin verify' }, `asked once in a TEE, all ${c.benchmark.n}`)] : [])),
           h('div', { class: 'links' }, ...evidenceLinks(e, c))));
       }
       box.append(card);
@@ -337,7 +337,7 @@
           h('dt', {}, '95% interval'), h('dd', {}, `${pc(lo)} – ${pc(hi)}`),
           h('dt', {}, 'Served'), h('dd', {}, t ? `${short(t.model_path || '?')}${t.model_revision ? ' @' + t.model_revision.slice(0, 8) : ''}` : (served(e) || '—')),
           ...(ad ? [h('dt', {}, 'Adapter'), h('dd', {}, ad.weights ? `${short(ad.weights)}${ad.revision ? ' @' + ad.revision.slice(0, 8) : ''}` : 'LoRA, unpinned')] : []),
-          h('dt', {}, 'Scored'), h('dd', {}, c.run.evidence && c.run.evidence.tee_asked ? `all ${n} inside a TEE, each asked once` : c.run.evidence && c.run.evidence.tee_score ? `all ${n} inside a TEE` : `audited sample of ${c.audit.reveals.length}`),
+          h('dt', {}, 'Scored'), h('dd', {}, c.run.evidence && c.run.evidence.tee_asked ? `all ${n} inside a TEE, one answer kept each` : c.run.evidence && c.run.evidence.tee_score ? `all ${n} inside a TEE` : `audited sample of ${c.audit.reveals.length}`),
           h('dt', {}, 'Failed attempts'), h('dd', {}, `${log.length} (owner-reported)`)),
         h('div', { class: 'th' }, 'Click to verify this certificate'));
       tip.hidden = false;
@@ -355,7 +355,7 @@
       const rd = F.rounds[i], n = rd.certs[0].cert.benchmark.n, zr = zeroReveal(rd.certs[0].cert);
       const rows = rd.certs.map((e) => ({ e, k: e.cert.run.total_score })).sort((a, b) => b.k - a.k);
       $('#vizTitle').textContent = `Round ${rd.id.slice(-1)}: share of ${n} sealed questions answered correctly`;
-      const c0 = rd.certs[0].cert, how = askedRound(c0) ? 'each question asked once by a TEE, nothing revealed' : zr ? 'every answer scored inside a TEE, nothing revealed' : 'every answer re-scored inside a TEE, a sample revealed';
+      const c0 = rd.certs[0].cert, how = askedRound(c0) ? 'each question asked by a TEE (one answer kept, retries counted), nothing revealed' : zr ? 'every answer scored inside a TEE, nothing revealed' : 'every answer re-scored inside a TEE, a sample revealed';
       $('#vizSub').textContent = `${rows.length} model${rows.length === 1 ? '' : 's'} on the same questions · ${modeName(c0)} round, ${rd.cap.toLocaleString('en')}-token cap · ${how} · whiskers show the 95% interval`;
       plot.replaceChildren(h('div', { class: 'grid', 'aria-hidden': 'true' }, ...[100, 75, 50, 25, 0].map((g) => h('span', { style: `--g:${g / 100}` }, h('b', {}, g + '%')))));
       plot.style.setProperty('--cols', rows.length);
@@ -413,7 +413,7 @@
   }
   function steps() {
     const S = [['Seal', 'The owner commits a Merkle root of the salted questions and the scoring policy on NEAR.'],
-      ['Run', 'Each question goes to a TEE model on NEAR AI Cloud. Its attested key signs the exact request and response. In an asked-once round a TEE makes these calls itself, once per question.'],
+      ['Run', 'Each question goes to a TEE model on NEAR AI Cloud. Its attested key signs the exact request and response. In an asked-once round a TEE makes these calls itself and keeps one answer per question, counting any retry.'],
       ['Commit', 'Each run\'s result root and total go on chain, numbered per model.'],
       ['Close', 'The round closes. No more runs can join it.'],
       ['Check', 'A NEAR block finalized after the close picks a sample to reveal, and a TEE scores every answer. A round can reveal nothing and rely on the TEE alone.'],

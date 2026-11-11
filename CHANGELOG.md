@@ -18,7 +18,7 @@ The first public release, built at NEAR HACKATHON.
 **Three kinds of round:**
 - **sampled:** a future NEAR block picks the questions to reveal;
 - **TEE-scored:** nothing is revealed;
-- **asked once:** a TEE in a locked OutLayer project asks each question itself, after the seal, so nobody can re-ask and keep the best answer.
+- **asked once:** a TEE in a locked OutLayer project asks each question itself, after the seal, keeps one answer per question and counts any retry, so nobody can quietly re-ask within a round.
 
 **Also in this release:**
 - **End-to-end encryption:** questions and answers can stay encrypted between the owner and the model's TEE, so NEAR's gateway never sees them.
