@@ -49,7 +49,7 @@ The asker runs in a project whose owner has no keys, so **it can't be changed**:
 3. create a fresh account and project, store the owner's NEAR AI key with `scripts/store_asker_secret.py --project …`, and delete the account's keys;
 4. pin the (build, project) pair in `tee-v2.json` with the commit it was built from.
 
-`review.sh` rebuilds the pinned asker at that commit.
+`review.sh` rebuilds every pinned asker at its commit.
 
 ## Rules that keep certificates honest
 

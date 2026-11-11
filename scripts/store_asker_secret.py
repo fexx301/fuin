@@ -1,8 +1,8 @@
 """Store the owner's NEAR AI key as an OutLayer secret for an asker project, so the enclave can make the model call.
 
 Run it yourself (the assistant never handles the key):
-    uv run --env-file .env python scripts/store_asker_secret.py --project ask.fuin.testnet/asker   # stores NEARAI_API_KEY from .env
-    uv run python scripts/store_asker_secret.py --project ask.fuin.testnet/asker --dry-run         # dummy value; stores nothing
+    uv run --env-file .env python scripts/store_asker_secret.py --project ask2.fuin.testnet/asker   # stores NEARAI_API_KEY from .env
+    uv run python scripts/store_asker_secret.py --project ask2.fuin.testnet/asker --dry-run         # dummy value; stores nothing
 
 What happens:
 1. Asks OutLayer (POST /secrets/pubkey: accessor, owner, profile) for the keystore's X25519 public key of the seed

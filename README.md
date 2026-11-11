@@ -159,7 +159,7 @@ One verification takes about 40 seconds.
   - `request_execution` on `outlayer.testnet` runs the TEE scorer in an Intel TDX enclave;
   - an encryption key bound to the scorer's sha256 seals its private key;
   - worker measurements are approved on `worker.outlayer.testnet`;
-  - the asker runs as the locked OutLayer project `ask.fuin.testnet/asker`, with sealed project storage and the owner's key stored as an OutLayer secret.
+  - the asker runs as a locked OutLayer project (`ask.fuin.testnet/asker` in round 7, `ask2.fuin.testnet/asker` for new rounds), with sealed project storage and the owner's key stored as an OutLayer secret.
 - **FastFS** serves the TEE scorer binary from a NEAR testnet transaction.
 - **NEAR block hashes** serve as the audit seed and the seal-bound request nonce; reads go over JSON-RPC at `final` finality.
 - **near-cli-rs** signs the owner's transactions; keys stay in the OS keychain.
@@ -181,7 +181,7 @@ Every VERIFIED prints the limits that apply to its certificate. In short:
 
 - Scores are checked on the revealed sample, and on every answer through the TEE score. The TEE score trusts Intel TDX, OutLayer's worker approvals and its key service.
 - In a round that reveals nothing, only the owner can see the questions. Answer keys are checked only against the docs line they cite, which doesn't prove a key is the right answer.
-- In rounds 1–6 an owner could re-ask a sealed question and commit the best signed answer, and no certificate could show it. In round 7 a TEE asked each question itself and kept one answer; a retry (one in round 7) is counted, and a single draw per item could differ from the total by at most that count. This rests on OutLayer's storage not being rolled back, and separate rounds aren't linked: an owner could seal the same questions again and publish the better round.
+- In rounds 1–6 an owner could re-ask a sealed question and commit the best signed answer, and no certificate could show it. In round 7 a TEE asked each question itself and kept one answer; a retry (one in round 7) is counted, and a single draw per item could differ from the total by at most that count. Round 7's asker could miss one retry if two asks of an item overlapped by milliseconds; a second locked asker, used by new rounds, counts every attempt ([evidence](https://github.com/fexx301/fuin/blob/main/evidence/2026-11-11-asker-v2/README.md)). This rests on OutLayer's storage not being rolled back, and separate rounds aren't linked: an owner could seal the same questions again and publish the better round.
 - Instances of a model can share a signing key, so a signature doesn't identify the serving instance. Accepted configurations are recorded from NEAR's attested reports, not rebuilt from source.
 - Verification is account-free but not offline: it needs the public services listed under [Try it](#try-it-no-account-no-api-key-no-test-set).
 
@@ -204,7 +204,7 @@ The full list, word for word as printed: [docs/LIMITS.md](https://github.com/fex
 | `src/fuin/` | the `fuin` command: owner workflow and verifier ([map](https://github.com/fexx301/fuin/blob/main/docs/ARCHITECTURE.md)) |
 | `contract/` | the registry contract and its tests |
 | `tee/` | the TEE scorer (Rust, WASI P2) and its reproducible build `tee/build-docker.sh` |
-| `ask/` | the asker, run as the locked OutLayer project `ask.fuin.testnet/asker`; reproducible build `ask/build-docker.sh` |
+| `ask/` | the asker, run as a locked OutLayer project (`ask.fuin.testnet/asker` in round 7, `ask2.fuin.testnet/asker` for new rounds); reproducible build `ask/build-docker.sh` |
 | `policy/` | what the verifier accepts: attestation policies, the pinned scorer and asker builds (`tee-v2.json`), sigstore's trust root |
 | `site/` | the browser verifier and results page (`verify.js` must agree with the Python verifier on every certificate and fixture) |
 | `examples/` | the 20 real certificates; `tampered/` fixtures and their manifest |
