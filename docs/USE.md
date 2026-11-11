@@ -12,7 +12,7 @@ fuin verify cert.json                                  # VERIFIED, REFUSED or CA
 To check certificates in your own CI, use the GitHub Action in this repository. The step fails unless every certificate is VERIFIED; it retries once when a public service doesn't answer, and never retries a REFUSED:
 
 ```yaml
-- uses: fexx301/fuin@main
+- uses: fexx301/fuin@v1
   with:
     certs: certs/*.json
 ```

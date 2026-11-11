@@ -171,7 +171,7 @@ pip install fuin            # or: uv tool install fuin
 fuin verify cert.json       # VERIFIED, REFUSED or CAN'T CERTIFY, with every check printed
 ```
 
-- **In CI:** a GitHub Action (`uses: fexx301/fuin@main`) fails the step unless every certificate is VERIFIED.
+- **In CI:** a GitHub Action (`uses: fexx301/fuin@v1`) fails the step unless every certificate is VERIFIED.
 - **Your own private round** (`fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`): see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
 - **A second person trying it:** [PILOT.md](https://github.com/fexx301/fuin/blob/main/PILOT.md) is a step-by-step kit. A fellow builder ran it unmodified on Windows 11 under WSL2.
 
@@ -186,6 +186,16 @@ Every VERIFIED prints the limits that apply to its certificate. In short:
 - Verification is account-free but not offline: it needs the public services listed under [Try it](#try-it-no-account-no-api-key-no-test-set).
 
 The full list, word for word as printed: [docs/LIMITS.md](https://github.com/fexx301/fuin/blob/main/docs/LIMITS.md).
+
+## Libraries and AI-written code
+
+- **When it was written:** everything here was written during the event. The repository's first commit is Nov 3, 2026, and it builds on three small research probes from Oct 24. No earlier code is reused, and there are no templates or boilerplate.
+- **AI-written code:** one person built Fūin with AI coding agents. Claude Code wrote most of the code and documentation under the author's direction. Codex, DeepSeek and Claude reviewed it blind; their findings and the fixes are in `evidence/`.
+- **Python:** rfc8785, requests, eth-account, dcap-qvl, pyyaml, cryptography, sigstore.
+- **Rust:**
+  - contract: near-sdk, built with cargo-near;
+  - scorer and asker: outlayer, wasi, wasi-http-client, serde_json, sha2, sha3, hex, base64, bs58, num-bigint, k256, hkdf, aes-gcm, chacha20poly1305, x25519-dalek, getrandom.
+- **Browser, vendored in `site/vendor/` (all MIT):** @noble/curves, @noble/hashes, js-yaml, and @phala/dcap-qvl-web (Phala's WebAssembly build of dcap-qvl).
 
 ## Repository
 
