@@ -1,0 +1,41 @@
+Resuming cost-asked-1: a asked-once round sealed at height 277245185, end-to-end encrypted, token cap 4096. What was sealed stands: the suite file, --e2ee and --max-tokens are not read again.
+== fuin ask --id cost-asked-1 --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --host gist --max-spend 0.05
+  1: score 1 (attempt 1)
+  2: score 1 (attempt 1)
+every item asked once inside the TEE: 3/3, 0 retried asks (aggregate tx KrvqbrTpzMVs5Maa9iXFZwibXc4m4Ro9AazDomVB4KM); next: fuin commit
+== fuin commit --id cost-asked-1 --model deepseek-ai/DeepSeek-V4.1-Flash-1017
+Committed deepseek-ai/DeepSeek-V4.1-Flash-1017 run 0: 3/3
+== fuin close --id cost-asked-1
+== fuin reveal --id cost-asked-1 --out certs
+certs/cert-cost-asked-1-deepseek-v4.1-flash-1017.json
+== fuin verify certs/cert-cost-asked-1-deepseek-v4.1-flash-1017.json
+certs/cert-cost-asked-1-deepseek-v4.1-flash-1017.json: VERIFIED
+  [pass] rows: 3 items, scores in {0,1}, total 3/3
+  [pass] commitments: benchmark root and run root rebuilt from all n rows
+  [pass] policy: fuin-v1; fuin-scorer-v2 sha256 1061f6714e11…; asked once per item inside the TEE by asker edb89964e451… in ask2.fuin.testnet/asker, nothing revealed; fuin-request-v3 (end-to-end encrypted)
+  [pass] signatures: 3/3 provider_tee EIP-191 signatures over model:sha256(req):sha256(resp)
+  [pass] reveals: none: a TEE-scored round reveals nothing; every item is re-scored inside the TEE (below)
+  [pass] attestation: signer 0xfe0071895500a9755c18044948ab4f4e1a7f337e quote UpToDate, NRAS True, compose c53e254e8b70… under attestation-v10
+  [pass] deployment trace: compose-manager log (quote UpToDate) → nearai/cvm-compose-files: model-vllm-dsv41-dp0 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image …bb89ee2540e4 weights DeepSeek-V4.1-Flash-1017 rev 1bae0e1088 (same instance also serves LoRA adapters under other names: deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated); model-vllm-dsv41-dp1 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image …bb89ee2540e4 weights DeepSeek-V4.1-Flash-1017 rev 1bae0e1088 (same instance also serves LoRA adapters under other names: deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated) (+6 more replicas)
+  [pass] build provenance: nearaidev/vllm@…ee2540e4 built by github.com/nearai/cvm-compose-files .github/workflows/publish-vllm-dsv41-lora.yaml @c8771522 (SLSA v1, sigstore)
+  [pass] registry: registry.fuin.testnet code HvqaWNNceC…; seal 277245185 < commit 277246003 < close 277246018; the signed seal and commit arguments match; committed runs for this model: [0]
+  [pass] round closed: closed at 277246018; no sample: a TEE-scored round reveals nothing
+  [pass] asked once: all 3 answers asked once inside an OutLayer TDX enclave by asker edb89964e451… in ask2.fuin.testnet/asker (aggregate task 61755): total 3/3 and both roots match; 0 retried asks (no answer had left the enclave); every request rebuilt with the seal block's hash by scorer b301d22b23f2… (task 61769) equals the signed one, so every ask came after the seal; 0 unreadable answers; ask2.fuin.testnet/asker was locked at the seal (block 277245185): its owner had no keys and no code, and its only version was the sealed asker; quote UpToDate, task hash bound, worker approved at block 277245723, request and result on chain
+  scope: signature evidence verified; commitments and total consistent (3/3); every item asked inside an OutLayer TDX enclave after the seal and scored there, its answer recorded once, so the total is exact under the TEE trust assumptions; no ask retried, so each item is a single draw; nothing revealed: all 3 items stay private
+  warning: owner-reported failed inference attempts: 0 (not verifiable; an owner could omit them)
+  limits:
+   - Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.
+   - Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.
+   - Accepted configurations are recorded from NEAR's attested reports in the verifier's policy: the application (compose hash) and the OS (MRTD, RTMR0-2), as observed, not rebuilt from source. The serving container is traced from NEAR's attested deployment log at preflight to a public compose file (image digest, weights, revision); a redeploy during the run would not show. The image's build provenance is verified where NEAR publishes it (SLSA v1 through sigstore, from a workflow in NEAR AI's GitHub organisation); other images are named in the warnings.
+   - Run numbering exposes committed attempts only, not discarded API calls, private rehearsals or uncommitted runs.
+   - The registry contract is locked (no access keys), and its code rebuilds byte for byte from contract/ on macOS arm64 with the recorded toolchain (GitHub's runners: .github/workflows/registry-rebuild.yml), not on Linux; the seal and commit values are checked against the owner's signed transactions, while run numbering and the close rely on the deployed code.
+   - Each item's 0/1 score is public (it is part of the run commitment), so a certificate shows which hidden items a model answered correctly, though not what they ask.
+   - Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. A retried ask (an earlier attempt ran out of time, or lost the record to another ask of the same item; no answer had left the enclave) is a second draw, and the owner sets the task's time limit: a single draw per item could differ from the total by at most the retried count. An owner could still seal the same questions as another round and publish the better one: separate rounds aren't linked.
+   - Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.
+   - Request nonces are bound to the seal block's hash, so no signed answer predates the seal; answers between the seal and the commitment are not individually timestamped.
+   - Questions and answers were end-to-end encrypted to the model's attested key; NEAR's gateway still saw the model, the generation settings, the nonce, the timing and the sizes.
+   - The key each answer is encrypted back to travels in an unsigned header, so an owner could have chosen answers encrypted to another key and commit them unreadable (each scores 0); the TEE scorer counts such answers, and the count is printed with the TEE score.
+   - A TEE score trusts Intel TDX, OutLayer's worker-measurement approvals (worker.outlayer.testnet, checked at the execution's block) and its key service. Each accepted scorer build is pinned by sha256 and rebuilds with tee/build-docker.sh, on any host with Docker, from tee/ at the commit policy/tee-v2.json records.
+Measured so far (tokens from the signed answers; dollars at the catalog price read just now, not a bill):
+  deepseek-ai/DeepSeek-V4.1-Flash-1017: not available, because an asked-once round's answers never leave the enclave; 3 asks counted by the TEE, each at most under $0.01 plus its prompt
+  A call still in flight when a process is killed leaves no record here. NEAR AI's dashboard is the bill.

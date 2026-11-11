@@ -7,7 +7,7 @@ A reviewer asked for the expected cost before a round starts, with inference, to
 Three things, kept apart in the code (`src/fuin/cost.py`) and in what is printed:
 
 - **A bound, before the seal.** `fuin check` and `fuin evaluate` print the most the model calls can cost: every answer using its whole token cap, at NEAR AI Cloud's public catalog prices read at that moment. It is labelled a bound, not a forecast and not a bill, and it points to the measured table in [docs/COSTS-AND-DEPENDENCIES.md](../../docs/COSTS-AND-DEPENDENCIES.md). Chain and enclave fees are a separate line, in testnet NEAR.
-- **A limit, while it runs.** `--max-spend USD` on `fuin evaluate`, `run` and `ask`. A call starts only if the round's spend so far plus the bound of every call in flight stays within the limit. A finished call counts at its measured tokens. A failed call stays at its bound, because NEAR AI can bill a call that failed or was abandoned. Spend is recomputed from saved state at every start, so running the command again doesn't reset it. A stop at the limit is not written to the attempt log.
+- **A limit, while it runs.** `--max-spend USD` on `fuin evaluate`, `run` and `ask`. A call starts only if the round's spend so far plus the bound of every call in flight stays within the limit. A finished call counts at its measured tokens. A failed call stays at its bound, because NEAR AI can bill a call that failed or was abandoned. An answer that comes back but can't be kept (its signature is missing or wrong) is logged as an attempt and stays at its bound too, and so does an answer that carries no token count. Spend is recomputed from saved state at every start, so running the command again doesn't reset it. A stop at the limit is not written to the attempt log.
 - **Measured usage, afterwards.** `fuin cost --id ID`, and the last lines of `fuin evaluate`: token counts from the signed answers. The dollars are those tokens at the catalog price read at that moment, so it is a computation; NEAR AI's dashboard is the bill.
 
 The retry allowance is stated as it is: a question gets up to three attempts each time the command runs, and a rerun allows three more, so only the limit caps the total.
@@ -25,14 +25,19 @@ A fresh clone of the branch, six public questions, `Qwen/Qwen3.8-27B`, cap 4,096
 
 The bound printed before the seal was "at most $0.03 if all 6 answers used the whole 4,096-token cap". The measured use was 252 completion tokens, about 1% of that, which is why the bound is not called a forecast.
 
-The certificate is in this folder. It is a rehearsal on public questions, not a counted round.
+**An asked-once round** (three public questions, `deepseek-ai/DeepSeek-V4.1-Flash-1017`, cap 4,096, at commit `45af8d8`). The owner never sees an enclave-made call's usage, so each ask counts at its bound, about $0.005:
+
+3. **`fuin evaluate … --ask --e2ee --max-spend 0.008`** ([cost-asked-1a.txt](cost-asked-1a.txt)). One ask fits, two don't. After item 0: "spending limit $0.008 reached: $0.0050 spent, so item 1's ask was not sent."
+4. **The same command with `--max-spend 0.05`** ([cost-asked-1b.txt](cost-asked-1b.txt)). It asked items 1 and 2 only, then aggregated, committed, closed and verified: **VERIFIED**, 3/3, 0 retried asks. Its measured line reads "not available, because an asked-once round's answers never leave the enclave; 3 asks counted by the TEE".
+
+Both certificates are in this folder. They are rehearsals on public questions, not counted rounds.
 
 ## Tests
 
-`tests/test_cost.py`: catalog prices parse to the dollars-per-million in the COSTS table; with four calls in flight and three injected failures, what NEAR AI could have billed never passes the limit, the stop leaves no entry in the attempt log, and a higher limit finishes with every question answered exactly once; thirty reruns at the same limit can't push spend past it; with a limit set and no readable price, nothing is sent; an asked-once round's asks are each counted once.
+`tests/test_cost.py`: catalog prices parse to the dollars-per-million in the COSTS table; with four calls in flight and three injected failures, what NEAR AI could have billed never passes the limit, the stop leaves no entry in the attempt log, and a higher limit finishes with every question answered exactly once; thirty reruns at the same limit can't push spend past it; with a limit set and no readable price, nothing is sent; an asked-once round's asks are each counted once; a discarded answer is logged and still counted after ten reruns; an answer with no token count is counted at its bound.
 
 ## What this doesn't show
 
-- **An asked-once round under a limit, live.** The owner never sees an enclave-made call's usage, so each ask counts at its bound; that path is covered by tests only.
+- **What an asked-once round really used.** Its answers never leave the enclave, so the limit counts every ask at its bound and the measured line says "not available".
 - **A bill.** The limit is kept on the owner's machine from token counts and catalog prices. A call still in flight when a process is killed leaves no record, and prices can change between the estimate and the invoice.
 - **A forecast.** Fūin doesn't predict how many tokens your questions will use.

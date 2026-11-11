@@ -171,7 +171,7 @@ def measured(st: dict) -> list[str]:
         if asked:
             sent = sum(max(1, r.get("attempts") or 1) for r in rn.get("rows", []))
             out.append(f"  {m}: not available, because an asked-once round's answers never leave the enclave; {sent} asks counted by the TEE"
-                       + (f", each at most {_usd(bound('', st['policy']['models'][m]['max_tokens'], pr[m]))} plus its prompt" if pr else ""))
+                       + (f", each at most ${bound('', st['policy']['models'][m]['max_tokens'], pr[m]):.4f} plus its prompt" if pr else ""))
             continue
         k, p, c, blank = tokens(st, m)
         usd = f" = {_usd(p * pr[m][0] + c * pr[m][1])}" if pr else " (prices not available right now)"

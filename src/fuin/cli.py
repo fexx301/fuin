@@ -132,7 +132,7 @@ def evaluate(a) -> int:
             raise SystemExit(f"{a.id} is already sealed with a different {' and '.join(differs)} ({kind} round, owner {sealed['owner']}, "
                              f"models {', '.join(pol['models'])}). A seal can't be changed: rerun without those flags to finish it, or use a new --id.")
         caps = sorted({m["max_tokens"] for m in pol["models"].values()})
-        print(f"Resuming {a.id}: a {kind} round sealed at height {sealed['seal']['height']}, {'end-to-end encrypted' if P.is_e2ee(pol) else 'not encrypted'}, "
+        print(f"Resuming {a.id}: {'an' if kind[0] == 'a' else 'a'} {kind} round sealed at height {sealed['seal']['height']}, {'end-to-end encrypted' if P.is_e2ee(pol) else 'not encrypted'}, "
               f"token cap {', '.join(map(str, caps))}. What was sealed stands: the suite file, --e2ee and --max-tokens are not read again.")
     else:
         if tooling.print_check(a.suite, a.owner, models, mode=mode, host=a.host, max_tokens=a.max_tokens):

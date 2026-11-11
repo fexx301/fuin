@@ -1,0 +1,28 @@
+Suite private/suites/pub3.jsonl: 3 items
+  ✓ every item is well formed
+  disclosure: 3 items → an asked-once round reveals nothing: a TEE asks every item itself, after the seal, and scores it there, and all 3 stay private.
+  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed
+Prerequisites:
+  ✓ NEARAI_API_KEY set (environment or .env)
+  ✓ near-cli-rs found (~/.cargo/bin/near)
+  ✓ deepseek-ai/DeepSeek-V4.1-Flash-1017 is in the verifier's attestation policy
+  ✓ registry registry.fuin.testnet reachable, code pinned and locked
+  ✓ owner fuin.testnet exists, 6.186 NEAR
+  ✓ a NEAR AI key is stored for the asker's project ask2.fuin.testnet/asker (present; whether it still works shows at the first ask)
+  ✓ deepseek-ai/DeepSeek-V4.1-Flash-1017 at 4,096 tokens answered within the asker's time limit when measured
+  ✓ GitHub CLI signed in (the encrypted round goes to a secret gist, deleted after the TEE fetches it)
+Cost before you start (a bound, not a forecast and not a bill):
+  Model calls (NEAR AI Cloud, real money), at the catalog prices read just now:
+    deepseek-ai/DeepSeek-V4.1-Flash-1017: $0.30 in / $1.20 out per million tokens; at most $0.01 if all 3 answers used the whole 4,096-token cap
+    Round: at most $0.01 with one attempt per question. A question gets up to 3 attempts each time the command runs, and a failed call can still be billed, so only --max-spend caps the total.
+    docs/COSTS-AND-DEPENDENCIES.md lists what the published rounds actually used, which was far below the cap.
+  Chain and enclave fees (NEAR testnet, free from the faucet): about 0.019 NEAR: 3 registry calls at about 0.0002 each and 6 TEE tasks at about 0.003 each (0.1 NEAR is attached to each task and refunded)
+Ready to seal.
+Asked-once round. A TEE asks every question itself, after the seal, keeps one answer per question and counts every retry; nothing is revealed. Each call must finish within NEAR's ~2-minute window, which only fast models do. Still possible: sealing the same questions as a separate round.
+Questions and answers are encrypted end to end to each model's attested key; NEAR's gateway sees the model, the settings, the timing and the sizes, not the text.
+The encrypted round is hosted on a secret gist only while the TEE fetches it, then deleted.
+3 items → an asked-once round reveals nothing: a TEE asks every item itself, after the seal, and scores it there, and all 3 stay private.
+Sealing cost-asked-1: n=3, asked once per item inside the TEE by asker edb89964e451… in ask2.fuin.testnet/asker, nothing revealed. Questions and answers end-to-end encrypted (template v3).
+== fuin ask --id cost-asked-1 --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --host gist --max-spend 0.008
+  0: score 1 (attempt 1)
+spending limit $0.008 reached: $0.0050 spent, so item 1's ask was not sent. Nothing is lost: run the same command again with a higher --max-spend
