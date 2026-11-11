@@ -21,7 +21,10 @@ html,body{background:#161616;margin:0}
 #topbar{position:fixed;top:0;left:0;height:2px;width:0;background:#d04a3b;z-index:101;transition:width .25s ease,opacity .8s ease .4s}
 #topbar.done{opacity:0}
 @media (prefers-reduced-motion:reduce){#loader path,#loader g{animation:none;fill:#d04a3b}}
+html[data-theme=light],html[data-theme=light] body,html[data-theme=light] #loader{background:#f6f3ec}
+html[data-theme=light] #loader .box{color:#5d625f}html[data-theme=light] #loader .word{color:#1b1b1a}html[data-theme=light] #loader .track{background:#ddd8cc}
 </style>
+<script>try{if(localStorage.getItem('fuin-theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -33,9 +36,12 @@ html,body{background:#161616;margin:0}
 </div></div>
 <div id="topbar"></div>
 <nav>
-  <a href="#top" aria-label="Fūin home"><img src="assets/fuin-logo-dark.svg" alt="Fūin"></a>
+  <a href="#top" aria-label="Fūin home"><img class="logo-dark" src="assets/fuin-logo-dark.svg" alt="Fūin"><img class="logo-light" src="assets/fuin-logo.svg" alt="Fūin"></a>
+  <div class="nav-right">
+  <button class="theme" id="themeBtn" aria-label="Switch to light theme">Light</button>
   <button class="menu" id="menuBtn" aria-expanded="false" aria-controls="navLinks" aria-label="Menu">Menu</button>
   <div class="links" id="navLinks"><a href="#verify">Verify</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#refusals">Refusals</a><a href="https://github.com/fexx301/fuin">GitHub</a></div>
+  </div>
 </nav>
 
 <header class="hero" id="top">

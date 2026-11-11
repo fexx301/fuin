@@ -86,16 +86,17 @@
     let last = 0, t0 = performance.now();
     function frame(now) {
       const t = (now - t0) / 1000;
-      cx.fillStyle = '#161616'; cx.fillRect(0, 0, W, H);
+      const lit = document.documentElement.dataset.theme === 'light';  // the same dots, inked for a light page
+      cx.fillStyle = lit ? '#f6f3ec' : '#161616'; cx.fillRect(0, 0, W, H);
       for (const d of dust) { d.y -= d.v; d.x += Math.sin(t * 0.3 + d.a * 9) * 0.08; if (d.y < -4) { d.y = H + 4; d.x = Math.random() * W; }
-        cx.fillStyle = `rgba(112,112,110,${0.25 + 0.25 * Math.sin(t * 1.3 + d.a * 20)})`; cx.fillRect(d.x, d.y, d.s, d.s); }
+        cx.fillStyle = `rgba(${lit ? '120,116,106' : '112,112,110'},${0.25 + 0.25 * Math.sin(t * 1.3 + d.a * 20)})`; cx.fillRect(d.x, d.y, d.s, d.s); }
       const R = 120, R2 = R * R;
       for (const d of dots) {
         const dx = d.x - mouse.x, dy = d.y - mouse.y, q = dx * dx + dy * dy;
         if (q < R2) { const f = (1 - q / R2) * 2.4, l = Math.sqrt(q) || 1; d.vx += (dx / l) * f; d.vy += (dy / l) * f; }
         d.vx += (d.bx - d.x) * 0.055; d.vy += (d.by - d.y) * 0.055; d.vx *= 0.82; d.vy *= 0.82; d.x += d.vx; d.y += d.vy;
         const r = d.big ? band.cw * 0.42 : band.cw * 0.2;
-        cx.fillStyle = d.big ? `rgba(242,242,240,${0.82 + 0.18 * Math.sin(t * 1.7 + d.tw)})` : '#70706e';
+        cx.fillStyle = d.big ? `rgba(${lit ? '27,27,26' : '242,242,240'},${0.82 + 0.18 * Math.sin(t * 1.7 + d.tw)})` : lit ? '#a39f94' : '#70706e';
         cx.beginPath(); cx.arc(d.x, d.y, Math.max(r, 0.6), 0, 6.283); cx.fill();
       }
       if (!reduced && now - last > 1700) { last = now; fingertips.forEach((p) => sparks.push({ x: p.x, y: p.y, p: 0, sx: p.x, sy: p.y })); }
@@ -110,6 +111,7 @@
     let visible = true;  // stop drawing ~5,000 dots per frame once the hero is off-screen
     new IntersectionObserver((es) => { const was = visible; visible = es[0].isIntersecting; if (visible && !was && !reduced) requestAnimationFrame(frame); }).observe(cv);
     addEventListener('resize', () => { layout(); fingertips = tips(); if (reduced) frame(performance.now()); });
+    addEventListener('fuin-theme', () => { if (reduced || !visible) frame(performance.now()); });  // a still canvas repaints in the new theme
     cv.addEventListener('pointermove', (e) => {
       const r = cv.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
       const rx = ((mouse.y - coinXY.y) / H) * -28, ry = ((mouse.x - coinXY.x) / W) * 36;
@@ -464,6 +466,15 @@
     // the TDX verifier (1.4 MB of WASM) is only needed partway through a run; verify.js waits on this promise
     window.DcapReady = load('vendor/dcap.js', 'Intel TDX verifier');
   }
+  const themeBtn = $('#themeBtn'), root = document.documentElement;
+  const showTheme = () => { const lit = root.dataset.theme === 'light'; themeBtn.textContent = lit ? 'Dark' : 'Light'; themeBtn.setAttribute('aria-label', `Switch to ${lit ? 'dark' : 'light'} theme`); };
+  themeBtn.addEventListener('click', () => {
+    const lit = root.dataset.theme !== 'light';
+    if (lit) root.dataset.theme = 'light'; else delete root.dataset.theme;
+    try { localStorage.setItem('fuin-theme', lit ? 'light' : 'dark'); } catch (e) { /* private window: the choice lasts for this visit */ }
+    showTheme(); dispatchEvent(new Event('fuin-theme'));
+  });
+  showTheme();
   const menu = $('#menuBtn'); menu.addEventListener('click', () => { const open = document.body.classList.toggle('menu-open'); menu.setAttribute('aria-expanded', String(open)); });
   document.querySelectorAll('nav .links a').forEach((a) => a.addEventListener('click', () => { document.body.classList.remove('menu-open'); menu.setAttribute('aria-expanded', 'false'); }));
   // nav: mark the link of the section crossing a line 40% down the screen; the hero and sections without a link clear it
