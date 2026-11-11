@@ -30,7 +30,8 @@ def world(tmp_path, monkeypatch):
         st = box.get("st")
         if a.cmd == "seal":
             mode = P.TEE_ASKED if a.ask else P.TEE_AUDIT if a.tee else None
-            box["st"] = {"owner": a.owner, "items": [{}] * 2, "policy": {"audit": {"mode": mode, "k": 0 if mode else 1}, "models": a.model},
+            box["st"] = {"owner": a.owner, "items": [{}] * 2, "policy": {"audit": {"mode": mode, "k": 0 if mode else 1}, "request": {"template": "fuin-request-v1"},
+                                    "models": {m: {"max_tokens": a.max_tokens, "temperature": 0} for m in a.model}},
                          "seal": {"height": 1, "tx": "s"}, "runs": {}}
             state_file.parent.mkdir(parents=True, exist_ok=True); state_file.write_text("{}")
         elif a.cmd == "run":
@@ -77,6 +78,7 @@ def test_a_rerun_after_a_network_failure_resumes_and_repeats_nothing_finished(wo
     del ran[:]
     assert cli.main(ARGS + ["--tee"]) == 0
     assert ", ".join(ran) == "close, tee-score A, tee-score B, verify"   # no second seal, run or commit
+    assert "a TEE-scored round sealed at height 1, not encrypted, token cap 4096" in capsys.readouterr().out   # what was sealed, said back
 
 
 def test_half_finished_states_are_picked_up(world):

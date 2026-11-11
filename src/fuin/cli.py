@@ -112,12 +112,15 @@ def evaluate(a) -> int:
     if sealed and "seal" in sealed:  # a rerun follows what was sealed; flags that disagree with it are refused, not ignored
         pol = sealed["policy"]
         was = "ask" if P.is_asked_round(pol) else "tee" if P.is_tee_round(pol) else "sampled"
+        kind = {"ask": "asked-once", "tee": "TEE-scored", "sampled": "sampled"}[was]
         differs = [what for what, differ in (("kind of round", (a.tee or a.ask) and mode != was), ("models", a.model and set(a.model) != set(pol["models"])),
                                              ("owner", a.owner != sealed["owner"])) if differ]
         if differs:
-            raise SystemExit(f"{a.id} is already sealed with a different {' and '.join(differs)} ({was} round, owner {sealed['owner']}, "
+            raise SystemExit(f"{a.id} is already sealed with a different {' and '.join(differs)} ({kind} round, owner {sealed['owner']}, "
                              f"models {', '.join(pol['models'])}). A seal can't be changed: rerun without those flags to finish it, or use a new --id.")
-        print(f"Resuming {a.id}: sealed at height {sealed['seal']['height']}; the suite file is not read again.")
+        caps = sorted({m["max_tokens"] for m in pol["models"].values()})
+        print(f"Resuming {a.id}: a {kind} round sealed at height {sealed['seal']['height']}, {'end-to-end encrypted' if P.is_e2ee(pol) else 'not encrypted'}, "
+              f"token cap {', '.join(map(str, caps))}. What was sealed stands: the suite file, --e2ee and --max-tokens are not read again.")
     else:
         if tooling.print_check(a.suite, a.owner, models, mode=mode, host=a.host, max_tokens=a.max_tokens):
             return 1

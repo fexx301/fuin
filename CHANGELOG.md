@@ -5,6 +5,9 @@
 - **`fuin evaluate`:** one guided, resumable command for a whole round: check, an explanation of the chosen kind of round, seal, run or ask, commit, close, score, certificates, verify. It runs the step `fuin status` names, so the two can't disagree. Evidence: `evidence/2026-11-11-guided-command/`.
 - **`fuin check --ask` / `--host`:** catches a missing asker key, a model or token cap that doesn't fit the asker's time limit (only where measured; anything else is a warning), and a GitHub CLI that isn't signed in.
 - **`fuin report`:** a shareable HTML and JSON report for your certificates, with 95% intervals, what is and isn't comparable, and no private question. Evidence: `evidence/2026-11-11-report/`.
+- **Pilot kit:** `PILOT.md` uses `fuin evaluate` and `fuin report`, and its report form asks for interventions, failures, the decision the result supported and a description of the benchmark.
+- **`scripts/store_asker_secret.py --owner`:** an owner other than `fuin.testnet` can store a key for the asker's project (not yet tried by a second account).
+- **Page:** a light theme and a switch in the nav; dark stays the default.
 - The verifier and the certificate format are unchanged.
 
 ## 1.0.3 (2026-11-11)

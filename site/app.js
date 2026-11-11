@@ -84,7 +84,7 @@
     };
     let fingertips = [];
     let last = 0, t0 = performance.now();
-    function frame(now) {
+    function frame(now, once) {  // `once`: paint a single frame without starting another loop
       const t = (now - t0) / 1000;
       const lit = document.documentElement.dataset.theme === 'light';  // the same dots, inked for a light page
       cx.fillStyle = lit ? '#f6f3ec' : '#161616'; cx.fillRect(0, 0, W, H);
@@ -105,13 +105,13 @@
         cx.fillStyle = `rgba(208,74,59,${1 - Math.max(0, s.p - 0.7) / 0.3})`; cx.beginPath(); cx.arc(s.x, s.y, 2.1, 0, 6.283); cx.fill(); }
       sparks = sparks.filter((s) => s.p < 1);
       if (!painted) { painted = true; heroReady(); }
-      if (!reduced && visible) requestAnimationFrame(frame);
+      if (!once && !reduced && visible) requestAnimationFrame(frame);
     }
     let painted = false;
     let visible = true;  // stop drawing ~5,000 dots per frame once the hero is off-screen
     new IntersectionObserver((es) => { const was = visible; visible = es[0].isIntersecting; if (visible && !was && !reduced) requestAnimationFrame(frame); }).observe(cv);
     addEventListener('resize', () => { layout(); fingertips = tips(); if (reduced) frame(performance.now()); });
-    addEventListener('fuin-theme', () => { if (reduced || !visible) frame(performance.now()); });  // a still canvas repaints in the new theme
+    addEventListener('fuin-theme', () => frame(performance.now(), true));  // repaint now, also when the animation is paused
     cv.addEventListener('pointermove', (e) => {
       const r = cv.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
       const rx = ((mouse.y - coinXY.y) / H) * -28, ry = ((mouse.x - coinXY.x) / W) * 36;

@@ -1,7 +1,7 @@
 {
  "v": "fuin-report-v1",
- "generated_utc": "2026-11-11 12:18 UTC",
- "fuin_version": "1.0.3",
+ "generated_utc": "2026-11-11 12:49 UTC",
+ "fuin_version": "1.1.0",
  "certificates": 6,
  "verified": 5,
  "groups": [
@@ -49,7 +49,7 @@
       "code": null,
       "detail": null,
       "how": "checked",
-      "at": "2026-11-11 12:13 UTC",
+      "at": "2026-11-11 12:45 UTC",
       "limits": [
        "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
        "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
@@ -119,7 +119,7 @@
       "code": null,
       "detail": null,
       "how": "checked",
-      "at": "2026-11-11 12:14 UTC",
+      "at": "2026-11-11 12:46 UTC",
       "limits": [
        "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
        "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
@@ -190,7 +190,7 @@
       "code": null,
       "detail": null,
       "how": "checked",
-      "at": "2026-11-11 12:16 UTC",
+      "at": "2026-11-11 12:47 UTC",
       "limits": [
        "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
        "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
@@ -241,7 +241,7 @@
       "code": null,
       "detail": null,
       "how": "checked",
-      "at": "2026-11-11 12:15 UTC",
+      "at": "2026-11-11 12:47 UTC",
       "limits": [
        "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
        "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
@@ -309,7 +309,7 @@
       "code": null,
       "detail": null,
       "how": "checked",
-      "at": "2026-11-11 12:18 UTC",
+      "at": "2026-11-11 12:49 UTC",
       "limits": [
        "Every published signature and commitment is checked; score correctness and request-policy compliance are checked on the revealed sample, and on every item only when the certificate carries a TEE score.",
        "Model instances can share a key even with different configurations. Matching a signer does not identify the serving instance or prove its exact configuration.",
@@ -421,7 +421,7 @@
     "code": "tee_asked_unlocked",
     "detail": null,
     "how": "checked",
-    "at": "2026-11-11 12:17 UTC",
+    "at": "2026-11-11 12:48 UTC",
     "limits": [],
     "warnings": []
    }

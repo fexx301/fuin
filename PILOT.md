@@ -84,6 +84,7 @@ The browser checks everything except the GPU attestation (NVIDIA's service doesn
 | Item | Your answer |
 |---|---|
 | Round type (4A private or 4B sampled), number of questions, models | |
+| The Fūin version you ran (`git rev-parse --short HEAD`) | |
 | Setup time (step 2) | |
 | Writing the suite (step 3) | |
 | Check → certificates, your hands-on time (step 4) | |
