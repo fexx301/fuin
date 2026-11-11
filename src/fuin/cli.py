@@ -192,8 +192,7 @@ def main(argv=None) -> int:
         print(f"{b['id']} · {r['model_id']} run {r['run_index']} · committed total {r['total_score']}/{b['n']}")
         from fuin import policy as P
         if P.is_tee_round(b["policy"]):
-            print(f"audit: none · a TEE-scored round reveals nothing: all {b['n']} items stay private and were re-scored inside "
-                  f"OutLayer's TEE by scorer {b['policy']['audit']['scorer_wasm_sha256'][:12]}… (fuin verify checks that evidence)")
+            print(tooling.zero_reveal_line(cert))
             return 0
         print(f"audit: D={au['D']} k={au['k']} (target 95%) · revealed {au['k']} of {b['n']}, unrevealed {b['n'] - au['k']}")
         print(f"settings: {b['policy']['models'][r['model_id']]} · scorer {b['policy']['scorer']['name']}")

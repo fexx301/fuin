@@ -4,7 +4,7 @@ name: publish
 # a "pending publisher" for project fuin, owner fexx301, repository fuin, workflow publish.yml, environment pypi.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*.*.*"]  # a release tag; the moving v1 tag (for the GitHub Action) must not start a publish
 
 permissions:
   contents: read

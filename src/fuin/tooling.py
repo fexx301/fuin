@@ -112,16 +112,33 @@ def prerequisites(owner_account: str | None, models: list[str]) -> list[tuple[bo
     return out
 
 
+def zero_reveal_line(cert: dict) -> str:
+    """`fuin show`'s summary for a certificate of a round that reveals nothing: TEE-scored, or asked once by a TEE."""
+    b, au = cert["benchmark"], cert["benchmark"]["policy"]["audit"]
+    if P.is_asked_round(b["policy"]):
+        out = ((cert["run"].get("evidence") or {}).get("tee_asked") or {}).get("output") or {}
+        retried = f"; {out['retried']} retried ask(s), counted" if "retried" in out else ""
+        return (f"audit: none · an asked-once round reveals nothing: a TEE asked each of the {b['n']} questions itself, after the seal, "
+                f"and scored it there (asker {au['asker_wasm_sha256'][:12]}… in {au['asker_project']}){retried} "
+                "(fuin verify checks that evidence)")
+    return (f"audit: none · a TEE-scored round reveals nothing: all {b['n']} items stay private and were re-scored inside "
+            f"OutLayer's TEE by scorer {au['scorer_wasm_sha256'][:12]}… (fuin verify checks that evidence)")
+
+
 def status(bid: str, examples: str = "examples") -> list[str]:
-    """Where a round stands, from private state plus the chain, and the next command."""
+    """Where a round stands, from private state plus the chain, and the next command. The three kinds of round differ in
+    who calls the model (`fuin run` for the owner, `fuin ask` for the TEE) and in what writes the certificates."""
     p = owner._path(bid)
     if not p.exists():
         return [f"{bid}: not sealed yet (no private/{bid}/state.json).",
-                f"next: uv run fuin check SUITE.jsonl --owner YOU.testnet, then uv run --env-file .env fuin seal SUITE.jsonl --id {bid} --owner YOU.testnet --model MODEL"]
+                f"next: uv run fuin check SUITE.jsonl --owner YOU.testnet, then uv run --env-file .env fuin seal SUITE.jsonl --id {bid} --owner YOU.testnet --model MODEL"
+                "   (add --tee to reveal nothing, or --ask to have a TEE ask every question once)"]
     st = owner.load(bid)
-    n, lines, nxt, tee_round = len(st["items"]), [], None, P.is_tee_round(st["policy"])
+    n, lines, nxt, tee_round, asked = len(st["items"]), [], None, P.is_tee_round(st["policy"]), P.is_asked_round(st["policy"])
+    ask = lambda m: f"uv run --env-file .env fuin ask --id {bid} --model {m} --host gist"  # the preflight report needs the key
     lines.append(f"{bid}: {n} items, owner {st['owner']}, "
-                 + ("private round (TEE-scored, nothing revealed)" if tee_round else f"audit k={st['policy']['audit']['k']}"))
+                 + ("asked-once round (a TEE asks every question, nothing revealed)" if asked
+                    else "private round (TEE-scored, nothing revealed)" if tee_round else f"sampled round, audit k={st['policy']['audit']['k']}"))
     if "seal" in st:
         lines.append(f"  ✓ sealed at height {st['seal']['height']} (tx {st['seal']['tx']})")
     else:
@@ -130,13 +147,19 @@ def status(bid: str, examples: str = "examples") -> list[str]:
     for m in st["policy"]["models"]:
         rn = st["runs"].get(m)
         if rn is None:
-            lines.append(f"  · {m}: not run"); nxt = nxt or f"uv run --env-file .env fuin run --id {bid} --model {m}"
+            lines.append(f"  · {m}: not {'asked' if asked else 'run'}"); nxt = nxt or (ask(m) if asked else f"uv run --env-file .env fuin run --id {bid} --model {m}")
         elif "commit" in rn:
             c = rn["commit"]; lines.append(f"  ✓ {m}: committed run {c['run_index']}, {c['total_score']}/{n} (tx {c['tx']})"
-                                           + (", TEE-scored" if rn.get("tee_score") else ", not TEE-scored yet" if tee_round else ""))
+                                           + (", asked once in a TEE" if asked and rn.get("tee_asked") else ", TEE-scored" if rn.get("tee_score")
+                                              else ", not TEE-scored yet" if tee_round and not asked else ""))
         elif len(rn["rows"]) < n:
-            lines.append(f"  … {m}: {len(rn['rows'])}/{n} answered, {len(rn.get('attempt_log', []))} retries logged (resumable)")
-            nxt = nxt or f"uv run --env-file .env fuin run --id {bid} --model {m}"
+            lines.append(f"  … {m}: {len(rn['rows'])}/{n} answered, {len(rn.get('attempt_log', []))} retries logged (resumable"
+                         + ("; a recorded answer is never re-asked)" if asked else ")"))
+            nxt = nxt or (ask(m) if asked else f"uv run --env-file .env fuin run --id {bid} --model {m}")
+        elif asked and not rn.get("tee_asked"):  # every item answered, but the enclave hasn't attested the run yet
+            lines.append(f"  … {m}: {n}/{n} asked, the TEE's aggregate not collected"); nxt = nxt or ask(m) + "   (asks nothing again; collects the aggregate)"
+        elif asked and not rn.get("tee_asked_check"):
+            lines.append(f"  … {m}: {n}/{n} asked, not yet checked against the seal"); nxt = nxt or f"uv run fuin ask-check --id {bid} --model {m} --host gist"
         else:
             lines.append(f"  · {m}: {n}/{n} answered, not committed"); nxt = nxt or f"uv run --env-file .env fuin commit --id {bid} --model {m}"
     if "close" in st:
@@ -144,7 +167,7 @@ def status(bid: str, examples: str = "examples") -> list[str]:
     elif not nxt:
         nxt = f"uv run --env-file .env fuin close --id {bid}   (after this no more runs can join; do it once every model you want is committed)"
     certs = sorted(Path(examples).glob(f"cert-{bid}-*.json"))
-    unscored = [m for m, rn in st["runs"].items() if tee_round and "commit" in rn and not rn.get("tee_score")]
+    unscored = [m for m, rn in st["runs"].items() if tee_round and not asked and "commit" in rn and not rn.get("tee_score")]
     if certs:
         lines.append(f"  ✓ certificates in {examples}/: {', '.join(c.name for c in certs)}")
         if tee_round and not st.get("tee_ground"):  # optional: answer keys checked against their cited near/docs lines
@@ -155,7 +178,8 @@ def status(bid: str, examples: str = "examples") -> list[str]:
         if unscored:  # a private round's certificates are written once every run is re-scored in the TEE
             nxt = nxt or f"uv run --env-file .env fuin tee-score --id {bid} --model {unscored[0]} --host gist --out {examples}"
         nxt = nxt or f"uv run fuin reveal --id {bid} --out {examples}   " + (
-            "(writes the certificates; a TEE-scored round reveals nothing)" if tee_round else "(waits for a finalized block ≥ close+2)")
+            "(writes the certificates; an asked-once round reveals nothing)" if asked
+            else "(writes the certificates; a TEE-scored round reveals nothing)" if tee_round else "(waits for a finalized block ≥ close+2)")
     lines.append(f"next: {nxt or 'nothing: the round is complete'}")
     return lines
 
