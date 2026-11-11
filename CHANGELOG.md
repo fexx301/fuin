@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 (2026-11-11)
+
+- **Interruptions:** `fuin seal`, `commit`, `close` and `ask` can be run again after being interrupted at any point. Each transaction is signed and its hash saved before it is sent, so a receipt can't be lost and a commit can't be published twice. Live rehearsal: `evidence/2026-11-11-interruption-rehearsal/`.
+- **Asked-once rounds in the CLI:** `fuin show` no longer crashes on an asked-once certificate, and `fuin status` guides such a round with `fuin ask`, not `fuin run`.
+- **Wording:** answer-key and asked-once claims carry their limits beside them.
+
 ## 1.0.1 (2026-11-11)
 
 - **Attestation policy v10:** accepts the deployments NEAR rolled out to its model CVMs between Nov 8 and Nov 11, so new rounds pass preflight again. Published certificates were never affected. Review: `evidence/2026-11-11-attestation-policy-v10/`.
