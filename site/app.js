@@ -96,7 +96,7 @@
         if (q < R2) { const f = (1 - q / R2) * 2.4, l = Math.sqrt(q) || 1; d.vx += (dx / l) * f; d.vy += (dy / l) * f; }
         d.vx += (d.bx - d.x) * 0.055; d.vy += (d.by - d.y) * 0.055; d.vx *= 0.82; d.vy *= 0.82; d.x += d.vx; d.y += d.vy;
         const r = d.big ? band.cw * 0.42 : band.cw * 0.2;
-        cx.fillStyle = d.big ? (lit ? `rgba(72,67,60,${0.58 + 0.14 * Math.sin(t * 1.7 + d.tw)})` : `rgba(242,242,240,${0.82 + 0.18 * Math.sin(t * 1.7 + d.tw)})`) : lit ? '#c6c0b3' : '#70706e';
+        cx.fillStyle = d.big ? `rgba(${lit ? '27,27,26' : '242,242,240'},${0.82 + 0.18 * Math.sin(t * 1.7 + d.tw)})` : lit ? '#6b675e' : '#70706e';
         cx.beginPath(); cx.arc(d.x, d.y, Math.max(r, 0.6), 0, 6.283); cx.fill();
       }
       if (!reduced && now - last > 1700) { last = now; fingertips.forEach((p) => sparks.push({ x: p.x, y: p.y, p: 0, sx: p.x, sy: p.y })); }
