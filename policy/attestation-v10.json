@@ -1,0 +1,540 @@
+{
+ "version": "attestation-v10",
+ "note": "Accepted configurations recorded from NEAR's keyless direct report; reviewed by the verifier author, not sealed by owners. v2 adds z-ai/glm-5.3-flash (2026-11-03). v3 adds GLM's second instance (2026-11-03): the gateway routed to it; its app_compose differs from the direct host's only in INSTANCE_LABEL (gpu03 vs gpu04). v4 adds Qwen's redeployed configuration (2026-11-04): NEAR upgraded the compose-manager launcher image to sha256:a320bb48\u2026 (SLSA v1 provenance verified via GitHub attestations: nearai/compose-manager build.yml on master, commit be649f88) and moved the instance label to cm-gpu32-g7. v5 (2026-11-04) pins each configuration's OS measurements (MRTD, RTMR0-2) as observed in Intel-verified quotes from NEAR's reports (18 distinct genuine quotes across the published certificates and evidence), and requires the report's os_image_hash to match. A quote with any other OS measurement is CAN'T CERTIFY measurement_unapproved. The measurements are recorded from NEAR's attested reports, not recomputed from the dstack OS image. Prompted by an external blind review that found v1-v4 checked the application measurements (MRCONFIGID, RTMR3) but not the OS ones. v6 (2026-11-05) adds deepseek-ai/DeepSeek-V4.1-Flash-1017 for the zero-reveal round: every report check passes, its OS measurements equal an already-approved set, its app_compose differs from Qwen's approved 5e513dbd only in INSTANCE_LABEL (gpu02), and the deployment trace shows the base weights (snapshot 1bae0e10) served under the requested name, with an abliterated LoRA on the same instance under a different name. v7 (drafted by fuin policy-update and reviewed by the verifier author, 2026-11-06) adds, for round 6, every model NEAR serves in its own TEEs that v6 lacked; each passed every report check (quote UpToDate, signer and nonce bound, RTMR3 replay, NRAS true) on an already-approved OS (os_image_hash 91fd5d69), and each run's deployment trace records the weights actually served. Kimi K2.6, DeepSeek V3.2 and Qwen3.5-397B (Chutes) and GLM-5.3 (Tinfoil) are attested in their providers' own formats, which F\u016bin does not verify. Adds Qwen/Qwen3.6-35B-A3B-FP8 5e513dbd, Qwen/Qwen3-VL-30B-A3B-Instruct 5e513dbd, Qwen/Qwen3.8-27B-abliterated 5e513dbd, deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated ae66f844. v8 (drafted by fuin policy-update and reviewed, 2026-11-06) adds Qwen/Qwen3.8-27B-abliterated 31d3b238: NEAR redeployed that CVM within the hour (same signer 0x979121f4, same OS); the new app_compose differs only in the compose-manager image digest (6e035c8f\u2026 to a320bb48\u2026). Its deployment trace shows a LoRA adapter at /adapters/abliterated on the Qwen3.8-27B-FP8 weights, not pinned to a published revision, which its certificates print as a warning. v9 (drafted by fuin policy-update and reviewed, 2026-11-07) adds compose 5f7ebd85 for deepseek-ai/DeepSeek-V4.1-Flash-1017 and its abliterated LoRA: NEAR redeployed the DeepSeek CVMs (deployment v0.0.548) with the same signers (0xfe007189, 0xcc1a4171), the same OS and the same container image digests; the deployment trace shows the same vLLM image, base weights 1bae0e10 and adapter.1-Flash-1017-abliterated 5f7ebd85, deepseek-ai/DeepSeek-V4.1-Flash-1017 5f7ebd85. v10 (reviewed 2026-11-11) adds the composes NEAR rolled out between Nov 8 and Nov 11, recorded by the daily policy-drift runs and a run today: e8416a02 for the five models on prod/small-models.yaml (Qwen3.8-27B and its abliterated LoRA, Qwen3.6-35B, Qwen3-VL-30B, GLM-5.3-flash; deployments v0.0.551 to v0.0.554), and c5e7bd5f (v0.0.546), 448683dd and c53e254e (v0.0.553) for DeepSeek-V4.1-Flash-1017 and its abliterated LoRA. Every one has the same signers as before, an OS already approved, quote UpToDate and NVIDIA's verdict true; the serving images are unchanged, and the one new image, nearaidev/compose-manager@sha256:a0c07308, has SLSA build provenance from nearai/compose-manager's build workflow on master.",
+ "models": {
+  "Qwen/Qwen3.8-27B": {
+   "compose_hashes": {
+    "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29": {
+     "source": "https://qwen3-8-27b.completions.near.ai/v1/attestation/report",
+     "fetched_utc": "2026-11-03T16:13Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+     "evidence": "evidence/2026-11-03-qwen-keyless-report/",
+     "model_workload_note": "compose_hash pins the compose-manager launcher, not the model containers; the model workload is named by compose_manager_attestation (git tag/commit/file), verified separately or reported as image provenance not verified",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ]
+    },
+    "31d3b2389e06a4450e342f3a45fdbb5d7ce4c607c359f5b291635548b0b80007": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B (keyed gateway report)",
+     "fetched_utc": "2026-11-04T16:00Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a320bb4882341c8e19ef1944436f6591ed73303732009ed5db9f6db6c9da756a",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+     "evidence": "evidence/2026-11-04-qwen-redeploy/",
+     "differs_from": "5e513dbd72e1\u2026 in the compose-manager image digest (6e035c8f\u2026 \u2192 a320bb48\u2026, SLSA-attested by nearai/compose-manager) and INSTANCE_LABEL (gpu13 \u2192 cm-gpu32-g7)",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "f0f303d15fb7619b87ec60daf0db241e937b30a4e1f2c405b5420f14b27c6e301735094feea9693a33b868d00eeb07f9",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ]
+    },
+    "e8416a02d6f7ce47baaa52e3925b934fd30834b04fc9086b363db9b1d12c729d": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B",
+     "fetched_utc": "2026-11-08T14:29Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x835ab53d20294ef795906dff21ae4c045336aa26",
+     "quote_status": "UpToDate",
+     "evidence": "model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.551 prod/small-models.yaml image lmsysorg/sglang@sha256:febfb971c7352570fc445c466ebd6ffc9d896024958e544a60f2137fd85856b1 weights Qwen/Qwen3.8-27B-FP8"
+    }
+   }
+  },
+  "z-ai/glm-5.3-flash": {
+   "compose_hashes": {
+    "a0e3c6f4f21a60ea3f5c96bc7ef319b03a184ca2049605399275fbcea74e8c5f": {
+     "source": "https://glm-5-3-flash.completions.near.ai/v1/attestation/report",
+     "fetched_utc": "2026-11-03T17:22Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+     "evidence": "evidence/2026-11-03-glm-checks/",
+     "model_workload_note": "compose_hash pins the compose-manager launcher, not the model containers; the model workload is named by compose_manager_attestation (git tag/commit/file), verified separately or reported as image provenance not verified",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ]
+    },
+    "5f7ebd85cf1f480a118f75dd10fd0cb277e4ddbb23845f1c20d8ea0f1e87efa6": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=z-ai/glm-5.3-flash (keyed gateway report)",
+     "fetched_utc": "2026-11-03T17:54Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+     "evidence": "evidence/2026-11-03-glm-checks/gateway-candidate-gpu04.json",
+     "differs_from": "a0e3c6f4f21a60ea3f5c96bc7ef319b03a184ca2049605399275fbcea74e8c5f only in INSTANCE_LABEL=gpu04 (was gpu03)",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ]
+    },
+    "e8416a02d6f7ce47baaa52e3925b934fd30834b04fc9086b363db9b1d12c729d": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=z-ai/glm-5.3-flash",
+     "fetched_utc": "2026-11-11T04:27Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+     "quote_status": "UpToDate",
+     "evidence": "model-sg-glm53-w4afp8-tp2-r1 @v0.0.554 prod/small-models.yaml image docker.io/nearaidev/sglang@sha256:da8d4e4b5ec667499b58a21e56050aae9bcfc4df9669b3ac27e2e20af033d681 weights graphistry/GLM-5.3-Flash-W4AFP8; model-sg-glm53-w4afp8-tp2-r1a @v0.0.520 prod/small-models.yaml image docker.io/nearaidev/sglang@sha256:da8d4e4b5ec667499b58a21e56050aae9bcfc4df9669b3ac27e2e20af033d681 weights graphistry/GLM-5.3-Flash-W4AFP8; model-sg-glm53-w4afp8-tp2-r1b @v0.0.520 prod/small-models.yaml image docker.io/nearaidev/sglang@sha256:da8d4e4b5ec667499b58a21e56050aae9bcfc4df9669b3ac27e2e20af033d681 weights graphistry/GLM-5.3-Flash-W4AFP8; model-sg-glm53-w4afp8-tp2-r2 @v0.0.554 prod/small-models.yaml image docker.io/nearaidev/sglang@sha256:da8d4e4b5ec667499b58a21e56050aae9bcfc4df9669b3ac27e2e20af033d681 weights graphistry/GLM-5.3-Flash-W4AFP8"
+    }
+   }
+  },
+  "deepseek-ai/DeepSeek-V4.1-Flash-1017": {
+   "compose_hashes": {
+    "ae66f844658a7aee331dcb9fb59bd40323d71d192d37719e022cc4af8389265b": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017 (keyed gateway report)",
+     "fetched_utc": "2026-11-05T12:33Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfe0071895500a9755c18044948ab4f4e1a7f337e",
+     "evidence": "evidence/2026-11-05-deepseek-review/",
+     "differs_from": "5e513dbd72e1\u2026 (Qwen, approved) only in INSTANCE_LABEL (gpu13 -> gpu02)"
+    },
+    "5f7ebd85cf1f480a118f75dd10fd0cb277e4ddbb23845f1c20d8ea0f1e87efa6": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017",
+     "fetched_utc": "2026-11-07T06:22Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfe0071895500a9755c18044948ab4f4e1a7f337e",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017",
+     "fetched_utc": "2026-11-11T04:26Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfe0071895500a9755c18044948ab4f4e1a7f337e",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "c5e7bd5f9e1d5f8480d2bd57b9e601fab0650dd46e6a120b809a279be73436c0": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017",
+     "fetched_utc": "2026-11-08T14:29Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfe0071895500a9755c18044948ab4f4e1a7f337e",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017",
+     "fetched_utc": "2026-11-10T15:45Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfe0071895500a9755c18044948ab4f4e1a7f337e",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    }
+   }
+  },
+  "Qwen/Qwen3.6-35B-A3B-FP8": {
+   "compose_hashes": {
+    "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.6-35B-A3B-FP8",
+     "fetched_utc": "2026-11-06T21:38Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfdbd7952498b333206f360d71d97a1e0961e8ddf",
+     "quote_status": "UpToDate",
+     "evidence": "model-sg-qwen36-35b-a3b-fp8-tp1-r1 @v0.0.513 prod/small-models.yaml image v0.5.16-cu129@sha256:984699c298a95b73c469b2191403ddc85fd780506e13c39c4afff3845e27bc6c weights Qwen/Qwen3.6-35B-A3B-FP8"
+    },
+    "e8416a02d6f7ce47baaa52e3925b934fd30834b04fc9086b363db9b1d12c729d": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.6-35B-A3B-FP8",
+     "fetched_utc": "2026-11-11T04:25Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xfdbd7952498b333206f360d71d97a1e0961e8ddf",
+     "quote_status": "UpToDate",
+     "evidence": "model-sg-qwen36-35b-a3b-fp8-tp1-r1 @v0.0.554 prod/small-models.yaml image v0.5.16-cu129@sha256:984699c298a95b73c469b2191403ddc85fd780506e13c39c4afff3845e27bc6c weights Qwen/Qwen3.6-35B-A3B-FP8"
+    }
+   }
+  },
+  "Qwen/Qwen3-VL-30B-A3B-Instruct": {
+   "compose_hashes": {
+    "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3-VL-30B-A3B-Instruct",
+     "fetched_utc": "2026-11-06T21:38Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x2665cce942fa427ef30d87f4b0bff67fb7645462",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-qwen3vl-30b-a3b-fp8-tp1 @v0.0.513 prod/small-models.yaml image vllm/vllm-openai@sha256:ccd6a6dbf4aba4e94c6f7052d1835d6e742082b6a5095276552e9b7a5a47c2e5 weights None"
+    },
+    "e8416a02d6f7ce47baaa52e3925b934fd30834b04fc9086b363db9b1d12c729d": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3-VL-30B-A3B-Instruct",
+     "fetched_utc": "2026-11-11T04:25Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x2665cce942fa427ef30d87f4b0bff67fb7645462",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-qwen3vl-30b-a3b-fp8-tp1 @v0.0.554 prod/small-models.yaml image vllm/vllm-openai@sha256:ccd6a6dbf4aba4e94c6f7052d1835d6e742082b6a5095276552e9b7a5a47c2e5 weights Qwen/Qwen3-VL-30B-A3B-Instruct-FP8"
+    }
+   }
+  },
+  "Qwen/Qwen3.8-27B-abliterated": {
+   "compose_hashes": {
+    "5e513dbd72e1c0f291f748ad06d4dbc1df55659869e649376213ac7b3c9d2e29": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B-abliterated",
+     "fetched_utc": "2026-11-06T21:39Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x979121f480a3c974b80cb37b81423ddc37093474",
+     "quote_status": "UpToDate",
+     "evidence": "deployment trace failed: TraceUnavailable: no deployed service declares --served-model-name Qwen/Qwen3.8-27B-abliterated"
+    },
+    "31d3b2389e06a4450e342f3a45fdbb5d7ce4c607c359f5b291635548b0b80007": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B-abliterated",
+     "fetched_utc": "2026-11-06T21:57Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "f0f303d15fb7619b87ec60daf0db241e937b30a4e1f2c405b5420f14b27c6e301735094feea9693a33b868d00eeb07f9",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a320bb4882341c8e19ef1944436f6591ed73303732009ed5db9f6db6c9da756a",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x979121f480a3c974b80cb37b81423ddc37093474",
+     "quote_status": "UpToDate",
+     "evidence": "deployment trace failed: TraceUnavailable: no deployed service declares --served-model-name Qwen/Qwen3.8-27B-abliterated"
+    },
+    "e8416a02d6f7ce47baaa52e3925b934fd30834b04fc9086b363db9b1d12c729d": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=Qwen/Qwen3.8-27B-abliterated",
+     "fetched_utc": "2026-11-11T04:26Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0x979121f480a3c974b80cb37b81423ddc37093474",
+     "quote_status": "UpToDate",
+     "evidence": "model-sg-qwen38-27b-fp8-tp1-coloc @v0.0.554 prod/small-models.yaml image lmsysorg/sglang@sha256:febfb971c7352570fc445c466ebd6ffc9d896024958e544a60f2137fd85856b1 weights Qwen/Qwen3.8-27B-FP8"
+    }
+   }
+  },
+  "deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated": {
+   "compose_hashes": {
+    "ae66f844658a7aee331dcb9fb59bd40323d71d192d37719e022cc4af8389265b": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated",
+     "fetched_utc": "2026-11-06T21:39Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xcc1a41717db31b871950559a41201561716d0c22",
+     "quote_status": "UpToDate",
+     "evidence": "deployment trace failed: TraceUnavailable: no deployed service declares --served-model-name deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated"
+    },
+    "5f7ebd85cf1f480a118f75dd10fd0cb277e4ddbb23845f1c20d8ea0f1e87efa6": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated",
+     "fetched_utc": "2026-11-07T06:21Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:6e035c8fb99c1d31f41760d25af178683a658cca4afd73cd0d366fbb5bf884be",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xcc1a41717db31b871950559a41201561716d0c22",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.548 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated",
+     "fetched_utc": "2026-11-11T04:27Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xcc1a41717db31b871950559a41201561716d0c22",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "c5e7bd5f9e1d5f8480d2bd57b9e601fab0650dd46e6a120b809a279be73436c0": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated",
+     "fetched_utc": "2026-11-08T14:30Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xcc1a41717db31b871950559a41201561716d0c22",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.546 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r1-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp0 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp1 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp2 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-r2-dp3 @v0.0.519 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP4x2-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:0956859f52d262fa17084d61320c5b1ea22845825c7aab57d49ed8064cc8a396 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    },
+    "c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe": {
+     "source": "https://cloud-api.near.ai/v1/attestation/report?model=deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated",
+     "fetched_utc": "2026-11-11T04:33Z",
+     "os_image_hash": "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+     "os_measurements": [
+      {
+       "mr_td": "df4d77c857de652bd0fafa343a2026b51071ee03773d076d283abf1a7d36ff91ffa279ee4a617ac664f7e2a2c8d5891b",
+       "rt_mr0": "bc122d143ab768565ba5c3774ff5f03a63c89a4df7c1f5ea38d3bd173409d14f8cbdcc36d40e703cccb996a9d9687590",
+       "rt_mr1": "4ae609807c765916a31d724786ed74bcb97e168a9d937b04936aeef2015c907eba5ac352c6bcd749c246fd62ffb659ec",
+       "rt_mr2": "bd67ab7554dc27ab03a077bc1447a1a67d0624ff547c4c809a8626f12d6a89712f8ec60e781e99b98208574065d21a71"
+      }
+     ],
+     "image_digests": [
+      "certbot/dns-cloudflare@sha256:742dbd2e61c8709b930712c38958386c3cb3928e09eeb1f1e490600c127e2edb",
+      "nearaidev/compose-manager-launcher@sha256:079a14b41deb11e0e27f9b69648e8b3d89bd6fb9ccf6071643b8f447fa415085",
+      "nearaidev/compose-manager@sha256:a0c073085684e12e19f31bb279fc8da663a374199bfecc47b04167ae79eaa766",
+      "otel/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917"
+     ],
+     "signing_address_seen": "0xcc1a41717db31b871950559a41201561716d0c22",
+     "quote_status": "UpToDate",
+     "evidence": "model-vllm-dsv41-dp0 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp1 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp2 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp3 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp4 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp5 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp6 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017; model-vllm-dsv41-dp7 @v0.0.553 prod/DeepSeek-V4.1-Flash-1017-vLLM-DEP8-Abliterated.yaml image docker.io/nearaidev/vllm@sha256:5eaa0d4637080c10958b6cd8a371ae2ebb749b7a1e19c85bcb1abb89ee2540e4 weights deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    }
+   }
+  }
+ }
+}
