@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 (2026-11-11)
+
+Two corrections to `--max-spend`, both found by a reviewer:
+
+- **A killed run no longer forgets a call.** Each call is noted in the round's saved state before it is sent. A run that starts and finds one records it as a failed attempt ("interrupted"), counts it at its bound, and the certificate's failed-attempt count includes it.
+- **Settlement records the actual cost in full**, also when it is more than was held; later calls are refused if that passes the limit.
+
+Evidence: `evidence/2026-11-11-cost-limit/`.
+
 ## 1.2.0 (2026-11-11)
 
 - **Cost bound:** `fuin check` and `fuin evaluate` print, before a seal, the most the model calls can cost at NEAR AI's catalog prices, with chain and enclave fees on their own line. A bound, not a forecast.

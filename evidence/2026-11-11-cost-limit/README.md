@@ -32,6 +32,17 @@ The bound printed before the seal was "at most $0.03 if all 6 answers used the w
 
 Both certificates are in this folder. They are rehearsals on public questions, not counted rounds.
 
+## Two corrections from a reviewer (the same day, after 1.2.0)
+
+A reviewer checked commit `2f992b6` and found two faults in the limit's bookkeeping. Both were real.
+
+1. **A killed run forgot a call that may have been billed.** The reservation lived only in memory, so a run that died between sending a call and saving its answer started again with that call uncounted. In the reviewer's simulation six interrupted attempts passed the limit while recorded spend stayed at zero. Now each call is noted in the round's saved state before it is sent. A run that finds such a note when it starts records it as a failed attempt ("interrupted: the run stopped before this call's answer was saved"), counts it at its bound, and the certificate's count of failed attempts includes it.
+2. **A settlement recorded the smaller of the actual cost and the amount held.** It now records the actual cost in full, and if that takes the round past the limit, every later call is refused.
+
+The reviewer's two tests pass unchanged against the fix, and are in `tests/test_cost.py` with two more (a call is on record while in flight and cleared with its answer; an unresolved call counts at its bound).
+
+**Live** (six public questions, `Qwen/Qwen3.8-27B`, commit `a0bb742`): the run was killed with `kill -9` at the moment its saved state showed a call in flight ([kill-limit-1a.txt](kill-limit-1a.txt)). The state then held no answer and one call in flight. The same command again ([kill-limit-1b.txt](kill-limit-1b.txt)) recorded that call as an interrupted attempt, asked all six questions, and ended **VERIFIED** with "owner-reported failed inference attempts: 1" and "1 failed attempt left no token count and may have been billed".
+
 ## Tests
 
 `tests/test_cost.py`: catalog prices parse to the dollars-per-million in the COSTS table; with four calls in flight and three injected failures, what NEAR AI could have billed never passes the limit, the stop leaves no entry in the attempt log, and a higher limit finishes with every question answered exactly once; thirty reruns at the same limit can't push spend past it; with a limit set and no readable price, nothing is sent; an asked-once round's asks are each counted once; a discarded answer is logged and still counted after ten reruns; an answer with no token count is counted at its bound.
@@ -39,5 +50,5 @@ Both certificates are in this folder. They are rehearsals on public questions, n
 ## What this doesn't show
 
 - **What an asked-once round really used.** Its answers never leave the enclave, so the limit counts every ask at its bound and the measured line says "not available".
-- **A bill.** The limit is kept on the owner's machine from token counts and catalog prices. A call still in flight when a process is killed leaves no record, and prices can change between the estimate and the invoice.
+- **A bill.** The limit is kept on the owner's machine from token counts and catalog prices. A call that was in flight when a run was killed is counted at its bound, not at what it really used, and prices can change between the estimate and the invoice.
 - **A forecast.** Fūin doesn't predict how many tokens your questions will use.

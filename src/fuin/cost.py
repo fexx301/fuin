@@ -180,5 +180,6 @@ def measured(st: dict) -> list[str]:
         out.append(f"  {m}: {k} answers, {p:,} prompt + {c:,} completion tokens{usd}"
                    + (f"; {blank} more answer{'' if blank == 1 else 's'} carried no token count" if blank else "")
                    + (f"; {failed} failed attempt{'' if failed == 1 else 's'} left no token count and may have been billed" if failed else ""))
-    out.append("  A call still in flight when a process is killed leaves no record here. NEAR AI's dashboard is the bill.")
+    out.append("  A call that was in flight when a run was killed has no token count: it is listed as a failed attempt and "
+               "counted at its bound. NEAR AI's dashboard is the bill.")
     return out
