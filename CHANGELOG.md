@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 (2026-11-11)
+
+- **Asker v2:** a second locked asker (`edb89964…` in `ask2.fuin.testnet/asker`) counts every attempt when asks of one item overlap, time out or restart. New asked-once rounds seal it. Round 7 is unchanged and verifies against the first asker. Evidence: `evidence/2026-11-11-asker-v2/`.
+- **Limits:** the overlap sentence of the asked-once limit prints only for the first asker.
+
 ## 1.0.2 (2026-11-11)
 
 - **Interruptions:** `fuin seal`, `commit`, `close` and `ask` can be run again after being interrupted at any point. Each transaction is signed and its hash saved before it is sent, so a receipt can't be lost and a commit can't be published twice. Live rehearsal: `evidence/2026-11-11-interruption-rehearsal/`.
