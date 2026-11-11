@@ -1,0 +1,6 @@
+certs/cert-ask2-rehearsal-1-deepseek-v4.1-flash-1017.json: REFUSED tee_asked_unlocked
+certs/cert-ask2-rehearsal-2-deepseek-v4.1-flash-1017.json: VERIFIED
+certs/cert-eval-asked-1-deepseek-v4.1-flash-1017.json: VERIFIED
+certs/cert-eval-private-1-qwen3.8-27b.json: VERIFIED
+certs/cert-eval-sampled-1-glm-5.3-flash.json: VERIFIED
+certs/cert-eval-sampled-1-qwen3.8-27b.json: VERIFIED
