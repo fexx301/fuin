@@ -33,7 +33,8 @@ A map for someone opening the code for the first time: what each part does, what
 | `asker.py` | Owner side of an enclave-asked round: preflight, asks, aggregate, asked-check. |
 | `verify.py` | The verifier. Checks form first, then everything offline, then the network; an outage defers, never decides. |
 | `policyupdate.py` | Drafts the next attestation policy when NEAR redeploys a model. Approves nothing. |
-| `tooling.py`, `diagnose.py`, `cli.py` | `fuin check` and `fuin status`, the revealed-miss reading aid, and the command line. |
+| `tooling.py`, `diagnose.py`, `cli.py` | `fuin check` and `fuin status`, the revealed-miss reading aid, and the command line. `fuin evaluate` runs whatever step `status` names next. |
+| `report.py` | `fuin report`: a shareable HTML and JSON report from certificates and their verdicts. Compares only what is comparable; shows no question. |
 
 ## What is trusted, and where it's checked
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 (2026-11-11)
+
+- **`fuin evaluate`:** one guided, resumable command for a whole round: check, an explanation of the chosen kind of round, seal, run or ask, commit, close, score, certificates, verify. It runs the step `fuin status` names, so the two can't disagree. Evidence: `evidence/2026-11-11-guided-command/`.
+- **`fuin check --ask` / `--host`:** catches a missing asker key, a model or token cap that doesn't fit the asker's time limit (only where measured; anything else is a warning), and a GitHub CLI that isn't signed in.
+- **`fuin report`:** a shareable HTML and JSON report for your certificates, with 95% intervals, what is and isn't comparable, and no private question. Evidence: `evidence/2026-11-11-report/`.
+- The verifier and the certificate format are unchanged.
+
 ## 1.0.3 (2026-11-11)
 
 - **Asker v2:** a second locked asker (`edb89964…` in `ask2.fuin.testnet/asker`) counts every attempt when asks of one item overlap, time out or restart. New asked-once rounds seal it. Round 7 is unchanged and verifies against the first asker. Evidence: `evidence/2026-11-11-asker-v2/`.

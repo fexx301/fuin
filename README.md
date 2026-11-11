@@ -172,7 +172,7 @@ fuin verify cert.json       # VERIFIED, REFUSED or CAN'T CERTIFY, with every che
 ```
 
 - **In CI:** a GitHub Action (`uses: fexx301/fuin@v1`) fails the step unless every certificate is VERIFIED.
-- **Your own private round** (`fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`): see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
+- **Your own private round:** `fuin evaluate` runs a whole round in one resumable command (or step by step: `fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`), and `fuin report` turns the certificates into a page to share: see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
 - **A second person trying it:** [PILOT.md](https://github.com/fexx301/fuin/blob/main/PILOT.md) is a step-by-step kit. A fellow builder ran it unmodified on Windows 11 under WSL2.
 
 ## Limits
