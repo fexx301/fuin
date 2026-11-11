@@ -165,24 +165,37 @@ def _output_from_chain(tx: str, signer: str) -> dict:
     raise RuntimeError(f"OutLayer execution failed in {tx}: {failed[:200]}" if failed else f"no OutLayer output in {tx}")
 
 
-def execute(signer: str, input_obj: dict, sc: dict | None = None, project: str | None = None, secrets_ref: dict | None = None
-            ) -> tuple[str, str, dict]:
-    """request_execution on OutLayer with a pinned build: by URL, or as the active version of `project` (the asker, which
-    needs project storage and the owner's NEAR AI key as `secrets_ref`). Returns (tx hash, exact input string, output)."""
+def request(signer: str, input_obj: dict, sc: dict | None = None, project: str | None = None, secrets_ref: dict | None = None
+            ) -> tuple[dict, str]:
+    """Sign, without sending, a request_execution on OutLayer with a pinned build: by URL, or as the active version of
+    `project` (the asker, which needs project storage and the owner's NEAR AI key as `secrets_ref`). Returns the signed
+    transaction ({"tx", "signed_b64"}) and the exact input string. `outcome` sends it and collects the result."""
     tp, sc = tee_policy(), sc or current_scorer()
     input_data = jdump(input_obj)
     source = ({"Project": {"project_id": project, "version_key": sc["wasm_sha256"]}} if project else
               {"WasmUrl": {"url": sc["url"], "hash": sc["wasm_sha256"], "build_target": "wasm32-wasip2"}})
     args = {"source": source, "resource_limits": {"max_instructions": 100_000_000_000, "max_memory_mb": 512, "max_execution_seconds": 180},
             "input_data": input_data, "response_format": "Json", **({"secrets_ref": secrets_ref} if secrets_ref else {})}
-    out = _near_file(signer, tp["outlayer"]["contract"], "request_execution", json.dumps(args).encode(), "300 Tgas", "0.1 NEAR")
-    m = re.search(r"Transaction ID:\s*([1-9A-HJ-NP-Za-km-z]{43,44})", out)
-    if not m:
-        raise RuntimeError(f"request_execution not sent: {out[-400:]}")
-    result = _output_from_chain(m.group(1), signer)
+    return near.sign(signer, tp["outlayer"]["contract"], "request_execution", json.dumps(args).encode(), "300 Tgas", "0.1 NEAR"), input_data
+
+
+def outcome(p: dict, signer: str) -> dict:
+    """The output of a signed execution request: sent if the chain doesn't have it yet, then waited for. Called again
+    with the same request after an interruption, it waits for that execution instead of starting another."""
+    if not near.deliver(p, signer):
+        raise RuntimeError(f"request_execution {p['tx']} never reached the chain")
+    near.final_status(p["tx"], signer)
+    return _output_from_chain(p["tx"], signer)
+
+
+def execute(signer: str, input_obj: dict, sc: dict | None = None, project: str | None = None, secrets_ref: dict | None = None
+            ) -> tuple[str, str, dict]:
+    """Request an execution and wait for it. Returns (tx hash, exact input string, output)."""
+    p, input_data = request(signer, input_obj, sc, project, secrets_ref)
+    result = outcome(p, signer)
     if "error" in result:
         raise RuntimeError(f"TEE scorer refused: {result['error']}")
-    return m.group(1), input_data, result
+    return p["tx"], input_data, result
 
 
 def fetch_record(tx: str) -> dict:

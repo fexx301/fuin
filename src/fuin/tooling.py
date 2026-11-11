@@ -143,7 +143,7 @@ def status(bid: str, examples: str = "examples") -> list[str]:
         lines.append(f"  ✓ sealed at height {st['seal']['height']} (tx {st['seal']['tx']})")
     else:
         lines.append("  ✗ seal not confirmed (the seal transaction failed or was interrupted)")
-        nxt = nxt or "re-run fuin seal is not possible for an existing id: inspect private state, or seal under a new --id"
+        nxt = nxt or "run the same `fuin seal` command again: it finishes the interrupted seal with the salts and nonces saved then"
     for m in st["policy"]["models"]:
         rn = st["runs"].get(m)
         if rn is None:

@@ -164,6 +164,14 @@ def sample_indices(seed: bytes, n: int, k: int, max_counter: int = 1 << 20) -> l
 B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 
+def b58encode(b: bytes) -> str:
+    n, out = int.from_bytes(b, "big"), ""
+    while n:
+        n, r = divmod(n, 58)
+        out = B58[r] + out
+    return "1" * (len(b) - len(b.lstrip(b"\0"))) + out
+
+
 def b58decode(s: str) -> bytes:
     n = 0
     for c in s:

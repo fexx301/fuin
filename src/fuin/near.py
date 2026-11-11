@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -161,16 +162,81 @@ def tx_receipt(tx_hash: str, sender: str, executor: str, method: str, network: s
     raise RpcError(f"no {method} receipt on {executor} in {tx_hash}")
 
 
-def call(signer: str, contract: str, method: str, args: dict, network: str = "testnet", deposit: str = "0.05 NEAR") -> str:
-    """Sign and send a function call with near-cli-rs (keychain key). The registry keeps only its storage cost
-    from `deposit` and refunds the rest. Returns the transaction hash."""
-    cmd = ["near", "contract", "call-function", "as-transaction", contract, method, "json-args", json.dumps(args),
-           "prepaid-gas", "30 Tgas", "attached-deposit", deposit, "sign-as", signer,
-           "network-config", network, "sign-with-keychain", "send"]
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+# Owner writes are signed first and sent second. A transaction's hash is the sha256 of its unsigned bytes, so it is known,
+# and can be saved, before anything reaches the chain: an interrupted command can then look its transaction up instead of
+# losing it, and re-send the same signed bytes, which can execute at most once (see owner._registry_tx).
+def sign(signer: str, contract: str, method: str, args: bytes, gas: str = "30 Tgas", deposit: str = "0.05 NEAR",
+         network: str = "testnet") -> dict:
+    """Sign a function call with near-cli-rs (keychain key) without sending it: {"tx": hash, "signed_b64": the signed bytes}."""
+    from fuin import core
+    with tempfile.NamedTemporaryFile(suffix=".args") as f:
+        f.write(args); f.flush()
+        cmd = ["near", "contract", "call-function", "as-transaction", contract, method, "file-args", f.name, "prepaid-gas", gas,
+               "attached-deposit", deposit, "sign-as", signer, "network-config", network, "sign-with-keychain", "display"]
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
     out = p.stdout + p.stderr
-    m = re.search(r"Transaction ID:\s*([1-9A-HJ-NP-Za-km-z]{43,44})", out)
+    m = re.search(r"Signed transaction \(serialized as base64\):\s*([A-Za-z0-9+/=]+)", out)
     if not m:
-        panic = re.search(r"Smart contract panicked: ([^\"\n]+)", out)
-        raise RpcError(f"{method} rejected by the contract: {panic.group(1)}" if panic else f"{method} not sent: {out[-500:]}")
-    return m.group(1)
+        raise RpcError(f"{method} not signed: {out[-500:]}")
+    raw = base64.b64decode(m.group(1))
+    body = raw[:-65] if raw[-65] == 0 else raw[:-66]  # the signature ends the bytes: a type byte, then 64 (ed25519) or 65 (secp256k1)
+    return {"tx": core.b58encode(hashlib.sha256(body).digest()), "signed_b64": m.group(1)}
+
+
+def send(signed_b64: str, network: str = "testnet") -> str:
+    """Broadcast a signed transaction and return its hash. Sending the same bytes again is safe: they execute at most once."""
+    return rpc("broadcast_tx_async", [signed_b64], network)
+
+
+def known(tx: str, sender: str, network: str = "testnet") -> bool:
+    """Whether the chain has this transaction at all (in any state)."""
+    try:
+        rpc("tx", {"tx_hash": tx, "sender_account_id": sender, "wait_until": "NONE"}, network)
+        return True
+    except RpcError as e:
+        if "UNKNOWN_TRANSACTION" in str(e):
+            return False
+        raise
+
+
+def deliver(p: dict, sender: str, network: str = "testnet", wait_s: int = 90) -> bool:
+    """Make sure a signed transaction is on the chain, sending it only if the chain doesn't have it yet. False when it
+    didn't appear within `wait_s`: it expired, or another transaction used its nonce, so it can never execute."""
+    if known(p["tx"], sender, network):
+        return True
+    try:
+        got = send(p["signed_b64"], network)
+    except RpcError as e:
+        if "Expired" in str(e) or "InvalidNonce" in str(e):
+            return False
+        raise
+    if got != p["tx"]:
+        raise RpcError(f"the chain names this transaction {got}, not {p['tx']}")
+    deadline = time.time() + wait_s
+    while not known(p["tx"], sender, network):
+        if time.time() > deadline:
+            return False
+        time.sleep(2)
+    return True
+
+
+def final_status(tx: str, sender: str, network: str = "testnet", wait_s: int = 420) -> dict:
+    """The transaction's status once every receipt has executed and is final. An OutLayer task can take minutes."""
+    deadline = time.time() + wait_s
+    while True:
+        try:
+            return rpc("EXPERIMENTAL_tx_status", {"tx_hash": tx, "sender_account_id": sender, "wait_until": "FINAL"}, network)
+        except RpcError as e:
+            if not ("TIMEOUT" in str(e).upper() or "UNKNOWN_TRANSACTION" in str(e)) or time.time() > deadline:
+                raise
+            time.sleep(3)
+
+
+def call(signer: str, contract: str, method: str, args: dict, network: str = "testnet", deposit: str = "0.05 NEAR") -> str:
+    """Sign and send a function call, and return its hash once the chain has it. The registry keeps only its storage cost
+    from `deposit` and refunds the rest."""
+    p = sign(signer, contract, method, json.dumps(args).encode(), deposit=deposit, network=network)
+    if not deliver(p, signer, network):
+        raise RpcError(f"{method} not sent: the chain never showed {p['tx']}")
+    final_status(p["tx"], signer, network)
+    return p["tx"]

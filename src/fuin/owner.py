@@ -65,29 +65,76 @@ def benchmark_leaves(st: dict) -> list[bytes]:
     return [core.benchmark_leaf(i, bytes.fromhex(r["salt"]), r["item"]) for i, r in enumerate(st["items"])]
 
 
+def _registry_tx(st: dict, key: str, method: str, args: dict, landed) -> dict:
+    """Send one registry transaction so that an interruption can neither lose it nor send it twice.
+
+    The transaction is signed, and its hash and signed bytes are saved in private state, before it is sent. A rerun finds
+    that pending transaction and looks it up; if the chain doesn't have it, the same signed bytes are sent again, and the
+    same bytes can execute at most once. A new transaction is signed only when the pending one can no longer execute and
+    `landed()` shows the registry doesn't already hold this step's effect. Returns the successful receipt, with "tx"."""
+    acct, pend = near.REGISTRY["account"], st.setdefault("pending", {})
+    p = pend.get(key)
+    if p and p["args"] != args:
+        raise SystemExit(f"{key}: private state holds a pending transaction {p['tx']} with other arguments; nothing was sent. "
+                         "Inspect private state before going on.")
+    if p and not near.deliver(p, st["owner"]):
+        del pend[key]; save(st)  # it expired or its nonce was used: it can never execute
+        p = None
+    if p is None:
+        if landed():
+            raise SystemExit(f"{key}: the registry already holds this, but private state has no transaction for it, so nothing "
+                             "was sent (a second one would duplicate it). Check `fuin status`, and the owner's transactions in "
+                             "an explorer.")
+        p = {**near.sign(st["owner"], acct, method, json.dumps(args).encode()), "args": args}
+        pend[key] = p; save(st)  # on disk before the chain sees it
+        if not near.deliver(p, st["owner"]):
+            raise SystemExit(f"{key}: the transaction didn't reach the chain; run the same command again")
+    else:
+        print(f"{key}: resuming with the transaction signed earlier ({p['tx']})")
+    try:
+        near.final_status(p["tx"], st["owner"])
+        rc = near.tx_receipt(p["tx"], st["owner"], acct, method)
+    except near.RpcError as e:
+        if "receipt" in str(e):  # it executed and the contract refused it: that verdict is final
+            del pend[key]; save(st)
+            raise SystemExit(f"{key}: {e}")
+        raise
+    del pend[key]  # the caller records the receipt and saves once, so the two change together
+    return {"tx": p["tx"], **rc}
+
+
+def _registry_record(st: dict) -> dict | None:
+    return near.view(near.REGISTRY["account"], "get_benchmark", {"owner": st["owner"], "benchmark_id": st["benchmark_id"]})
+
+
 def seal(suite_path: str, bid: str, owner: str, models: dict[str, dict], tee_wasm: str | None = None, encrypt: bool = False,
          asker: tuple[str, str] | None = None) -> dict:
-    if _path(bid).exists():
-        raise SystemExit(f"{bid} already exists in private/; seal is once per benchmark id")
-    items = []
-    for line in Path(suite_path).read_text().splitlines():
-        if line.strip():
-            q = core.loads_strict(line)
-            q["request_nonce"] = os.urandom(32).hex()
-            items.append({"item": q, "salt": os.urandom(32).hex()})
-    n = len(items)
+    suite = [core.loads_strict(line) for line in Path(suite_path).read_text().splitlines() if line.strip()]
+    n = len(suite)
     pol = P.make_policy(n, models, tee_wasm=tee_wasm, e2ee=encrypt, asker=asker)
-    st = {"benchmark_id": bid, "owner": owner, "registry": near.REGISTRY, "items": items, "policy": pol, "runs": {}}
+    if _path(bid).exists():
+        st = load(bid)
+        if "seal" in st:
+            raise SystemExit(f"{bid} is already sealed (tx {st['seal']['tx']}); seal is once per benchmark id")
+        # an interrupted seal: finish it with the salts and nonces saved then, never new ones
+        saved = [{k: v for k, v in x["item"].items() if k != "request_nonce"} for x in st["items"]]
+        if saved != suite or st["policy"] != pol or st["owner"] != owner:
+            raise SystemExit(f"private/{bid} holds an unfinished seal of a different suite, policy or owner. Finish that one "
+                             "with its original arguments, or seal under a new --id.")
+        print(f"Resuming the interrupted seal of {bid} with its saved salts and nonces")
+        items = st["items"]
+    else:
+        items = [{"item": {**q, "request_nonce": os.urandom(32).hex()}, "salt": os.urandom(32).hex()} for q in suite]
+        st = {"benchmark_id": bid, "owner": owner, "registry": near.REGISTRY, "items": items, "policy": pol, "runs": {}}
     root = core.merkle_root(benchmark_leaves(st)).hex()
     disclosure = (f"asked once per item inside the TEE by asker {asker[0][:12]}… in {asker[1]}, nothing revealed." if asker
                   else f"TEE-scored by scorer {tee_wasm[:12]}…, nothing revealed." if tee_wasm
                   else f"audit reveals k={pol['audit']['k']} of {n} items per round (D={pol['audit']['D']}).")
     print(f"Sealing {bid}: n={n}, {disclosure}" + (" Questions and answers end-to-end encrypted (template v3)." if encrypt else ""))
     save(st)  # keep salts/nonces before the chain sees the root
-    tx = near.call(owner, near.REGISTRY["account"], "seal",
-                   {"benchmark_id": bid, "root": root, "n": n, "policy_hash": P.policy_hash(pol), "models": list(models)})
-    rc = near.tx_receipt(tx, owner, near.REGISTRY["account"], "seal")
-    st["seal"] = {"tx": tx, "height": rc["block_height"], "block_hash": rc["block_hash"], "root": root}
+    rc = _registry_tx(st, "seal", "seal", {"benchmark_id": bid, "root": root, "n": n, "policy_hash": P.policy_hash(pol),
+                                           "models": list(models)}, lambda: _registry_record(st) is not None)
+    st["seal"] = {"tx": rc["tx"], "height": rc["block_height"], "block_hash": rc["block_hash"], "root": root}
     save(st)
     return st
 
@@ -196,12 +243,15 @@ def commit(bid: str, model: str) -> dict:
     rn = st["runs"][model]
     if len(rn["rows"]) != len(st["items"]):
         raise SystemExit("incomplete run cannot be committed as n items")
+    if "commit" in rn:  # the registry numbers every commit, so a second one would publish a duplicate run
+        raise SystemExit(f"{model} is already committed (run {rn['commit']['run_index']}, tx {rn['commit']['tx']})")
     root = core.merkle_root(run_leaves(st, model)).hex()
     total = sum(r["score"] for r in rn["rows"])
-    tx = near.call(st["owner"], near.REGISTRY["account"], "commit_run",
-                   {"benchmark_id": bid, "model_id": model, "run_root": root, "total_score": total})
-    rc = near.tx_receipt(tx, st["owner"], near.REGISTRY["account"], "commit_run")
-    rn["commit"] = {"tx": tx, "height": rc["block_height"], "block_hash": rc["block_hash"],
+    same = lambda: any(r["model_id"] == model and r["run_root"] == root and r["total_score"] == total
+                       for r in (_registry_record(st) or {}).get("runs", []))
+    rc = _registry_tx(st, f"commit {model}", "commit_run",
+                      {"benchmark_id": bid, "model_id": model, "run_root": root, "total_score": total}, same)
+    rn["commit"] = {"tx": rc["tx"], "height": rc["block_height"], "block_hash": rc["block_hash"],
                     "run_index": int(rc["value"]), "run_root": root, "total_score": total}
     save(st)
     print(f"Committed {model} run {rn['commit']['run_index']}: {total}/{len(st['items'])}")
@@ -210,9 +260,11 @@ def commit(bid: str, model: str) -> dict:
 
 def close(bid: str) -> dict:
     st = load(bid)
-    tx = near.call(st["owner"], near.REGISTRY["account"], "close_round", {"benchmark_id": bid})
-    rc = near.tx_receipt(tx, st["owner"], near.REGISTRY["account"], "close_round")
-    st["close"] = {"tx": tx, "height": rc["block_height"], "block_hash": rc["block_hash"]}
+    if "close" in st:
+        raise SystemExit(f"{bid} is already closed (tx {st['close']['tx']})")
+    rc = _registry_tx(st, "close", "close_round", {"benchmark_id": bid},
+                      lambda: bool((_registry_record(st) or {}).get("close_height")))
+    st["close"] = {"tx": rc["tx"], "height": rc["block_height"], "block_hash": rc["block_hash"]}
     save(st)
     return st
 

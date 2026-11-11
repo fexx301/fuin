@@ -13,7 +13,7 @@ from pathlib import Path
 
 import requests
 
-from fuin import core, owner, tee
+from fuin import core, near, owner, tee
 from fuin import policy as P
 
 
@@ -94,23 +94,8 @@ def run(bid: str, model: str, host, tries: int = 3) -> dict:
         for i in range(len(st["items"])):
             if i in done:
                 continue
-            for attempt in range(tries):  # a pending ask (nothing left the enclave) may be retried; the enclave counts it
-                try:
-                    tx, _, out = tee.execute(st["owner"], {"mode": "ask", **base, "i": i, "signer": rn["signer"]}, ak,
-                                             project=ak["project"], secrets_ref=secrets_ref(st))
-                    if "error" in out:
-                        raise RuntimeError(out["error"])
-                    row = _check_item(out, st, model, i, rn["signer"])
-                    row["ask_tx"] = tx
-                    break
-                except RuntimeError as e:
-                    rn["attempt_log"].append({"i": i, "attempt": attempt, "error": str(e)[:200]})
-                    owner.save(st)
-                    print(f"  {i}: attempt {attempt + 1} failed: {str(e)[:120]}", flush=True)
-            else:
-                raise SystemExit(f"item {i}: {tries} asks failed; rerun `fuin ask` to resume (a recorded answer is never re-asked)")
-            rn["rows"].append(row)
-            owner.save(st)
+            row = ask_item(st, model, i, lambda i=i: tee.request(st["owner"], {"mode": "ask", **base, "i": i, "signer": rn["signer"]}, ak,
+                                                                 project=ak["project"], secrets_ref=secrets_ref(st))[0], tries)
             print(f"  {i}: score {row['score']} (attempt {row['attempts']})", flush=True)
         tx, input_data, out = tee.execute(st["owner"], {"mode": "aggregate", **base}, ak, project=ak["project"])
     finally:
@@ -126,6 +111,38 @@ def run(bid: str, model: str, host, tries: int = 3) -> dict:
     rn["tee_asked_check"] = check(st, model, host)
     owner.save(st)
     return st
+
+
+def ask_item(st: dict, model: str, i: int, sign_ask, tries: int = 3) -> dict:
+    """Ask one item and record its row. The signed ask is saved before it is sent, so a rerun after an interruption waits
+    for that same ask instead of sending another: a second ask of an item still in flight would be a second model call."""
+    rn = st["runs"][model]
+    for attempt in range(tries):  # a pending ask (nothing left the enclave) may be retried; the enclave counts it
+        try:
+            p = rn.get("pending_ask")
+            if not p or p["i"] != i:
+                p = rn["pending_ask"] = {"i": i, **sign_ask()}
+                owner.save(st)  # on disk before the enclave sees it
+            else:
+                print(f"  {i}: waiting for the ask sent earlier ({p['tx']})", flush=True)
+            out = tee.outcome(p, st["owner"])
+            if "error" in out:
+                raise RuntimeError(out["error"])
+            row = {**_check_item(out, st, model, i, rn["signer"]), "ask_tx": p["tx"]}
+            break
+        except near.RpcError as e:  # the network, not the ask: keep the pending ask, so the rerun waits for it
+            raise SystemExit(f"item {i}: couldn't reach the chain ({str(e)[:120]}); rerun `fuin ask`: the ask in flight is kept")
+        except RuntimeError as e:
+            rn.pop("pending_ask", None)
+            rn["attempt_log"].append({"i": i, "attempt": attempt, "error": str(e)[:200]})
+            owner.save(st)
+            print(f"  {i}: attempt {attempt + 1} failed: {str(e)[:120]}", flush=True)
+    else:
+        raise SystemExit(f"item {i}: {tries} asks failed; rerun `fuin ask` to resume (a recorded answer is never re-asked)")
+    rn["rows"].append(row)
+    rn.pop("pending_ask", None)
+    owner.save(st)
+    return row
 
 
 def check(st: dict, model: str, host) -> dict:
