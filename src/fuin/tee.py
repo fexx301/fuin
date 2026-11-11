@@ -240,9 +240,13 @@ def gist_host(blob: bytes):
     Path(f.name).unlink()
 
     def delete():  # the round promises the gist is deleted, so a failed delete must not pass silently
-        r = subprocess.run(["gh", "gist", "delete", gid, "--yes"], capture_output=True, text=True)
+        def gh_delete(*flags):  # stdin closed: a confirmation prompt must fail, not hang the round
+            return subprocess.run(["gh", "gist", "delete", gid, *flags], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        r = gh_delete("--yes")
+        if r.returncode and "unknown flag" in r.stderr:  # gh older than the release that added --yes (2.45.0 has none) deletes without asking
+            r = gh_delete()
         if r.returncode:
-            print(f"warning: secret gist {gid} was not deleted ({r.stderr.strip()[:200]}); delete it with: gh gist delete {gid} --yes")
+            print(f"warning: secret gist {gid} was not deleted ({r.stderr.strip()[:200]}); delete it with: gh gist delete {gid}")
     return raw_url, "base64", delete
 
 
