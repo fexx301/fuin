@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -89,8 +90,37 @@ def disclosure(n: int, tee: bool = False) -> str:
             f"detection power {p:.2f}% for ≥{d} incorrect scores. Each later round of the same suite draws a new sample.")
 
 
-def prerequisites(owner_account: str | None, models: list[str]) -> list[tuple[bool, str]]:
-    """(ok, message) per prerequisite. Network checks degrade to a failed line, never an exception."""
+# measured on Nov 7 (evidence/2026-11-08-round-near-dev-37-r7): this model answers inside NEAR's ~2-minute window at a
+# 4,096-token cap (52 s) and does not at 8,192. Nothing else has been tried in an asked-once round.
+ASK_FITS, ASK_TOO_LONG = {"deepseek-ai/DeepSeek-V4.1-Flash-1017": 4096}, 8192
+MODES = {"sampled": "Sampled round. You run the models. After the close, a future NEAR block picks the audited questions; those questions "
+                    "and answers become public and anyone can re-score them, and the rest stay private. Still possible: re-asking a "
+                    "question and committing the best answer (a printed limit).",
+         "tee": "TEE-scored round. You run the models, nothing is revealed, and every answer is re-scored inside OutLayer's TEE. Only "
+                "you can check your questions and answer keys. Still possible: re-asking a question and committing the best answer "
+                "(a printed limit).",
+         "ask": "Asked-once round. A TEE asks every question itself, after the seal, keeps one answer per question and counts every "
+                "retry; nothing is revealed. Each call must finish within NEAR's ~2-minute window, which only fast models do. Still "
+                "possible: sealing the same questions as a separate round."}
+HOSTS = {"gist": "The encrypted round is hosted on a secret gist only while the TEE fetches it, then deleted.",
+         "fastfs": "The encrypted round is hosted on FastFS: ciphertext only, but public and permanent."}
+
+
+def explain(mode: str, e2ee: bool = False, host: str | None = None) -> list[str]:
+    """The chosen kind of round in plain words: who calls the model, what becomes public, what stays possible."""
+    out = [MODES[mode]]
+    if e2ee:
+        out.append("Questions and answers are encrypted end to end to each model's attested key; NEAR's gateway sees the model, "
+                   "the settings, the timing and the sizes, not the text.")
+    if mode != "sampled" and host:
+        out.append(HOSTS[host])
+    return out
+
+
+def prerequisites(owner_account: str | None, models: list[str], mode: str = "sampled", host: str | None = None,
+                  max_tokens: int | None = None) -> list[tuple[bool | None, str]]:
+    """(ok, message) per prerequisite; ok None is a warning that doesn't block. Network checks degrade to a failed line,
+    never an exception. `mode` adds what a TEE-scored or asked-once round needs before its seal."""
     out = []
     key = bool(os.environ.get("NEARAI_API_KEY")) or (Path(".env").is_file() and "NEARAI_API_KEY=" in Path(".env").read_text())
     out.append((key, "NEARAI_API_KEY set (environment or .env)" if key else "NEARAI_API_KEY missing: put it in .env and run commands with `uv run --env-file .env`"))
@@ -106,9 +136,39 @@ def prerequisites(owner_account: str | None, models: list[str]) -> list[tuple[bo
         if owner_account:
             acct = near.rpc("query", {"request_type": "view_account", "finality": "final", "account_id": owner_account})
             bal = int(acct["amount"]) / 1e24
-            out.append((bal >= 0.2, f"owner {owner_account} exists, {bal:.3f} NEAR" + ("" if bal >= 0.2 else " (keep ≥0.2 NEAR for gas and storage deposits)")))
+            need = 0.2 if mode == "sampled" else 0.5  # each TEE task attaches 0.1 NEAR and gets most of it back
+            out.append((bal >= need, f"owner {owner_account} exists, {bal:.3f} NEAR" + ("" if bal >= need else f" (keep ≥{need} NEAR for gas and deposits)")))
+        if mode == "ask":
+            out += _ask_prerequisites(owner_account, models, max_tokens)
     except near.RpcError as e:
         out.append((False, f"NEAR RPC check failed: {str(e)[:120]}"))
+    if mode != "sampled" and host == "gist":
+        gh = shutil.which("gh") and subprocess.run(["gh", "auth", "status"], capture_output=True).returncode == 0
+        out.append((bool(gh), "GitHub CLI signed in (the encrypted round goes to a secret gist, deleted after the TEE fetches it)" if gh
+                    else "GitHub CLI missing or not signed in: run `gh auth login`, or use --host fastfs (public and permanent)"))
+    return out
+
+
+def _ask_prerequisites(owner_account: str | None, models: list[str], max_tokens: int | None) -> list[tuple[bool | None, str]]:
+    from fuin import asker, tee
+    if not asker.askers():
+        return [(False, "policy/tee-v2.json pins no asker build")]
+    out, project = [], asker.askers()[-1]["project"]
+    if owner_account:
+        stored = near.view(tee.tee_policy()["outlayer"]["contract"], "get_secrets",
+                           {"accessor": {"Project": {"project_id": project}}, "profile": "nearai", "owner": owner_account}) is not None
+        out.append((stored, f"a NEAR AI key is stored for the asker's project {project} (present; whether it still works shows at the first ask)"
+                    if stored else f"no NEAR AI key is stored for the asker's project {project}: from a clone of github.com/fexx301/fuin run "
+                    f"`uv run --env-file .env python scripts/store_asker_secret.py --project {project} --owner {owner_account}`"))
+    for m in models:
+        cap = ASK_FITS.get(m)
+        if cap and (max_tokens or cap) <= cap:
+            out.append((True, f"{m} at {max_tokens or cap:,} tokens answered within the asker's time limit when measured"))
+        elif cap and max_tokens >= ASK_TOO_LONG:
+            out.append((False, f"{m} at {max_tokens:,} tokens did not answer within the asker's time limit when measured: use --max-tokens {cap}"))
+        else:
+            out.append((None, f"{m}" + (f" at {max_tokens:,} tokens" if max_tokens else "") + " is not tested in an asked-once round: "
+                        "a call that runs past NEAR's ~2-minute window fails and is retried, and the retries are counted"))
     return out
 
 
@@ -204,7 +264,10 @@ def progress(bid: str, examples: str = "examples") -> tuple[list[str], object]:
     return lines, nxt
 
 
-def print_check(path: str, owner_account: str | None, models: list[str], tee: bool = False) -> int:
+def print_check(path: str, owner_account: str | None, models: list[str], tee: bool = False, mode: str | None = None,
+                host: str | None = None, max_tokens: int | None = None) -> int:
+    mode = mode or ("tee" if tee else "sampled")
+    tee = mode != "sampled"
     res = check_suite(path)
     print(f"Suite {path}: {res['n']} items")
     for e in res["errors"]:
@@ -216,9 +279,9 @@ def print_check(path: str, owner_account: str | None, models: list[str], tee: bo
         print(f"  disclosure: {disclosure(res['n'], tee)}")
         print("  keep the suite file private (not in git); after sealing, back up private/ — without it the round can't be revealed")
     print("Prerequisites:")
-    pre = prerequisites(owner_account, models)
+    pre = prerequisites(owner_account, models, mode, host, max_tokens)
     for ok, msg in pre:
-        print(f"  {'✓' if ok else '✗'} {msg}")
-    bad = bool(res["errors"]) or not all(ok for ok, _ in pre)
+        print(f"  {'!' if ok is None else '✓' if ok else '✗'} {msg}")
+    bad = bool(res["errors"]) or any(ok is False for ok, _ in pre)
     print("Ready to seal." if not bad else "Not ready: fix the ✗ lines first.")
     return 1 if bad else 0

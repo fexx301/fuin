@@ -28,18 +28,24 @@ def _print_verdict(path: str, res: dict) -> None:
             print(f"   - {lim}")
 
 
-def main(argv=None) -> int:
+def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="fuin")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("seal"); s.add_argument("suite"); s.add_argument("--id", required=True)
-    s.add_argument("--owner", required=True); s.add_argument("--model", action="append", default=None)
-    s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
-    s.add_argument("--tee", action="store_true", help="zero-reveal round: every item scored inside OutLayer's TEE by the current "
-                   "pinned scorer build (sealed in the policy), requests bound to the seal block, nothing revealed")
-    s.add_argument("--e2ee", action="store_true", help="request template v3: each question and answer end-to-end encrypted "
-                   "between you and the model's attested TEE key, so NEAR's gateway never sees them; requests bound to the seal block")
-    s.add_argument("--ask", action="store_true", help="zero-reveal round whose model calls are made inside OutLayer's TEE by the "
-                   "current pinned asker build in its locked project, each item asked once (sealed in the policy); run `fuin ask`")
+    for c in ("seal", "evaluate"):
+        s = sub.add_parser(c, help="check, seal, run, commit, close, score and verify a round in one resumable command" if c == "evaluate" else None)
+        s.add_argument("suite"); s.add_argument("--id", required=True)
+        s.add_argument("--owner", required=True); s.add_argument("--model", action="append", default=None)
+        s.add_argument("--max-tokens", type=int, default=SETTINGS["max_tokens"], help="sealed per-model token cap (reasoning included)")
+        s.add_argument("--tee", action="store_true", help="zero-reveal round: every item scored inside OutLayer's TEE by the current "
+                       "pinned scorer build (sealed in the policy), requests bound to the seal block, nothing revealed")
+        s.add_argument("--e2ee", action="store_true", help="request template v3: each question and answer end-to-end encrypted "
+                       "between you and the model's attested TEE key, so NEAR's gateway never sees them; requests bound to the seal block")
+        s.add_argument("--ask", action="store_true", help="zero-reveal round whose model calls are made inside OutLayer's TEE by the "
+                       "current pinned asker build in its locked project, each item asked once (sealed in the policy); run `fuin ask`")
+    s.add_argument("--host", choices=["fastfs", "gist"], default="gist", help="where a TEE round's ciphertext is hosted (default gist: secret, deleted after)")
+    s.add_argument("--parallel", type=int, default=1, help="questions in flight at once when you run the models")
+    s.add_argument("--out", default="certs", help="where the certificates are written")
+    s.add_argument("--yes", action="store_true", help="don't ask before sealing (a seal can't be undone)")
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
         if c == "run":
@@ -50,6 +56,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("check", help="validate a suite and the prerequisites before sealing"); p.add_argument("suite")
     p.add_argument("--owner"); p.add_argument("--model", action="append", default=None)
     p.add_argument("--tee", action="store_true", help="state the disclosure for a zero-reveal (TEE-scored) round")
+    p.add_argument("--ask", action="store_true", help="check what an asked-once round needs: a stored key for the asker, a model that fits its time limit")
+    p.add_argument("--host", choices=["fastfs", "gist"], help="also check the hosting a TEE round will use")
+    p.add_argument("--max-tokens", type=int, default=None, help="the token cap you will seal (checked against the asker's time limit)")
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p.add_argument("--out", default="examples", help="where the round's certificates were written (the --out of reveal or tee-score)")
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
@@ -72,14 +81,78 @@ def main(argv=None) -> int:
     p = sub.add_parser("ask-check", help="enclave-asked round: have the TEE rebuild every request with the true seal block hash")
     p.add_argument("--id", required=True); p.add_argument("--model", required=True); p.add_argument("--out", default="examples")
     p.add_argument("--host", required=True, choices=["fastfs", "gist"])
-    a = ap.parse_args(argv)
+    return ap
 
+
+def main(argv=None) -> int:
+    a = _parser().parse_args(argv)
     if a.cmd == "check":
-        return tooling.print_check(a.suite, a.owner, a.model or [QWEN], tee=a.tee)
+        return tooling.print_check(a.suite, a.owner, a.model or [QWEN], mode="ask" if a.ask else "tee" if a.tee else "sampled",
+                                   host=a.host, max_tokens=a.max_tokens)
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
         return 0
-    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask", "ask-check") else None  # noqa: F841 (held until exit)
+    held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask", "ask-check", "evaluate") else None  # noqa: F841 (held until exit)
+    return evaluate(a) if a.cmd == "evaluate" else _dispatch(a)
+
+
+def evaluate(a) -> int:
+    """One guided, resumable command for a whole round: check, explain the kind of round, seal, then whatever
+    `fuin status` names next, until the certificates verify. Run it again after any interruption."""
+    import requests
+    from fuin import near, policy as P
+    if a.tee and a.ask:
+        raise SystemExit("--tee and --ask are two kinds of zero-reveal round: pick one")
+    mode, models = "ask" if a.ask else "tee" if a.tee else "sampled", a.model or [QWEN]
+    sealed = owner.load(a.id) if owner._path(a.id).exists() else None
+    if sealed and "seal" in sealed:  # a rerun follows what was sealed; flags that disagree with it are refused, not ignored
+        pol = sealed["policy"]
+        was = "ask" if P.is_asked_round(pol) else "tee" if P.is_tee_round(pol) else "sampled"
+        differs = [what for what, differ in (("kind of round", (a.tee or a.ask) and mode != was), ("models", a.model and set(a.model) != set(pol["models"])),
+                                             ("owner", a.owner != sealed["owner"])) if differ]
+        if differs:
+            raise SystemExit(f"{a.id} is already sealed with a different {' and '.join(differs)} ({was} round, owner {sealed['owner']}, "
+                             f"models {', '.join(pol['models'])}). A seal can't be changed: rerun without those flags to finish it, or use a new --id.")
+        print(f"Resuming {a.id}: sealed at height {sealed['seal']['height']}; the suite file is not read again.")
+    else:
+        if tooling.print_check(a.suite, a.owner, models, mode=mode, host=a.host, max_tokens=a.max_tokens):
+            return 1
+        print("\n".join(tooling.explain(mode, a.e2ee, a.host)))
+        if not a.yes:
+            if not sys.stdin.isatty():
+                raise SystemExit("A seal can't be undone, and there is no terminal to confirm on: add --yes to go ahead.")
+            if input(f"Seal {a.id} and run {', '.join(models)}? [y/N] ").strip().lower() not in ("y", "yes"):
+                print("Nothing was sealed.")
+                return 1
+    try:
+        if not (sealed and "seal" in sealed):
+            _dispatch(_parser().parse_args(["seal", a.suite, "--id", a.id, "--owner", a.owner, "--max-tokens", str(a.max_tokens),
+                                            *(x for m in models for x in ("--model", m)), *(["--tee"] if a.tee else []),
+                                            *(["--ask"] if a.ask else []), *(["--e2ee"] if a.e2ee else [])]))
+        seen = None
+        while True:
+            _, step = tooling.progress(a.id, a.out)
+            if not isinstance(step, tuple) or step == seen:  # guidance, not a command, or a step that changed nothing
+                print(f"Stopped at: {tooling.render(step)}")
+                return 1
+            seen, argv = step, list(step[1])
+            if "--host" in argv:
+                argv[argv.index("--host") + 1] = a.host
+            if argv[0] == "run":
+                argv += ["--parallel", str(a.parallel)]
+            print(f"== fuin {' '.join(argv)}", flush=True)
+            if argv[0] == "verify":  # the last step: keyless, like anyone else's check
+                return _dispatch(_parser().parse_args(argv))
+            _dispatch(_parser().parse_args(argv))
+    except (requests.RequestException, near.RpcError) as e:
+        print(f"A network call failed ({type(e).__name__}: {str(e)[:160]}). Nothing is lost: run the same command again and it resumes.")
+        return 3
+    except RuntimeError as e:  # a TEE task or a model call that failed; what was saved stays saved
+        print(f"A step failed: {str(e)[:300]}\nRun the same command again: it resumes from what is saved.")
+        return 3
+
+
+def _dispatch(a) -> int:
     if a.cmd == "seal":
         res = tooling.check_suite(a.suite)
         if res["errors"]:  # a seal can't be undone: refuse a broken suite

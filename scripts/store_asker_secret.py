@@ -1,7 +1,7 @@
 """Store the owner's NEAR AI key as an OutLayer secret for an asker project, so the enclave can make the model call.
 
 Run it yourself (the assistant never handles the key):
-    uv run --env-file .env python scripts/store_asker_secret.py --project ask2.fuin.testnet/asker   # stores NEARAI_API_KEY from .env
+    uv run --env-file .env python scripts/store_asker_secret.py --project ask2.fuin.testnet/asker --owner YOU.testnet   # stores NEARAI_API_KEY from .env
     uv run python scripts/store_asker_secret.py --project ask2.fuin.testnet/asker --dry-run         # dummy value; stores nothing
 
 What happens:
@@ -16,7 +16,7 @@ What happens:
 Prints nothing secret. Undo (removes the stored secret, refunds its deposit):
     near contract call-function as-transaction outlayer.testnet delete_secrets json-args \
       '{"accessor":{"Project":{"project_id":"<the project>"}},"profile":"nearai"}' \
-      prepaid-gas '100 Tgas' attached-deposit '0 NEAR' sign-as fuin.testnet network-config testnet sign-with-keychain send
+      prepaid-gas '100 Tgas' attached-deposit '0 NEAR' sign-as YOU.testnet network-config testnet sign-with-keychain send
 """
 import base64
 import json
@@ -32,7 +32,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from fuin import near, tee
 
-OWNER, PROFILE, VAR = "fuin.testnet", "nearai", "NEARAI_API_KEY"
+OWNER = sys.argv[sys.argv.index("--owner") + 1] if "--owner" in sys.argv else "fuin.testnet"  # the account that will call `fuin ask`
+PROFILE, VAR = "nearai", "NEARAI_API_KEY"
 PROJECT = sys.argv[sys.argv.index("--project") + 1] if "--project" in sys.argv else "fuin.testnet/fuin-ask-spike"
 
 
