@@ -4,7 +4,8 @@ Three different things, never mixed:
   bound      the most a call can cost: its prompt bound plus the whole token cap, at the catalog price. Not a forecast.
   limit      `--max-spend`: a call starts only if the round's spend so far plus the bound of every call in flight stays
              within it. A finished call counts at its measured tokens; a failed one stays at its bound, because NEAR AI
-             can bill a call that failed or was abandoned.
+             can bill a call that failed or was abandoned. Each call is noted on disk before it is sent, so a run that
+             is killed mid-call still counts it, at its bound, when it starts again.
   measured   token counts from the signed answers. Dollars are those tokens at the catalog price fetched now: a
              computation, not a bill. NEAR AI's dashboard is the bill.
 Prices are NEAR AI Cloud's public catalog. Chain and enclave fees are testnet NEAR and are listed apart.
@@ -89,7 +90,7 @@ def spent(st: dict, pr: dict) -> Decimal:
             for r in _rows(st, m):
                 u = _usage(r["response_b64"])
                 total += u[0] * pr[m][0] + u[1] * pr[m][1] if u else worst(r["i"])
-            total += sum(worst(x["i"]) for x in rn.get("attempt_log", []) if "i" in x)
+            total += sum(worst(x["i"]) for x in [*rn.get("attempt_log", []), *rn.get("in_flight", [])] if "i" in x)  # in flight: not yet resolved
     return total
 
 
@@ -108,10 +109,11 @@ class Budget:
             return True
 
     def settle(self, reserved: Decimal, actual: Decimal | None = None) -> None:
-        """The call is over: it counts at `actual` (its measured tokens), or at its bound when there is no measure."""
+        """The call is over: it counts at `actual` (its measured tokens, even if that is more than was held), or at its
+        bound when there is no measure. If that takes the round past the limit, `reserve` refuses every later call."""
         with self._lock:
             self.held -= reserved
-            self.spent += reserved if actual is None else min(actual, reserved)
+            self.spent += reserved if actual is None else actual
 
     def stop(self, what: str) -> str:
         return (f"spending limit ${self.limit} reached: ${self.spent:.4f} spent"

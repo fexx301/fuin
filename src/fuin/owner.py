@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import threading
 import re
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -171,17 +172,27 @@ def run(bid: str, model: str, parallel: int = 1, max_spend: float | None = None)
     e2ee_on = P.is_e2ee(st["policy"])  # template v3: questions and answers encrypted to the attested signer's key
     pub64 = e2ee.model_pub(next(c for c in rn["model_report"]["model_attestations"] if c["signing_address"].lower() == rn["signer"])) if e2ee_on else None
 
+    stale = rn.pop("in_flight", [])
+    if stale:  # calls that were in flight when an earlier run stopped: their answers are lost, and they may have been billed
+        rn["attempt_log"] += [{"i": x["i"], "attempt": x["attempt"], "error": "interrupted: the run stopped before this call's answer was saved"}
+                              for x in stale]
+        save(st)
     budget, pr = cost.budget(st, max_spend)  # --max-spend: every attempt reserves its bound before it is sent
     cap = st["policy"]["models"][model]["max_tokens"]
+    lock = threading.Lock()  # workers note a call on disk before sending it, the main loop saves results: one writer at a time
 
     def answer(i: int) -> tuple[dict | None, list[dict], str | None]:
-        """One item: (row or None, attempt-log entries, error). Runs in a worker thread; shares only the locked budget."""
+        """One item: (row or None, attempt-log entries, error). Runs in a worker thread; shares only the locked budget
+        and the note of its own call in flight."""
         r, log = st["items"][i], []
         req, extra = inference.sealed_request(st["policy"], model, r, st.get("seal", {}).get("block_hash"), pub64)
         worst = cost.bound(r["item"]["question"], cap, pr[model]) if budget else None
         for attempt in range(cost.ATTEMPTS):
             if budget and not budget.reserve(worst):  # a stop at the limit is not a failed attempt: nothing goes in the log
                 return None, log, budget.stop(f"item {i}")
+            with lock:  # on disk before the call leaves, so a run killed mid-call can't forget a call that may be billed
+                rn.setdefault("in_flight", []).append({"i": i, "attempt": attempt})
+                save(st)
             try:
                 resp, parsed = inference.complete(req, extra)
                 break
@@ -225,19 +236,24 @@ def run(bid: str, model: str, parallel: int = 1, max_spend: float | None = None)
                     inflight[pool.submit(answer, nxt)] = nxt
                 nxt += 1
             finished, _ = wait(inflight, return_when=FIRST_COMPLETED)
-            for f in finished:
-                i = inflight.pop(f)
-                row, log, err = f.result()
-                rn["attempt_log"].extend(log)
-                if err and (failed is None or i < failed[0]):
-                    failed = (i, err)
-                elif not err:
-                    done[i] = row
-            while len(rn["rows"]) in done and (failed is None or len(rn["rows"]) < failed[0]):
-                rn["rows"].append(done.pop(len(rn["rows"])))  # save strictly in index order
-            rn["pending"] = {str(i): row for i, row in sorted(done.items())}
-            save(st)
+            with lock:
+                for f in finished:
+                    i = inflight.pop(f)
+                    row, log, err = f.result()
+                    rn["attempt_log"].extend(log)
+                    rn["in_flight"] = [x for x in rn.get("in_flight", []) if x["i"] != i]  # its outcome is recorded in this same save
+                    if err and (failed is None or i < failed[0]):
+                        failed = (i, err)
+                    elif not err:
+                        done[i] = row
+                while len(rn["rows"]) in done and (failed is None or len(rn["rows"]) < failed[0]):
+                    rn["rows"].append(done.pop(len(rn["rows"])))  # save strictly in index order
+                rn["pending"] = {str(i): row for i, row in sorted(done.items())}
+                save(st)
+    if not rn.get("in_flight"):
+        rn.pop("in_flight", None)
     if failed:
+        save(st)
         raise SystemExit(failed[1] + (f" ({len(done)} later answers kept for the resume)" if done else ""))
     rn.pop("pending", None)
     save(st)

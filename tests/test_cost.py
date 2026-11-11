@@ -139,6 +139,45 @@ def test_the_stop_message_says_whether_money_was_spent_or_only_held_for_calls_in
     assert "held" not in b.stop("item 3") and "--parallel" not in b.stop("item 3")
 
 
+def test_a_run_killed_after_a_billed_call_cannot_forget_it(calls, monkeypatch):
+    # from a reviewer (Nov 11): six interrupted attempts passed the limit while recorded spend stayed at zero
+    st, box, worst = calls
+    complete = inference.complete
+
+    def interrupted(req, extra):
+        complete(req, extra)                                   # NEAR AI answered, and bills ...
+        raise SystemExit("interrupted before the response was saved")   # ... and the process dies before the answer is on disk
+
+    monkeypatch.setattr(inference, "complete", interrupted)
+    for _ in range(6):
+        with pytest.raises(SystemExit):
+            owner.run("r", "x/A", parallel=1, max_spend=float(worst))
+    rn = st["runs"]["x/A"]
+    assert len(box["sent"]) == 1 and box["billed"] <= worst    # the first call used the whole limit; no rerun sent another
+    assert cost.spent(st, PRICE) == worst and "interrupted" in rn["attempt_log"][0]["error"]   # recorded, and reported with the certificate
+    assert "in_flight" not in rn
+
+
+def test_a_call_is_noted_before_it_is_sent_and_cleared_with_its_answer(calls, monkeypatch):
+    st, box, worst = calls
+    seen, complete = [], inference.complete
+    monkeypatch.setattr(inference, "complete", lambda req, extra: (seen.append(list(st["runs"]["x/A"].get("in_flight", []))), complete(req, extra))[1])
+    owner.run("r", "x/A", parallel=1, max_spend=1.0)
+    assert seen[0] == [{"i": 0, "attempt": 0}] and all(len(x) == 1 for x in seen)   # on record while in flight
+    assert "in_flight" not in st["runs"]["x/A"] and st["runs"]["x/A"]["attempt_log"] == []   # a finished run leaves nothing behind
+    st["runs"]["x/A"]["in_flight"] = [{"i": 3, "attempt": 0}]
+    assert cost.spent(st, PRICE) > worst                                               # an unresolved call counts at its bound
+
+
+def test_settlement_counts_the_actual_cost_even_above_what_was_held():
+    # from a reviewer (Nov 11): settle() recorded min(actual, reserved)
+    b = cost.Budget(Decimal("1"), Decimal("0"))
+    assert b.reserve(Decimal("0.4"))
+    b.settle(Decimal("0.4"), Decimal("0.8"))
+    assert b.spent == Decimal("0.8") and b.held == 0
+    assert not b.reserve(Decimal("0.3")) and b.reserve(Decimal("0.2"))      # later calls stop where the true spend says
+
+
 def test_no_price_means_no_calls_when_a_limit_is_set(calls, monkeypatch):
     st, box, _ = calls
     monkeypatch.setattr(cost, "prices", lambda models: (_ for _ in ()).throw(requests.ConnectionError("catalog down")))
