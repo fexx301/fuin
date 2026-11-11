@@ -2,7 +2,7 @@
 import pytest
 import requests
 
-from fuin import cli, owner, tooling
+from fuin import cli, cost, owner, tooling
 from fuin import policy as P
 
 MODELS = ["x/A", "x/B"]
@@ -16,6 +16,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(owner, "_path", lambda bid: state_file)
     monkeypatch.setattr(owner, "load", lambda bid: box["st"])
     monkeypatch.setattr(tooling, "print_check", lambda *a, **k: 0)
+    monkeypatch.setattr(cost, "measured", lambda st: [])  # it reads NEAR AI's price list: no network in tests
 
     def certs(out):
         (tmp_path / out).mkdir(exist_ok=True)
@@ -120,6 +121,24 @@ def test_the_host_and_parallel_flags_reach_the_steps(world, monkeypatch):
     monkeypatch.setattr(cli, "_dispatch", lambda a: (seen.append((a.cmd, getattr(a, "host", None), getattr(a, "parallel", None))), inner(a))[1])
     cli.main(ARGS + ["--tee", "--host", "fastfs", "--parallel", "4"])
     assert ("run", None, 4) in seen and ("tee-score", "fastfs", None) in seen
+
+
+def test_the_spending_limit_reaches_run_and_ask_and_may_be_raised_on_a_rerun(world, monkeypatch):
+    box, ran = world
+    seen, inner = [], cli._dispatch
+    monkeypatch.setattr(cli, "_dispatch", lambda a: (seen.append((a.cmd, getattr(a, "max_spend", None))), inner(a))[1])
+    box["fail"] = "close"
+    cli.main(ARGS + ["--max-spend", "0.5"])
+    cli.main(ARGS + ["--max-spend", "2"])          # the limit isn't sealed: a higher one on the rerun is accepted
+    assert ("run", 0.5) in seen and ("commit", None) in seen
+
+
+def test_the_spending_limit_reaches_the_asks_of_an_asked_once_round(world, monkeypatch):
+    box, ran = world
+    seen, inner = [], cli._dispatch
+    monkeypatch.setattr(cli, "_dispatch", lambda a: (seen.append((a.cmd, getattr(a, "max_spend", None))), inner(a))[1])
+    cli.main(ARGS + ["--ask", "--max-spend", "1"])
+    assert ("ask", 1.0) in seen
 
 
 def test_check_flags_an_untested_model_and_a_cap_measured_too_long():

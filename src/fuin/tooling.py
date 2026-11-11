@@ -285,6 +285,10 @@ def print_check(path: str, owner_account: str | None, models: list[str], tee: bo
     pre = prerequisites(owner_account, models, mode, host, max_tokens)
     for ok, msg in pre:
         print(f"  {'!' if ok is None else '✓' if ok else '✗'} {msg}")
+    if not res["errors"]:
+        from fuin import cost
+        caps = {m: max_tokens or 4096 for m in models}  # 4,096 is `fuin seal`'s default cap
+        print("\n".join(cost.estimate([it["question"] for it in res["items"]], caps, mode)))
     bad = bool(res["errors"]) or any(ok is False for ok, _ in pre)
     print("Ready to seal." if not bad else "Not ready: fix the ✗ lines first.")
     return 1 if bad else 0

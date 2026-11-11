@@ -72,7 +72,7 @@ def _check_item(out: dict, st: dict, model: str, i: int, signer: str) -> dict:
                           "signature_kind": "provider_tee", "signing_algo": "ecdsa"}}
 
 
-def run(bid: str, model: str, host, tries: int = 3) -> dict:
+def run(bid: str, model: str, host, tries: int = 3, max_spend: float | None = None) -> dict:
     """Ask every item of this model's run inside the enclave, then have the enclave attest the run (aggregate)."""
     st = owner.load(bid)
     if not P.is_asked_round(st["policy"]):
@@ -83,6 +83,14 @@ def run(bid: str, model: str, host, tries: int = 3) -> dict:
     rn = owner.preflight(st, model)
     if "commit" in rn:
         raise SystemExit(f"{model} run already committed")
+    from fuin import cost
+    budget, pr = cost.budget(st, max_spend)  # --max-spend: the owner never sees an ask's usage, so each ask counts at its bound
+    cap = st["policy"]["models"][model]["max_tokens"]
+
+    def within_limit(i: int) -> None:
+        if budget and not budget.reserve(cost.bound(st["items"][i]["item"]["question"], cap, pr[model])):
+            raise SystemExit(budget.stop(f"item {i}'s ask"))
+
     key = keygen(st["owner"], ak)
     blob, eph_pub, nonce = tee.encrypt(tee.jdump(plaintext(st, model, rn)).encode(), key["pub"])
     url, encoding, cleanup = host(blob)  # one hosted ciphertext for every ask and the aggregate; deleted at the end
@@ -94,8 +102,8 @@ def run(bid: str, model: str, host, tries: int = 3) -> dict:
         for i in range(len(st["items"])):
             if i in done:
                 continue
-            row = ask_item(st, model, i, lambda i=i: tee.request(st["owner"], {"mode": "ask", **base, "i": i, "signer": rn["signer"]}, ak,
-                                                                 project=ak["project"], secrets_ref=secrets_ref(st))[0], tries)
+            row = ask_item(st, model, i, lambda i=i: (within_limit(i), tee.request(st["owner"], {"mode": "ask", **base, "i": i, "signer": rn["signer"]}, ak,
+                                                                                   project=ak["project"], secrets_ref=secrets_ref(st))[0])[1], tries)
             print(f"  {i}: score {row['score']} (attempt {row['attempts']})", flush=True)
         tx, input_data, out = tee.execute(st["owner"], {"mode": "aggregate", **base}, ak, project=ak["project"])
     finally:

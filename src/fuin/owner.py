@@ -159,7 +159,8 @@ def preflight(st: dict, model: str) -> dict:
     return rn
 
 
-def run(bid: str, model: str, parallel: int = 1) -> dict:
+def run(bid: str, model: str, parallel: int = 1, max_spend: float | None = None) -> dict:
+    from fuin import cost
     st = load(bid)
     if P.is_asked_round(st["policy"]):
         raise SystemExit("this round's answers are asked inside the enclave: use `fuin ask`")
@@ -170,13 +171,22 @@ def run(bid: str, model: str, parallel: int = 1) -> dict:
     e2ee_on = P.is_e2ee(st["policy"])  # template v3: questions and answers encrypted to the attested signer's key
     pub64 = e2ee.model_pub(next(c for c in rn["model_report"]["model_attestations"] if c["signing_address"].lower() == rn["signer"])) if e2ee_on else None
 
+    budget, pr = cost.budget(st, max_spend)  # --max-spend: every attempt reserves its bound before it is sent
+    cap = st["policy"]["models"][model]["max_tokens"]
+
     def answer(i: int) -> tuple[dict | None, list[dict], str | None]:
-        """One item: (row or None, attempt-log entries, error). Runs in a worker thread; touches no shared state."""
+        """One item: (row or None, attempt-log entries, error). Runs in a worker thread; shares only the locked budget."""
         r, log = st["items"][i], []
         req, extra = inference.sealed_request(st["policy"], model, r, st.get("seal", {}).get("block_hash"), pub64)
-        for attempt in range(3):
+        worst = cost.bound(r["item"]["question"], cap, pr[model]) if budget else None
+        for attempt in range(cost.ATTEMPTS):
+            if budget and not budget.reserve(worst):  # a stop at the limit is not a failed attempt: nothing goes in the log
+                return None, log, budget.stop(f"item {i}")
             try:
                 resp, parsed = inference.complete(req, extra)
+                if budget:  # a finished call counts at its measured tokens; a failed one stays at its bound
+                    u = parsed.get("usage") or {}
+                    budget.settle(worst, (u.get("prompt_tokens") or 0) * pr[model][0] + (u.get("completion_tokens") or 0) * pr[model][1])
                 break
             except (requests.RequestException, ValueError) as e:
                 log.append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden

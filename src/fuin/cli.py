@@ -46,10 +46,13 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--parallel", type=int, default=1, help="questions in flight at once when you run the models")
     s.add_argument("--out", default="certs", help="where the certificates are written")
     s.add_argument("--yes", action="store_true", help="don't ask before sealing (a seal can't be undone)")
+    SPEND = "stop before a model call could take the round's spend past this many US dollars (resumable: rerun with a higher limit)"
+    s.add_argument("--max-spend", type=float, default=None, help=SPEND)
     for c in ("run", "commit"):
         p = sub.add_parser(c); p.add_argument("--id", required=True); p.add_argument("--model", default=QWEN)
         if c == "run":
             p.add_argument("--parallel", type=int, default=1, help="questions in flight at once (rows are still saved in order)")
+            p.add_argument("--max-spend", type=float, default=None, help=SPEND)
     p = sub.add_parser("close"); p.add_argument("--id", required=True)
     p = sub.add_parser("reveal"); p.add_argument("--id", required=True); p.add_argument("--out", default="examples")
     p = sub.add_parser("verify"); p.add_argument("certs", nargs="+"); p.add_argument("--json", action="store_true")
@@ -82,6 +85,9 @@ def _parser() -> argparse.ArgumentParser:
     p = sub.add_parser("ask", help="enclave-asked round: ask every item inside the TEE, then have it attest the run")
     p.add_argument("--id", required=True); p.add_argument("--model", required=True)
     p.add_argument("--host", required=True, choices=["fastfs", "gist"], help="where the encrypted round is hosted for the asker")
+    p.add_argument("--max-spend", type=float, default=None, help=SPEND)
+    p = sub.add_parser("cost", help="a sealed round's cost: the bound on its model calls, and what its signed answers show was used")
+    p.add_argument("--id", required=True)
     p = sub.add_parser("ask-check", help="enclave-asked round: have the TEE rebuild every request with the true seal block hash")
     p.add_argument("--id", required=True); p.add_argument("--model", required=True); p.add_argument("--out", default="examples")
     p.add_argument("--host", required=True, choices=["fastfs", "gist"])
@@ -95,6 +101,13 @@ def main(argv=None) -> int:
                                    host=a.host, max_tokens=a.max_tokens)
     if a.cmd == "status":
         print("\n".join(tooling.status(a.id, a.out)))
+        return 0
+    if a.cmd == "cost":
+        from fuin import cost, policy as P
+        st = owner.load(a.id)
+        mode = "ask" if P.is_asked_round(st["policy"]) else "tee" if P.is_tee_round(st["policy"]) else "sampled"
+        caps = {m: s["max_tokens"] for m, s in st["policy"]["models"].items()}
+        print("\n".join(cost.estimate([r["item"]["question"] for r in st["items"]], caps, mode) + cost.measured(st)))
         return 0
     held = owner.lock(a.id) if a.cmd in ("run", "commit", "close", "tee-score", "tee-ground", "reveal", "ask", "ask-check", "evaluate") else None  # noqa: F841 (held until exit)
     return evaluate(a) if a.cmd == "evaluate" else _dispatch(a)
@@ -147,9 +160,14 @@ def evaluate(a) -> int:
                 argv[argv.index("--host") + 1] = a.host
             if argv[0] == "run":
                 argv += ["--parallel", str(a.parallel)]
+            if argv[0] in ("run", "ask") and a.max_spend is not None:  # not sealed: a rerun may raise it
+                argv += ["--max-spend", str(a.max_spend)]
             print(f"== fuin {' '.join(argv)}", flush=True)
             if argv[0] == "verify":  # the last step: keyless, like anyone else's check
-                return _dispatch(_parser().parse_args(argv))
+                code = _dispatch(_parser().parse_args(argv))
+                from fuin import cost
+                print("\n".join(cost.measured(owner.load(a.id))))
+                return code
             _dispatch(_parser().parse_args(argv))
     except (requests.RequestException, near.RpcError) as e:
         print(f"A network call failed ({type(e).__name__}: {str(e)[:160]}). Nothing is lost: run the same command again and it resumes.")
@@ -183,7 +201,7 @@ def _dispatch(a) -> int:
         from fuin import asker, tee
         st = owner.load(a.id)
         host = tee.fastfs_host(st["owner"]) if a.host == "fastfs" else tee.gist_host
-        st = asker.run(a.id, a.model, host)
+        st = asker.run(a.id, a.model, host, max_spend=a.max_spend)
         o = st["runs"][a.model]["tee_asked"]["output"]
         print(f"every item asked once inside the TEE: {o['total']}/{o['n']}, {o['retried']} retried asks "
               f"(aggregate tx {st['runs'][a.model]['tee_asked']['transaction_hash']}); next: fuin commit")
@@ -198,7 +216,7 @@ def _dispatch(a) -> int:
             for path in owner.reveal(a.id, a.out):
                 print(path)
     elif a.cmd == "run":
-        owner.run(a.id, a.model, a.parallel)
+        owner.run(a.id, a.model, a.parallel, a.max_spend)
     elif a.cmd == "commit":
         owner.commit(a.id, a.model)
     elif a.cmd == "close":
