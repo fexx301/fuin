@@ -45,24 +45,20 @@ One JSON object per line in a file outside git, for example `private/suites/mine
 
 Every question and answer is encrypted end to end between you and each model's attested TEE key, so NEAR's gateway never sees them. Every answer is then re-scored inside OutLayer's TEE, and no question is revealed. The trade-off is that only you can see whether your questions and answers are any good.
 
+One command does the whole round. It checks your suite and setup, says what this kind of round makes public, asks before sealing (a seal can't be undone), then runs every step and ends by verifying the certificates:
+
 ```sh
-M1=Qwen/Qwen3.8-27B; M2=z-ai/glm-5.3-flash
-uv run --env-file .env fuin check private/suites/mine.jsonl --owner YOURNAME.testnet --model $M1 --model $M2 --tee
-uv run --env-file .env fuin seal private/suites/mine.jsonl --id pilot-1 --owner YOURNAME.testnet --model $M1 --model $M2 --tee --e2ee
-uv run --env-file .env fuin run --id pilot-1 --model $M1        # resumable if interrupted
-uv run --env-file .env fuin run --id pilot-1 --model $M2
-uv run --env-file .env fuin commit --id pilot-1 --model $M1
-uv run --env-file .env fuin commit --id pilot-1 --model $M2
-uv run --env-file .env fuin close --id pilot-1
-uv run --env-file .env fuin tee-key --owner YOURNAME.testnet    # once
-uv run --env-file .env fuin tee-score --id pilot-1 --model $M1 --host gist --out pilot-certs
-uv run --env-file .env fuin tee-score --id pilot-1 --model $M2 --host gist --out pilot-certs   # writes both certificates
-uv run fuin status --id pilot-1 --out pilot-certs   # at any point: what's done and the next command
+uv run --env-file .env fuin evaluate private/suites/mine.jsonl --id pilot-1 --owner YOURNAME.testnet \
+    --model Qwen/Qwen3.8-27B --model z-ai/glm-5.3-flash --tee --e2ee --out pilot-certs
 ```
+
+If it stops for any reason (a dropped connection, a closed laptop), run the same command again: it skips what is done and never asks a model twice. `uv run fuin status --id pilot-1 --out pilot-certs` shows where the round stands at any point. Please note each time it stopped and what the message said.
 
 ## 4B. A sampled round: a sample of the questions revealed
 
-Skip `--tee --e2ee` and the two `tee-` steps. After `close`, run `uv run fuin reveal --id pilot-1 --out pilot-certs`. A future NEAR block picks the audited items, and their questions and answers become public; `fuin check` says how many before you seal (40 reveal 21, 60 reveal 23).
+The same command without `--tee --e2ee`. A future NEAR block picks the audited items, and their questions and answers become public; the check at the start says how many before you confirm (40 reveal 21, 60 reveal 23).
+
+The commands `fuin evaluate` runs, one step at a time, are listed in [docs/USE.md](docs/USE.md), if you prefer to run them yourself.
 
 **Either way:**
 - **Back up `private/pilot-1/`.** Without it the round can't be finished.
@@ -70,10 +66,16 @@ Skip `--tee --e2ee` and the two `tee-` steps. After `close`, run `uv run fuin re
 
 ## 5. Hand over for verification
 
-Send the two `pilot-certs/cert-pilot-1-*.json` files, and nothing else, to someone else. They verify either way:
+Make a report folder and send it, and nothing else, to **someone other than you**: a colleague, or anyone with a computer.
 
-- **Browser:** open the Fūin page (`site/index.html`), choose "Drop or choose your own cert.json", and pick the file.
-- **Command line:** `env -u NEARAI_API_KEY uv run fuin verify pilot-certs/cert-pilot-1-*.json`
+```sh
+uv run fuin report pilot-certs/*.json --out pilot-report     # pilot-report/report.html, report.json and certs/
+```
+
+The folder holds the certificates and a page with each model's score, its 95% interval, the settings and the verification result. It holds none of your questions. Your verifier checks the certificates either way:
+
+- **Command line:** `pip install fuin` (or `uv tool install fuin`), then `fuin verify pilot-report/certs/*.json`. No account and no key.
+- **Browser:** open the [Fūin page](https://fexx301.github.io/fuin/), choose "Drop or choose your own cert.json", and pick a file from `pilot-report/certs/`.
 
 The browser checks everything except the GPU attestation (NVIDIA's service doesn't answer browsers), so a sound certificate shows PARTLY CHECKED there; the command line checks that too and shows VERIFIED. `CAN'T CERTIFY` with `evidence_unavailable` means a service didn't answer, which is an outage, not a fault in the certificate: run it again.
 
@@ -81,15 +83,26 @@ The browser checks everything except the GPU attestation (NVIDIA's service doesn
 
 | Item | Your answer |
 |---|---|
-| Round type (4A private or 4B sampled) and number of questions | |
+| Round type (4A private or 4B sampled), number of questions, models | |
 | Setup time (step 2) | |
 | Writing the suite (step 3) | |
 | Check → certificates, your hands-on time (step 4) | |
 | Waiting for model runs | |
 | NEAR AI cost (dashboard before/after) | |
 | Testnet NEAR spent (wallet before/after) | |
-| Verifier's result and time (browser and/or CLI) | |
-| What was confusing or broke | |
+| Each time the command stopped or failed: the message, and what got it going again | |
+| Each time you needed help from Fūin's builder, and for what | |
+| Who verified (their role, not their name), on what computer, the result and how long it took | |
+| What was confusing | |
+| What decision did the result support? (for example: which model you'd use for this task, or that neither is good enough) | |
 | Would you use this for a real benchmark? Why or why not? | |
 
+**Describe the benchmark without disclosing it** (a short paragraph each):
+
+- **What it tests:** the kind of task and why it matters to you. No question text.
+- **How you chose the questions:** where they came from, and what you left out.
+- **How the answer keys were checked:** who reviewed them, and how a wrong key would have been caught.
+
 If the verifier's computer gets anything other than VERIFIED, include its full output. That's a useful finding, not a failure of the pilot.
+
+With your agreement, the report and the description are published in this repository as a case study, with your certificates. Your questions never are.
