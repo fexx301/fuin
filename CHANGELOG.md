@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 (2026-11-10)
+## 1.0.0 (2026-11-11)
 
 The first public release, built at NEAR HACKATHON.
 
