@@ -1,0 +1,2 @@
+cert-ask2-rehearsal-1-deepseek-v4.1-flash-1017.json: REFUSED tee_asked_unlocked
+cert-ask2-rehearsal-2-deepseek-v4.1-flash-1017.json: VERIFIED (tee live)
