@@ -7,7 +7,7 @@
 //!            the sealed request (fuin_tee::item_request), calls NEAR AI with the owner's key (an OutLayer secret),
 //!            checks and scores the signed answer (fuin_tee::item_result) and writes the record `final`. A final record
 //!            is re-emitted, never re-asked. A pending one (no answer ever left the enclave) may be retried; every
-//!            attempt is counted.
+//!            attempt is counted, however asks overlap, time out or restart (record.rs holds the protocol and its tests).
 //! aggregate: reads every final record of one run and returns its roots, total and signer exactly as the TEE scorer
 //!            does (fuin_tee::outcome_from), plus the number of retried asks.
 //! Outputs stay under 1,024 bytes (OutLayer's receipt limit) and never echo a sealed value.
@@ -17,8 +17,11 @@
 #[link_section = "outlayer.manifest"]
 static OUTLAYER_MANIFEST: [u8; include_bytes!("../manifest.json").len()] = *include_bytes!("../manifest.json");
 
+mod record;
+
 #[cfg(target_arch = "wasm32")]
 mod asker {
+    use crate::record;
     use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, KeyInit, Nonce};
     use outlayer::storage::sealed;
     use serde_json::{json, Value};
@@ -30,6 +33,21 @@ mod asker {
     const RECORDS: &str = "fuin-ask";
     const AAD: &[u8] = b"fuin-ask-x25519-v1";
     const HOST: &str = "cloud-api.near.ai";
+
+    /// The asker's records in the project's sealed storage.
+    struct Records;
+    impl record::Store for Records {
+        type Handle = sealed::Sealed;
+        fn get(&self, name: &str) -> Result<Option<(Vec<u8>, sealed::Sealed)>, String> {
+            Ok(sealed::get(RECORDS, None, name).map_err(|e| e.to_string())?.map(|r| (r.plaintext().to_vec(), r)))
+        }
+        fn set_if_absent(&self, name: &str, value: &[u8]) -> Result<bool, String> {
+            sealed::set_if_absent(RECORDS, None, name, value).map_err(|e| e.to_string())
+        }
+        fn set_if_equals(&self, name: &str, expected: &sealed::Sealed, value: &[u8]) -> Result<bool, String> {
+            sealed::set_if_equals(RECORDS, None, name, expected, value).map(|(ok, _)| ok).map_err(|e| e.to_string())
+        }
+    }
 
     fn s(input: &Value, k: &str) -> Result<String, String> {
         input[k].as_str().map(str::to_string).ok_or(format!("missing {k}"))
@@ -114,25 +132,17 @@ mod asker {
         let expected_signer = s(input, "signer")?.to_lowercase();
         let root = benchmark_root(&r)?;
         let name = record_name(&root, &r.model, i);
-        // the record goes pending before any model call; a final one is re-emitted, never re-asked
-        let current = match sealed::get(RECORDS, None, &name).map_err(|e| e.to_string())? {
-            Some(rec) => rec,
-            None => {
-                sealed::set_if_absent(RECORDS, None, &name, br#"{"s":"pending","a":0}"#).map_err(|e| e.to_string())?;
-                sealed::get(RECORDS, None, &name).map_err(|e| e.to_string())?.ok_or("record vanished")?
-            }
+        // the record protocol (record.rs): a final record is re-emitted, never re-asked; this ask claims the next
+        // attempt under its own random id and calls the model only once the record is confirmed to be that claim
+        let (so_far, handle) = match record::start(&Records, &name)? {
+            record::Start::Final(rec) => return Ok(item_output(&r.model, i, &root, &rec)),
+            record::Start::Pending { attempts, handle } => (attempts, handle),
         };
-        let rec: Value = serde_json::from_slice(current.plaintext()).map_err(|_| "record unreadable")?;
-        if rec["s"] == "final" {
-            return Ok(item_output(&r.model, i, &root, &rec));
-        }
-        let attempts = rec["a"].as_u64().unwrap_or(0) + 1;
-        let (claimed, _) = sealed::set_if_equals(RECORDS, None, &name, &current, json!({"s": "pending", "a": attempts}).to_string().as_bytes())
-            .map_err(|e| e.to_string())?;
-        if !claimed {
-            return Err("another ask of this item is in progress".into());
-        }
-        let current = sealed::get(RECORDS, None, &name).map_err(|e| e.to_string())?.ok_or("record vanished")?;
+        let mut id = [0u8; 16];
+        getrandom::fill(&mut id).map_err(|e| e.to_string())?;
+        let mine = record::claim(&Records, &name, so_far, &handle, &hex::encode(id))?;
+        let claim = record::confirm(&Records, &name, &mine)?;
+        let attempts = so_far + 1;
 
         let (request, e2ee_headers) = fuin_tee::item_request(&r, &c, i)?;
         let key = outlayer::env::var("NEARAI_API_KEY").ok_or("no NEARAI_API_KEY secret")?;
@@ -153,10 +163,7 @@ mod asker {
         }
         let fin = json!({"s": "final", "a": attempts, "req": hex::encode(x.req_sha), "resp": hex::encode(x.resp_sha), "score": x.score,
                          "unreadable": x.unreadable, "sig": sig["signature"], "addr": x.signer});
-        let (done, _) = sealed::set_if_equals(RECORDS, None, &name, &current, fin.to_string().as_bytes()).map_err(|e| e.to_string())?;
-        if !done {
-            return Err("record changed during the ask".into());
-        }
+        record::finalize(&Records, &name, &claim, &fin)?;
         Ok(item_output(&r.model, i, &root, &fin))
     }
 
@@ -264,7 +271,7 @@ fn main() {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        eprintln!("fuin-ask runs only as an OutLayer component (wasm32-wasip2); its logic is fuin_tee's, tested natively there");
+        eprintln!("fuin-ask runs only as an OutLayer component (wasm32-wasip2); `cargo test` runs its record protocol natively");
         std::process::exit(2);
     }
 }
