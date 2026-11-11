@@ -62,6 +62,10 @@ def _parser() -> argparse.ArgumentParser:
     p = sub.add_parser("status", help="show where a round stands and the next command"); p.add_argument("--id", required=True)
     p.add_argument("--out", default="examples", help="where the round's certificates were written (the --out of reveal or tee-score)")
     p = sub.add_parser("show"); p.add_argument("cert"); p.add_argument("--audit", action="store_true")
+    p = sub.add_parser("report", help="write a shareable HTML and JSON report for certificates: scores, 95%% intervals, "
+                       "what is comparable and what isn't; no private question is shown")
+    p.add_argument("certs", nargs="+"); p.add_argument("--out", default="report", help="folder for report.html, report.json and certs/")
+    p.add_argument("--recorded", help="a file of `fuin verify --json` lines to use instead of verifying now (matched by each certificate's sha256)")
     p = sub.add_parser("policy-update", help="draft the next attestation policy from fresh reports when NEAR redeploys a model "
                        "(needs a key; writes policy/attestation-v<N+1>.json for review, approves nothing)")
     p.add_argument("--model", action="append", default=None, help="model to check (default: every model in the current policy)")
@@ -259,6 +263,28 @@ def _dispatch(a) -> int:
             print(json.dumps({"cert": path, "cert_sha256": hashlib.sha256(raw).hexdigest(), **res}, default=list)) if a.json else _print_verdict(path, res)
             outcomes.add(res["outcome"])
         return 1 if "REFUSED" in outcomes else 2 if "CANT_CERTIFY" in outcomes else 0  # REFUSED outranks CAN'T CERTIFY
+    elif a.cmd == "report":
+        import os
+        from datetime import UTC, datetime
+        from fuin import report
+        stamp = lambda t: datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%d %H:%M UTC")
+        rec = {}
+        if a.recorded:
+            lines = (json.loads(x) for x in open(a.recorded, encoding="utf-8") if x.strip())
+            rec = {d["cert_sha256"]: d for d in lines if "cert_sha256" in d}  # older records name no bytes: they never match
+
+        def verdict(raw: bytes, cert: dict):
+            d = rec.get(hashlib.sha256(raw).hexdigest())
+            if d:  # a result recorded for these exact bytes
+                return d, {"how": "recorded result, file dated", "at": stamp(os.path.getmtime(a.recorded))}
+            return verify.verify(cert), {"how": "checked", "at": stamp(datetime.now(UTC).timestamp())}
+
+        rep, files = report.write(a.certs, a.out, verdict)
+        print(f"{rep['certificates']} certificates, {rep['verified']} verified, {len(rep['groups'])} comparable group(s)")
+        for f in files:
+            print(f)
+        bad = {e["verification"]["outcome"] for e in rep["not_verified"]}
+        return 1 if "REFUSED" in bad else 2 if bad else 0
     elif a.cmd == "show":
         cert = json.loads(open(a.cert, encoding="utf-8").read())
         b, r, au = cert["benchmark"], cert["run"], cert["audit"]
