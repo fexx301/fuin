@@ -184,20 +184,29 @@ def run(bid: str, model: str, parallel: int = 1, max_spend: float | None = None)
                 return None, log, budget.stop(f"item {i}")
             try:
                 resp, parsed = inference.complete(req, extra)
-                if budget:  # a finished call counts at its measured tokens; a failed one stays at its bound
-                    u = parsed.get("usage") or {}
-                    budget.settle(worst, (u.get("prompt_tokens") or 0) * pr[model][0] + (u.get("completion_tokens") or 0) * pr[model][1])
                 break
             except (requests.RequestException, ValueError) as e:
                 log.append({"i": i, "attempt": attempt, "error": str(e)[:200]})  # retries are recorded, not hidden
+                if budget:
+                    budget.settle(worst)  # a failed call stays at its bound: it may have been billed
         else:
             return None, log, f"item {i}: inference failed 3 times; rerun `fuin run` to resume"
+
+        def discard(why: str) -> tuple[None, list[dict], str]:
+            """An answer that came back but can't be kept is an attempt too: logged, and counted at its bound."""
+            log.append({"i": i, "attempt": attempt, "error": f"answer discarded: {why}"})
+            if budget:
+                budget.settle(worst)
+            return None, log, f"item {i}: {why}"
+
         sig = inference.fetch_signature(parsed["id"], model)
         if sig is None:
-            return None, log, f"item {i}: signature unavailable; run incomplete, not certifiable"
+            return discard("signature unavailable; run incomplete, not certifiable")
         code = inference.check_signature(sig, model, req, resp, rn["signer"])
         if code:
-            return None, log, f"item {i}: {code}"
+            return discard(code)
+        if budget:  # a kept answer counts at its measured tokens (at its bound if it carries no token count)
+            budget.settle(worst, cost.usage_cost(parsed.get("usage"), pr[model]))
         readable = e2ee.decrypted_response(resp, bytes.fromhex(r["salt"]), model) if e2ee_on else resp
         score = P.scorer_for(st["policy"]).score_response(r["item"], readable)
         row = {"i": i, "request_b64": b64(req), "response_b64": b64(resp), "signature": sig, "score": score}

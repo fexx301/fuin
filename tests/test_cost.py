@@ -32,7 +32,7 @@ def test_the_bound_is_never_below_what_a_published_answer_used():
         c = json.loads(Path(f).read_text())
         cap = c["benchmark"]["policy"]["models"][c["run"]["model_id"]]["max_tokens"]
         for x in c["audit"].get("reveals") or []:
-            p, done = cost._usage(x["response_b64"])
+            p, done = cost._usage(x["response_b64"])   # every published answer carries its token count
             assert p <= len(x["item"]["question"].encode()) + 64 and done <= cap
             seen += 1
     assert seen > 100
@@ -102,6 +102,41 @@ def test_spend_is_recomputed_from_saved_state_so_a_rerun_cannot_reset_it(calls):
         except SystemExit:
             pass
     assert first > 0 and box["billed"] <= Decimal(str(limit)) and len(st["runs"]["x/A"]["rows"]) < 12
+
+
+def test_an_answer_that_is_discarded_is_logged_and_still_counts_after_a_rerun(calls, monkeypatch):
+    st, box, worst = calls
+    monkeypatch.setattr(inference, "fetch_signature", lambda cid, m: None)      # the answer came back; its signature never did
+    with pytest.raises(SystemExit, match="signature unavailable"):
+        owner.run("r", "x/A", parallel=1, max_spend=float(worst * 3))
+    rn = st["runs"]["x/A"]
+    assert rn["rows"] == [] and "answer discarded" in rn["attempt_log"][0]["error"]
+    assert cost.spent(st, PRICE) == worst                                            # the billed call is not forgotten
+    for _ in range(10):
+        try:
+            owner.run("r", "x/A", parallel=1, max_spend=float(worst * 3))
+        except SystemExit:
+            pass
+    assert len(box["sent"]) == 3 and box["billed"] <= worst * 3                      # reruns can't walk past the limit
+
+
+def test_an_answer_with_no_token_count_is_counted_at_its_bound_not_as_free():
+    st = _round(n=1)
+    blank = base64.b64encode(json.dumps({"id": "c", "choices": []}).encode()).decode()
+    st["runs"]["x/A"] = {"rows": [{"i": 0, "response_b64": blank}], "attempt_log": []}
+    assert cost.spent(st, PRICE) == cost.bound("q0?", 1000, PRICE["x/A"]) and cost.usage_cost(None, PRICE["x/A"]) is None
+    b = cost.Budget(Decimal(1), Decimal(0))
+    b.reserve(Decimal("0.4")); b.settle(Decimal("0.4"), None)
+    assert (b.spent, b.held) == (Decimal("0.4"), Decimal(0))
+
+
+def test_the_stop_message_says_whether_money_was_spent_or_only_held_for_calls_in_flight():
+    b = cost.Budget(Decimal("0.012"), Decimal("0.0001"))
+    assert b.reserve(Decimal("0.0055")) and b.reserve(Decimal("0.0055")) and not b.reserve(Decimal("0.0055"))
+    msg = b.stop("item 2")
+    assert "$0.012 reached: $0.0001 spent and $0.0110 held for calls in flight" in msg and "or a lower --parallel" in msg
+    b.settle(Decimal("0.0055"), Decimal("0.0001")); b.settle(Decimal("0.0055"))
+    assert "held" not in b.stop("item 3") and "--parallel" not in b.stop("item 3")
 
 
 def test_no_price_means_no_calls_when_a_limit_is_set(calls, monkeypatch):

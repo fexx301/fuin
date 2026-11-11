@@ -88,8 +88,11 @@ def run(bid: str, model: str, host, tries: int = 3, max_spend: float | None = No
     cap = st["policy"]["models"][model]["max_tokens"]
 
     def within_limit(i: int) -> None:
-        if budget and not budget.reserve(cost.bound(st["items"][i]["item"]["question"], cap, pr[model])):
+        worst = cost.bound(st["items"][i]["item"]["question"], cap, pr[model])
+        if budget and not budget.reserve(worst):
             raise SystemExit(budget.stop(f"item {i}'s ask"))
+        if budget:
+            budget.settle(worst)  # its usage stays inside the enclave, so an ask always counts at its bound
 
     key = keygen(st["owner"], ak)
     blob, eph_pub, nonce = tee.encrypt(tee.jdump(plaintext(st, model, rn)).encode(), key["pub"])

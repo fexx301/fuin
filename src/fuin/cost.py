@@ -46,17 +46,31 @@ def bound(question: str, max_tokens: int, price: tuple[Decimal, Decimal]) -> Dec
     return (len(question.encode()) + 64) * price[0] + max_tokens * price[1]
 
 
-def _usage(response_b64: str) -> tuple[int, int]:
+def _usage(response_b64: str) -> tuple[int, int] | None:
+    """(prompt tokens, completion tokens) of a saved answer, or None when it carries no token count."""
     u = json.loads(base64.b64decode(response_b64)).get("usage") or {}
-    return int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
+    if not isinstance(u.get("prompt_tokens"), int) or not isinstance(u.get("completion_tokens"), int):
+        return None
+    return u["prompt_tokens"], u["completion_tokens"]
 
 
-def tokens(st: dict, model: str) -> tuple[int, int, int]:
-    """(answers, prompt tokens, completion tokens) measured from this run's saved, signed answers."""
+def usage_cost(u: dict | None, price: tuple[Decimal, Decimal]) -> Decimal | None:
+    """What a response's own token count comes to, or None when it has none (the caller then keeps the bound)."""
+    if not u or not isinstance(u.get("prompt_tokens"), int) or not isinstance(u.get("completion_tokens"), int):
+        return None
+    return u["prompt_tokens"] * price[0] + u["completion_tokens"] * price[1]
+
+
+def _rows(st: dict, model: str) -> list[dict]:
     rn = st["runs"].get(model) or {}
-    rows = [r for r in [*rn.get("rows", []), *rn.get("pending", {}).values()] if "response_b64" in r]
-    use = [_usage(r["response_b64"]) for r in rows]
-    return len(rows), sum(u[0] for u in use), sum(u[1] for u in use)
+    return [r for r in [*rn.get("rows", []), *rn.get("pending", {}).values()] if "response_b64" in r]
+
+
+def tokens(st: dict, model: str) -> tuple[int, int, int, int]:
+    """(answers with a token count, prompt tokens, completion tokens, answers without one), from this run's signed answers."""
+    use = [_usage(r["response_b64"]) for r in _rows(st, model)]
+    have = [u for u in use if u]
+    return len(have), sum(u[0] for u in have), sum(u[1] for u in have), len(use) - len(have)
 
 
 def spent(st: dict, pr: dict) -> Decimal:
@@ -71,9 +85,11 @@ def spent(st: dict, pr: dict) -> Decimal:
             total += sum(max(1, r.get("attempts") or 1) * worst(r["i"]) for r in rn.get("rows", []))
             total += sum(worst(x["i"]) for x in rn.get("attempt_log", []) if x.get("i") not in have)
             total += worst(rn["pending_ask"]["i"]) if rn.get("pending_ask") else 0
-        else:
-            _, p, c = tokens(st, m)
-            total += p * pr[m][0] + c * pr[m][1] + sum(worst(x["i"]) for x in rn.get("attempt_log", []) if "i" in x)
+        else:  # an answer with no token count is not free: it stays at its bound
+            for r in _rows(st, m):
+                u = _usage(r["response_b64"])
+                total += u[0] * pr[m][0] + u[1] * pr[m][1] if u else worst(r["i"])
+            total += sum(worst(x["i"]) for x in rn.get("attempt_log", []) if "i" in x)
     return total
 
 
@@ -81,22 +97,26 @@ class Budget:
     """The spending limit, shared by the worker threads: reserve a call's bound before it starts, settle it after."""
 
     def __init__(self, limit: Decimal, already: Decimal):
-        self.limit, self.used, self._lock = limit, already, threading.Lock()
+        self.limit, self.spent, self.held, self._lock = limit, already, Decimal(0), threading.Lock()
 
     def reserve(self, amount: Decimal) -> bool:
+        """Hold a call's bound while it is in flight, or refuse if that could pass the limit."""
         with self._lock:
-            if self.used + amount > self.limit:
+            if self.spent + self.held + amount > self.limit:
                 return False
-            self.used += amount
+            self.held += amount
             return True
 
-    def settle(self, reserved: Decimal, actual: Decimal) -> None:
+    def settle(self, reserved: Decimal, actual: Decimal | None = None) -> None:
+        """The call is over: it counts at `actual` (its measured tokens), or at its bound when there is no measure."""
         with self._lock:
-            self.used += min(actual, reserved) - reserved
+            self.held -= reserved
+            self.spent += reserved if actual is None else min(actual, reserved)
 
     def stop(self, what: str) -> str:
-        return (f"spending limit ${self.limit} reached: ${self.used:.4f} is spent or reserved, so {what} was not sent. "
-                "Nothing is lost: run the same command again with a higher --max-spend")
+        return (f"spending limit ${self.limit} reached: ${self.spent:.4f} spent"
+                + (f" and ${self.held:.4f} held for calls in flight" if self.held else "") + f", so {what} was not sent. "
+                "Nothing is lost: run the same command again with a higher --max-spend" + (" or a lower --parallel" if self.held else ""))
 
 
 def budget(st: dict, max_spend: float | None) -> tuple["Budget | None", dict | None]:
@@ -153,9 +173,10 @@ def measured(st: dict) -> list[str]:
             out.append(f"  {m}: not available, because an asked-once round's answers never leave the enclave; {sent} asks counted by the TEE"
                        + (f", each at most {_usd(bound('', st['policy']['models'][m]['max_tokens'], pr[m]))} plus its prompt" if pr else ""))
             continue
-        k, p, c = tokens(st, m)
+        k, p, c, blank = tokens(st, m)
         usd = f" = {_usd(p * pr[m][0] + c * pr[m][1])}" if pr else " (prices not available right now)"
         out.append(f"  {m}: {k} answers, {p:,} prompt + {c:,} completion tokens{usd}"
+                   + (f"; {blank} more answer{'' if blank == 1 else 's'} carried no token count" if blank else "")
                    + (f"; {failed} failed attempt{'' if failed == 1 else 's'} left no token count and may have been billed" if failed else ""))
     out.append("  A call still in flight when a process is killed leaves no record here. NEAR AI's dashboard is the bill.")
     return out
