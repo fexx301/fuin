@@ -36,14 +36,28 @@ LIMIT_SAMPLING = _limit("Sampling assumes")
 LIMIT_REVEALS = _limit("Reveals permanently disclose")
 LIMIT_TIMING = _limit("The seal precedes the result commitment")
 LIMIT_RESAMPLE = _limit("An owner could send the same sealed request")
-ASKED_LIMIT = ("Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage "
-               "not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. A retried ask (one whose "
-               "first request ran out of time, so no answer had left the enclave) is a second draw, and the owner sets the task's time "
-               "limit: a single draw per item could differ from the total by at most the retried count. Two asks of the same item "
-               "that overlap by milliseconds could record one retry fewer than happened; neither answer leaves the enclave "
-               "until one is final, so the owner can't choose between them, and fixing the count needs a new locked asker. "
-               "An owner could still seal the "
-               "same questions as another round and publish the better one: separate rounds aren't linked.")
+_ASKED = ("Each item was asked inside the enclave, after the seal, and its answer recorded once; that rests on OutLayer's storage "
+          "not being rolled back by its operator, as every TEE result rests on Intel TDX and OutLayer. ",
+          " is a second draw, and the owner sets the task's time "
+          "limit: a single draw per item could differ from the total by at most the retried count. ",
+          "An owner could still seal the "
+          "same questions as another round and publish the better one: separate rounds aren't linked.")
+# asker v2 on (ask/src/record.rs): every attempt that could have reached the model is counted, also when asks overlap
+ASKED_LIMIT = (_ASKED[0] + "A retried ask (an earlier attempt ran out of time, or lost the record to another ask of the same item; "
+               "no answer had left the enclave)" + _ASKED[1] + _ASKED[2])
+# the first asker (round 7): "overlap_undercount" in policy/tee-v2.json
+ASKED_LIMIT_V1 = (_ASKED[0] + "A retried ask (one whose first request ran out of time, so no answer had left the enclave)" + _ASKED[1]
+                  + "Two asks of the same item "
+                  "that overlap by milliseconds could record one retry fewer than happened; neither answer leaves the enclave "
+                  "until one is final, so the owner can't choose between them, and fixing the count needs a new locked asker. " + _ASKED[2])
+
+
+def asked_limit(policy: dict) -> str:
+    h = policy["audit"]["asker_wasm_sha256"]
+    v1 = any(x["wasm_sha256"] == h and x.get("overlap_undercount") for x in tee.tee_policy().get("askers", []))
+    return ASKED_LIMIT_V1 if v1 else ASKED_LIMIT
+
+
 ZERO_REVEAL_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions or the expected answers: the total is "
                      "exact against the owner's sealed answer key, which is unchecked, and the choice of questions is the owner's.")
 ZERO_REVEAL_GROUNDED_LIMIT = ("Nothing is revealed, so no one but the owner can check the questions; the choice of questions is the owner's. "
@@ -552,7 +566,7 @@ def verify(cert: dict, *, attestation_policy: dict | None = None, catalog: dict 
     v2 = P.is_seal_bound(b["policy"])
     asked_ok = any(c[0] == "asked once" for c in checks)
     limits = [x for x in LIMITS if not (tee_round and x in (LIMIT_SAMPLING, LIMIT_REVEALS)) and not (v2 and x == LIMIT_TIMING)
-              and not (asked_ok and x == LIMIT_RESAMPLE)] + ([ASKED_LIMIT] if asked_ok else [])
+              and not (asked_ok and x == LIMIT_RESAMPLE)] + ([asked_limit(b["policy"])] if asked_ok else [])
     grounded = any(c[0] == "answer keys" for c in checks)
     limits += ([ZERO_REVEAL_GROUNDED_LIMIT if grounded else ZERO_REVEAL_LIMIT] if tee_round else []) + ([GROUND_LIMIT] if grounded else []) + ([SEAL_BOUND_LIMIT] if v2 else []) + ([E2EE_LIMIT, E2EE_KEY_LIMIT_COUNTED if "unreadable" in counted else E2EE_KEY_LIMIT] if P.is_e2ee(b["policy"]) else []) + ([tee.TEE_LIMIT] if tee_scored else [])
     return {"outcome": "VERIFIED", "scope": scope, "checks": checks, "warnings": warnings, "limits": limits, "trace": trace}
