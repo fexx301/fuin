@@ -71,6 +71,8 @@ Seven rounds of private questions, each answer cited to a line of [near/docs](ht
 - DeepSeek-V4.1-Flash, in its base or abliterated version, leads rounds 4–6.
 - GLM-5.3-flash beats Qwen3.8-27B in all six rounds they share.
 - The rounds use different questions, so compare models within a round, not across rounds.
+- **Read them as a demonstration of the protocol, not a leaderboard.** Each score is one run. The scorer accepts only the bare number or name, and an answer cut off at the token cap scores 0. By the owner's count, GLM-5.3-flash was cut off on 28 of 96 answers in round 6 and 72 of 300 in round 3, so the scores partly measure the cap and the answer format ([every count](https://github.com/fexx301/fuin/blob/main/docs/RESULTS.md)).
+- **"Abliterated"** is a model NEAR serves as the base weights plus a LoRA adapter that removes refusal training. The Qwen adapter is loaded from a local path with no published revision, so its certificate pins the base weights and not the adapter, and prints a warning that says so.
 
 **Answer keys:** in rounds 4–7, which reveal nothing, a TEE checked each answer key against the near/docs line it cites. 374 of 384 appear there, and 10 are flagged as unchecked.
 
