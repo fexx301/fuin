@@ -73,7 +73,7 @@ uv run --env-file .env fuin evaluate private/suites/mine.jsonl --id pilot-1 --ow
 
 Before it seals, it prints the most the model calls can cost. To cap what you spend, add `--max-spend 1` (US dollars): it stops before a call could pass that, and the same command with a higher number carries on.
 
-If it stops for any reason (a dropped connection, a closed laptop), run the same command again: it skips what is done and never asks a model twice. `uv run fuin status --id pilot-1 --out pilot-certs` shows where the round stands at any point. Please note each time it stopped and what the message said.
+If it stops for any reason (a dropped connection, a closed laptop), run the same command again: it skips what is done, and an answer already saved is never asked for again. A call that was cut off mid-flight is asked again, and the certificate counts it as one failed attempt. `uv run fuin status --id pilot-1 --out pilot-certs` shows where the round stands at any point. Please note each time it stopped and what the message said.
 
 ## 4B. A sampled round: a sample of the questions revealed
 

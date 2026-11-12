@@ -190,6 +190,8 @@ def run(bid: str, model: str, parallel: int = 1, max_spend: float | None = None)
         for attempt in range(cost.ATTEMPTS):
             if budget and not budget.reserve(worst):  # a stop at the limit is not a failed attempt: nothing goes in the log
                 return None, log, budget.stop(f"item {i}")
+            # shortcut: the whole state file is rewritten before every call (twice the writes of before); keep a
+            # small side file for calls in flight if rounds grow past a few thousand items
             with lock:  # on disk before the call leaves, so a run killed mid-call can't forget a call that may be billed
                 rn.setdefault("in_flight", []).append({"i": i, "attempt": attempt})
                 save(st)

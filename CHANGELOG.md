@@ -7,6 +7,8 @@ Two corrections to `--max-spend`, both found by a reviewer:
 - **A killed run no longer forgets a call.** Each call is noted in the round's saved state before it is sent. A run that starts and finds one records it as a failed attempt ("interrupted"), counts it at its bound, and the certificate's failed-attempt count includes it.
 - **Settlement records the actual cost in full**, also when it is more than was held; later calls are refused if that passes the limit.
 
+This changes every `fuin run`, with or without a limit: a run interrupted mid-call (Ctrl-C included) now adds one failed attempt per lost call to the certificate's owner-reported count.
+
 Evidence: `evidence/2026-11-11-cost-limit/`.
 
 ## 1.2.0 (2026-11-11)
