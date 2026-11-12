@@ -173,13 +173,13 @@ fuin verify cert.json       # VERIFIED, REFUSED or CAN'T CERTIFY, with every che
 
 - **In CI:** a GitHub Action (`uses: fexx301/fuin@v1`) fails the step unless every certificate is VERIFIED.
 - **Your own private round:** `fuin evaluate` runs a whole round in one resumable command (or step by step: `fuin check`, `seal`, `run`, `commit`, `close`, `reveal`, `tee-score`, `ask`), `fuin report` turns the certificates into a page to share, and `--max-spend` caps what the model calls can cost: see [docs/USE.md](https://github.com/fexx301/fuin/blob/main/docs/USE.md).
-- **A second person trying it:** [PILOT.md](https://github.com/fexx301/fuin/blob/main/PILOT.md) is a step-by-step kit. A fellow builder ran it unmodified on Windows 11 under WSL2.
+- **A second person trying it:** [PILOT.md](https://github.com/fexx301/fuin/blob/main/PILOT.md) is a step-by-step kit. A fellow builder ran it unmodified on Windows 11 under WSL2. A second outside user ran it on Ubuntu on Nov 11 with one `fuin evaluate` command and no help: 48 questions, two certificates that verify. His questions were written by a model from public pages and no third party verified them, as his own notes say: [evidence/2026-11-11-agriculture-pilot](https://github.com/fexx301/fuin/blob/main/evidence/2026-11-11-agriculture-pilot/README.md).
 
 ## Next
 
 Not built. Each waits for a reason:
 
-- **A second pilot on a real workload:** another team's own private questions, verified by a separate person, published as a case study. Planned; not run yet.
+- **A pilot on a real workload:** another team's own private questions, written from their work and verified by a separate person, published as a case study. The Nov 11 outside run used model-written questions and had no outside verifier, so this is still to do.
 - **Structured-output scoring:** JSON fields, required values and numeric tolerances scored inside the TEE. It needs a new scorer in Python, Rust and the browser and a new certificate version, so it waits for a pilot that needs it.
 - **Pre-registered campaigns:** an owner declares the models and attempts before running, so a verifier can see whether the published results account for all of them. The registry contract is locked, so this needs a new registry. It could not expose rehearsals made outside the campaign or under another account.
 
@@ -199,6 +199,7 @@ The full list, word for word as printed: [docs/LIMITS.md](https://github.com/fex
 
 - **When it was written:** everything here was written during the event. The repository's first commit is Nov 3, 2026, and it builds on three small research probes from Oct 24. No earlier code is reused, and there are no templates or boilerplate.
 - **AI-written code:** one person built Fūin with AI coding agents. Claude Code wrote most of the code and documentation under the author's direction. Codex, DeepSeek and Claude reviewed it blind; their findings and the fixes are in `evidence/`.
+- **A fix from a pilot user:** zkasuran reported, and fixed in pull request #2, a fault that left a round's encrypted gist undeleted on an older GitHub CLI. The change in `src/fuin/tee.py` and its tests follow his pull request (commit `24a7dee`).
 - **Python:** rfc8785, requests, eth-account, dcap-qvl, pyyaml, cryptography, sigstore.
 - **Rust:**
   - contract: near-sdk, built with cargo-near;

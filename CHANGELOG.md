@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2 (2026-11-12)
+
+- **TEE rounds delete their secret gist on an older GitHub CLI.** `gh` 2.45.0 (Ubuntu 24.04) has no `gist delete --yes`, so each `tee-score` left its ciphertext gist on the owner's account. The delete now retries without the flag, and closes stdin so a prompt fails instead of hanging. Reported and fixed by pilot user zkasuran in pull request #2.
+- **Evidence:** a second outside run of the pilot kit, `evidence/2026-11-11-agriculture-pilot/`, with its own stated limits.
+
 ## 1.2.1 (2026-11-11)
 
 Two corrections to `--max-spend`, both found by a reviewer:
