@@ -155,7 +155,7 @@ def nras_verdict(nvidia_payload, nonce: str | None = None) -> bool:
 
 
 def tcb_outcome(status: str, advisories: list[str]) -> str:
-    """User's TCB policy (2026-10-27): clean / warning / revoked."""
+    """The TCB rule from the Oct 24 design (README, "When it was written"): clean / warning / revoked."""
     if status == "Revoked":
         return "revoked"
     return "clean" if status == "UpToDate" and not advisories else "warning"

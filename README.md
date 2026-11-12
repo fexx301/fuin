@@ -199,7 +199,11 @@ The full list, word for word as printed: [docs/LIMITS.md](https://github.com/fex
 
 ## Libraries and AI-written code
 
-- **When it was written:** everything here was written during the event. The repository's first commit is Nov 3, 2026, and it builds on three small research probes from Oct 24. No earlier code is reused, and there are no templates or boilerplate.
+- **When it was written:** every file in this repository was written during the event; its first commit is Nov 3, 2026. Two things predate the Nov 1 start. Both come from choosing the idea on Oct 24, and neither is in this repository:
+  - a written design: the protocol, the certificate format, and the verifier's checks and reason codes. Where the code says "spec", it means that document.
+  - two short probe scripts (171 lines together) that tested whether NEAR AI's attestation reports and answer signatures can be checked without a key.
+
+  `src/fuin/attestation.py` was rewritten from one of those probes: it keeps the probe's approach and three function names, and two lines of its RTMR3 replay are word for word. There are no templates or boilerplate.
 - **AI-written code:** one person built Fūin with AI coding agents. Claude Code wrote most of the code and documentation under the author's direction. Codex, DeepSeek and Claude reviewed it blind; their findings and the fixes are in `evidence/`.
 - **A fix from a pilot user:** zkasuran reported, and fixed in pull request #2, a fault that left a round's encrypted gist undeleted on an older GitHub CLI. The change in `src/fuin/tee.py` and its tests follow his pull request (commit `24a7dee`).
 - **Python:** rfc8785, requests, eth-account, dcap-qvl, pyyaml, cryptography, sigstore.
