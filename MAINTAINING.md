@@ -10,7 +10,7 @@ What breaks, how you'll notice, and how to fix it. Costs and every outside servi
 | `policy-drift.yml` | daily, 07:37 UTC | Whether NEAR has redeployed a model. Needs the repository secret `NEARAI_API_KEY`; opens one issue with a drafted policy. |
 | `registry-rebuild.yml` | on a change to `contract/`, and by hand | Whether the locked registry's deployed code rebuilds from `contract/` on GitHub's macOS arm64 runner. |
 | `publish.yml` | on a version tag `v*` | Builds the package and publishes it to PyPI. |
-| `pages.yml` | on a change to `site/`, and by hand | Publishes the browser verifier and results page to fexx301.github.io/fuin. |
+| `pages.yml` | on a change to `site/`, and by hand | Publishes the browser verifier and results page to GitHub Pages, served at fuin.duckdns.org (the custom domain is set in the repository's Pages settings, and DuckDNS points the name at GitHub; fexx301.github.io/fuin redirects there). If the name stops resolving, remove the custom domain in the Pages settings and the github.io address serves the page again. |
 
 A red `reverify` run is either a service outage (the log says `evidence_unavailable`; run it again) or a real change. **It never retries a verdict.**
 

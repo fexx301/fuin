@@ -1,5 +1,5 @@
 name: pages
-# Publishes site/ (the browser verifier and results page) to https://fexx301.github.io/fuin/ on every change to it.
+# Publishes site/ (the browser verifier and results page) to GitHub Pages (served at https://fuin.duckdns.org/; https://fexx301.github.io/fuin/ redirects there) on every change to it.
 on:
   push:
     branches: [main]

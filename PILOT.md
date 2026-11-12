@@ -96,7 +96,7 @@ uv run fuin report pilot-certs/*.json --out pilot-report     # pilot-report/repo
 The folder holds the certificates and a page with each model's score, its 95% interval, the settings and the verification result. It holds none of your questions. Your verifier checks the certificates either way:
 
 - **Command line:** `pip install fuin` (or `uv tool install fuin`), then `fuin verify pilot-report/certs/*.json`. No account and no key.
-- **Browser:** open the [Fūin page](https://fexx301.github.io/fuin/), choose "Drop or choose your own cert.json", and pick a file from `pilot-report/certs/`.
+- **Browser:** open the [Fūin page](https://fuin.duckdns.org/), choose "Drop or choose your own cert.json", and pick a file from `pilot-report/certs/`.
 
 The browser checks everything except the GPU attestation (NVIDIA's service doesn't answer browsers), so a sound certificate shows PARTLY CHECKED there; the command line checks that too and shows VERIFIED. `CAN'T CERTIFY` with `evidence_unavailable` means a service didn't answer, which is an outage, not a fault in the certificate: run it again.
 
