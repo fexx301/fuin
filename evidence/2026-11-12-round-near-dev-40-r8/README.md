@@ -17,9 +17,9 @@ DeepSeek and GLM are inside each other's interval: on 40 questions this round do
 - **Asked-check** (every request rebuilt with the seal block's hash equals the signed one): tasks 75017, 75712 and 75911, by scorer `b301d22b…`.
 - **Settings:** temperature 0, a cap of 4,096 tokens, end-to-end encrypted (request template v3), as in round 7. Not comparable with the 8,192-token rounds.
 - **Retried ask:** DeepSeek's item 37. Its first request outlived NEAR's yield window, so no answer had left the enclave; the second was asked and scored 0. The certificate prints "1 retried ask".
-- **Owner-reported failed attempts:** 2 for DeepSeek (items 32 and 37), 0 for the others. Item 32's first request failed on OutLayer before the enclave claimed an attempt, so the enclave's count for it is 1 and it isn't a retried ask.
+- **Owner-reported failed attempts:** 2 for DeepSeek (items 32 and 37), 0 for the others. Item 32's first request also failed on chain after about 116 s, like a timeout, yet the enclave's record for it shows one attempt, so it isn't a retried ask. That fits the enclave finishing the first call after the chain stopped waiting and the second ask returning the recorded answer; it wasn't confirmed beyond the count.
 - **Answer keys:** 40/40 appear in their cited line of near/docs at `e2d2ea17`, checked in the enclave by scorer `b301d22b…` ([`BnHVMUcvdo…`](https://testnet.nearblocks.io/txns/BnHVMUcvdoAhwXutXz4M9uFCzHMpyWhxtPyN6jTZhBXo), task 75958).
-- **Suite:** 40 new questions, one per cited line, from 34 files. No cited line and no answer is shared with rounds 1–7. All of them stay private. Like the earlier suites, they were written by the author's coding agent from the docs, not by a domain expert.
+- **Suite:** 40 new questions, one per cited line, from 34 files. No cited line is shared with rounds 1–7, and none of the 34 named answers (a method, field, file and so on) was an answer in an earlier round. Three of the six numeric questions ask a fact that round 3 or round 4 also asked, from a different line of the docs; that was found after the seal. All 40 stay private. Like the earlier suites, they were written by the author's coding agent from the docs, not by a domain expert.
 - **Hosting:** the encrypted round sat on a secret gist while the asker fetched it, then was deleted; `gh gist list` shows none left.
 - **How it was run:** one `fuin evaluate … --ask --e2ee --max-spend 3` command, rerun after each stop below.
 
@@ -34,7 +34,7 @@ An asked-once call has to finish inside NEAR's yield window of about 125 s (see 
 | z-ai/glm-5.3-flash | 37 s | 8 s |
 | deepseek-ai/DeepSeek-V4.1-Flash-1017 | 84 s | 17 s |
 | deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated | 81 s | 29 s |
-| Qwen/Qwen3.8-27B | 182 s | 96 s |
+| Qwen/Qwen3.8-27B (two of its eight calls errored) | 182 s | 96 s |
 
 GLM had been too slow for round 7 on Nov 7; NEAR has redeployed it since. Qwen3.8-27B doesn't fit and was left out. Three models from three families were sealed: DeepSeek-V4.1-Flash, GLM-5.3-flash and Qwen3.6-35B. The first timing run lost most of its calls to errors and was repeated for those models; Qwen3.8-27B's abliterated version wasn't measured cleanly.
 

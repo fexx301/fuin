@@ -59,7 +59,7 @@ This is the third [kind of round](#three-kinds-of-round). Until round 7 the owne
 
 Round 7 (37 questions, DeepSeek-V4.1-Flash-1017) is VERIFIED this way: 19/37, 1 retried ask (item 31, whose first requests outlived NEAR's yield window; it scored 0). A retry is a second draw, so the verifier prints the bound: a single draw per item could differ from the total by at most the retried count, here 1. The cap is 4,096 tokens because a TEE-made call must finish inside NEAR's yield window of about 125 s: 8,192 tokens didn't fit, and on Nov 7 Qwen3.8 and GLM were too slow even at 4,096. Details: `evidence/2026-11-08-round-near-dev-37-r7/`.
 
-Round 8 (40 new questions, three models, the second asker) is VERIFIED the same way: DeepSeek-V4.1-Flash 18/40 with 1 retried ask, GLM-5.3-flash 16/40 and Qwen3.6-35B 7/40, neither with a retry. By Nov 12 NEAR had redeployed GLM, and a timing test on eight public questions at 4,096 tokens took it at most 37 s, Qwen3.6-35B at most 10 s and DeepSeek at most 84 s. Qwen3.8-27B took a median of 96 s, so it was left out. Details: `evidence/2026-11-12-round-near-dev-40-r8/`.
+Round 8 (40 new questions, three models, the second asker) is VERIFIED the same way: DeepSeek-V4.1-Flash 18/40 with 1 retried ask, GLM-5.3-flash 16/40 and Qwen3.6-35B 7/40, neither with a retry. By Nov 12 NEAR had redeployed GLM, and a timing test on eight public questions at 4,096 tokens took it at most 37 s, Qwen3.6-35B at most 10 s and DeepSeek at most 84 s. Qwen3.8-27B took a median of 96 s over eight calls, two of which errored, so it was left out. Details: `evidence/2026-11-12-round-near-dev-40-r8/`.
 
 ## Zero-reveal rounds
 
