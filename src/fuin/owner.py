@@ -16,7 +16,7 @@ from fuin import POLICY
 from fuin import policy as P
 
 PRIVATE = Path("private")
-ATTESTATION_POLICY = POLICY / "attestation-v10.json"
+ATTESTATION_POLICY = POLICY / "attestation-v11.json"
 
 
 def b64(b: bytes) -> str:

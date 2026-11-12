@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORDS = {"seven": 7, "twenty": 20, "nineteen": 19}
+WORDS = {"seven": 7, "eight": 8, "twenty": 20, "nineteen": 19, "twenty-three": 23, "twenty-two": 22}
 
 
 def _num(s):
