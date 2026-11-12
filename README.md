@@ -95,7 +95,7 @@ uv run python scripts/check_fixtures.py examples/tampered/manifest.json   # opti
 CAN'T CERTIFY with `evidence_unavailable` means a public service (NEAR's RPC, Intel or NVIDIA) didn't answer, not that the certificate is wrong: run the same command again.
 
 **Full review (optional):**
-- Run `scripts/review.sh` in the background. It takes about 30 minutes (allow 45).
+- Run `scripts/review.sh` in the background. It takes 30 to 45 minutes.
 - It waits on Intel, NVIDIA, NEAR, OutLayer, GitHub and Docker Hub, and retries when a public service rate-limits it.
 - It exits 0 with `ALL CHECKS PASSED`.
 - `AGENTS.md` lists the exit codes, what not to run and where the evidence lives.
