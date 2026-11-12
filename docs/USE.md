@@ -9,6 +9,8 @@ pip install fuin                                        # or: uv tool install fu
 fuin verify cert.json                                  # VERIFIED, REFUSED or CAN'T CERTIFY, with every check printed
 ```
 
+Checking many certificates, or the same one often? Set a cache folder: `FUIN_CACHE_DIR="$HOME/.cache/fuin" fuin verify cert.json`. Chain answers that can never change (finalized transactions, queries at a fixed block) are then kept on disk, so repeat checks make fewer RPC calls and are less likely to be rate-limited. Intel's and NVIDIA's verdicts are always asked fresh. The verifier trusts what is in that folder, so use one only you can write to.
+
 To check certificates in your own CI, use the GitHub Action in this repository. The step fails unless every certificate is VERIFIED; it retries once when a public service doesn't answer, and never retries a REFUSED:
 
 ```yaml
