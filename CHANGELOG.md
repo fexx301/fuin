@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 (2026-11-12)
+
+- **Round 8:** a counted asked-once round on the second, locked asker: 40 new private questions, three models (DeepSeek-V4.1-Flash 18, GLM-5.3-flash 16, Qwen3.6-35B 7), end-to-end encrypted, answer keys 40/40 in their cited lines. The published results are now eight rounds, 23 certificates and 2,422 answers. Evidence: `evidence/2026-11-12-round-near-dev-40-r8/`.
+- **Attestation policy v11:** accepts the deployment NEAR rolled out to GLM-5.3-flash on Nov 12 (same signer and OS). Published certificates were never affected. Review: `evidence/2026-11-12-attestation-policy-v11/`.
+- **`fuin check --ask`** knows that GLM-5.3-flash and Qwen3.6-35B finished an asked-once round at 4,096 tokens; a cap that was never measured is a warning, not a refusal.
+- **README:** corrections from blind review 5 (`evidence/2026-11-12-blind-review-5/`), including what predates the Nov 1 start.
+
 ## 1.2.2 (2026-11-12)
 
 - **TEE rounds delete their secret gist on an older GitHub CLI.** `gh` 2.45.0 (Ubuntu 24.04) has no `gist delete --yes`, so each `tee-score` left its ciphertext gist on the owner's account. The delete now retries without the flag, and closes stdin so a prompt fails instead of hanging. Reported and fixed by pilot user zkasuran in pull request #2.
