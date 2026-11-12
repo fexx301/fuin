@@ -126,7 +126,7 @@ You need uv and network access to these services:
 - raw.githubusercontent.com;
 - Docker Hub.
 
-One verification takes about 40 seconds.
+One verification takes about a minute.
 
 1. **Verify a real certificate:** `env -u NEARAI_API_KEY uv run fuin verify examples/cert-near-dev-60-r1-qwen3.8-27b.json`.
    - You see `VERIFIED` with ten passing checks: rows, commitments, policy, signatures, reveals, attestation, deployment trace, registry, audit sample and TEE score.
