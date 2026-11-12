@@ -21,7 +21,6 @@ def test_doc_counts_match_the_artifacts():
     kinds = Counter(f["expected"].split()[0] for f in fixtures)
     want = {
         r"(\d+) `ok` lines": len(fixtures),
-        r"(\d+) tamper fixtures": len(fixtures),
         r"all (\d+) fixtures": len(fixtures),
         r"(\d+) tests of tampering": len(fixtures),
         r"(?<!other )\b(\d+) (?:real )?certificates": len(certs),
@@ -34,7 +33,8 @@ def test_doc_counts_match_the_artifacts():
         r"(\d+) are CAN'T CERTIFY": kinds["CANT_CERTIFY"],
     }
     lists = r"rounds of private (?:NEAR-developer )?questions \(([\d, and]+)\)|test sets \(([\d, and]+) items\)"
-    text = {p: p.read_text() for p in [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "CHANGELOG.md", ROOT / "site/index.html", *ROOT.glob("docs/*.md")]}
+    # CHANGELOG.md is left out: its older entries state the counts of their own release
+    text = {p: p.read_text() for p in [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "site/index.html", *ROOT.glob("docs/*.md")]}
     for pattern, expected in want.items():
         found = [(p.name, m.group(m.lastindex)) for p, t in text.items() for m in re.finditer(pattern, t)]
         found = [(n, g) for n, g in found if g.lower() in WORDS or g[0].isdigit()]

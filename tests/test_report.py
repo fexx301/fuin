@@ -39,13 +39,13 @@ def test_the_interval_is_the_results_charts_formula():
 def test_published_certificates_group_by_sealed_round(tmp_path):
     assert cli.main(["report", *CERTS, "--out", str(tmp_path / "r"), "--recorded", str(_recorded(tmp_path))]) == 0
     rep = json.loads((tmp_path / "r" / "report.json").read_text())
-    assert (rep["certificates"], rep["verified"], len(rep["groups"]), rep["not_verified"]) == (len(CERTS), len(CERTS), 7, [])
+    assert (rep["certificates"], rep["verified"], len(rep["groups"]), rep["not_verified"]) == (len(CERTS), len(CERTS), 8, [])
     r7 = next(g for g in rep["groups"] if g["benchmark_id"] == "near-dev-37-r7")["members"][0]
     assert (r7["kind"], r7["retried_in_tee"], r7["unreadable_in_tee"]) == ("asked once", 1, 0)
     r2 = next(g for g in rep["groups"] if g["benchmark_id"] == "near-dev-60-r2")
     assert [e["total"] for e in r2["members"]] == sorted((e["total"] for e in r2["members"]), reverse=True)
     assert r2["members"][0]["retried_in_tee"] is None and "don't overlap" in r2["reading"][0]
-    assert len(rep["not_comparable"]) == 21 and all(x["because"] for x in rep["not_comparable"])
+    assert len(rep["not_comparable"]) == 28 and all(x["because"] for x in rep["not_comparable"])
     # the folder is shareable as it is: every certificate copied, byte for byte, under the name the report links
     for g in rep["groups"]:
         for e in g["members"]:

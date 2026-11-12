@@ -30,4 +30,4 @@ This repository is a NEAR HACKATHON entry. These notes say how to review it repr
 ## Scope
 
 - Limits are printed with every VERIFIED and listed word for word in `docs/LIMITS.md`.
-- The seven test sets (60, 60, 300, 155, 96, 96 and 37 items) are deliberately not in the repo. Only the sampled rounds' audited samples (23, 23 and 28 items, rounds 1–3) are revealed, inside the certificates; rounds 4–7 reveal nothing.
+- The eight test sets (60, 60, 300, 155, 96, 96, 37 and 40 items) are deliberately not in the repo. Only the sampled rounds' audited samples (23, 23 and 28 items, rounds 1–3) are revealed, inside the certificates; rounds 4–8 reveal nothing.

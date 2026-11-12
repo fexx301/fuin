@@ -17,7 +17,7 @@ A fresh clone of `be5feb2` (version 1.2.2), run with no API key and no project m
 | "Abliterated" and "LoRA adapter, unpinned" were unexplained. | One bullet explains both, and that the Qwen adapter's certificate pins the base weights, not the adapter (`894cc28`). |
 | The claim table packed eight scorer hashes into one cell, and `…` was unexplained. | The row names the current build and both askers and points to `policy/tee-v2.json` for the seven earlier builds; the header explains `…` (`d5fd928`). The second asker's rebuild line was missing there and is added. |
 | No doc said what happens when Intel or NVIDIA stop accepting old evidence. | `docs/COSTS-AND-DEPENDENCIES.md` says what each case produces (`e8b9aac`). |
-| The fixed second asker has no published round. | Not run (see below); the README now says it has run rehearsal rounds only (`acd91e6`). |
+| The strongest guarantee was shown once, on the smallest round, and the fixed second asker had no published round. | Round 8: a counted asked-once round on the second asker, 40 new questions and three models, all VERIFIED (`evidence/2026-11-12-round-near-dev-40-r8/`). |
 
 ## Checked, and not a fault
 
@@ -27,7 +27,6 @@ A fresh clone of `be5feb2` (version 1.2.2), run with no API key and no project m
 
 ## Not changed
 
-- **A counted asked-once round on the second asker, with several models.** It would change the published counts, the page and the video two days before the deadline, and only one model is measured to fit the asker's time limit. Its locked rehearsal certificates are in `evidence/2026-11-11-asker-v2/`.
 - **Storing Intel's collateral and NVIDIA's verdict in the certificate**, to verify as of the recorded time. That is a certificate-format change; it isn't made this close to the deadline.
 - **A mainnet round.** Fūin runs on testnet, and the docs say what a testnet reset would do.
 - **No outside owner with their own real questions, and no outside verifier.** Still true; see `evidence/2026-11-11-agriculture-pilot/`.

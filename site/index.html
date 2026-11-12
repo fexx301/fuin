@@ -88,7 +88,7 @@ html[data-theme=light] #loader .box{color:#5d625f}html[data-theme=light] #loader
 <section class="band" id="results"><div class="wrap">
   <p class="eyebrow">02 · Results</p>
   <h2>Which NEAR AI Cloud model knows NEAR best?</h2>
-  <p class="lead">Seven rounds of private NEAR-developer questions (60, 60, 300, 155, 96, 96 and 37), each answer cited to a line of the NEAR docs. Every round was sealed before its run, and every score was computed over every answer inside a TEE. The scorer is strict: the number or name alone.</p>
+  <p class="lead">Eight rounds of private NEAR-developer questions (60, 60, 300, 155, 96, 96, 37 and 40), each answer cited to a line of the NEAR docs. Every round was sealed before its run, and every score was computed over every answer inside a TEE. The scorer is strict: the number or name alone.</p>
   <figure class="panel viz" id="viz">
     <div class="viz-head">
       <figcaption><span class="viz-title" id="vizTitle"></span><span class="viz-sub" id="vizSub"></span></figcaption>
@@ -104,11 +104,11 @@ html[data-theme=light] #loader .box{color:#5d625f}html[data-theme=light] #loader
       <p>The owner runs the models. After the round closes, a future NEAR block picks a sample of questions to reveal, and anyone can re-score them. The rest stay private. Still possible: the owner re-asking a question and keeping the best answer.</p></div>
     <div class="panel mode"><h3>TEE-scored</h3><p class="tag">rounds 4–6 · all models · 8,192-token cap</p>
       <p>The owner runs the models, and nothing is revealed: every answer is re-scored inside a TEE instead. Still possible: the owner re-asking a question and keeping the best answer.</p></div>
-    <div class="panel mode"><h3>Asked once</h3><p class="tag">round 7 · fast models only · 4,096-token cap</p>
-      <p>A TEE asks every question itself, after the seal, and scores it there. It keeps one answer per question and counts any retry (round 7 had one), so the owner can't quietly re-ask within the round. Round 7's asker could miss one retry if two asks of a question overlapped by milliseconds; a second locked asker, used by new rounds, counts every attempt. Still possible: sealing the same questions as a separate round and publishing the better one. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
+    <div class="panel mode"><h3>Asked once</h3><p class="tag">rounds 7 and 8 · fast models only · 4,096-token cap</p>
+      <p>A TEE asks every question itself, after the seal, and scores it there. It keeps one answer per question and counts any retry (rounds 7 and 8 had one each), so the owner can't quietly re-ask within the round. Round 7's asker could miss one retry if two asks of a question overlapped by milliseconds; round 8 ran on a second locked asker that counts every attempt. Still possible: sealing the same questions as a separate round and publishing the better one. Each call must finish within NEAR's ~2-minute window, which only fast models do, so the cap is smaller and scores aren't comparable with rounds 1–6.</p></div>
   </div>
   <div class="callout"><strong>What the scores show</strong><ul>
-    <li>DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6. In round 6 it leads all seven models: 38 of 96, and 40 for its abliterated version.</li>
+    <li>DeepSeek-V4.1-Flash, added in round 4, leads rounds 4, 5 and 6. In round 6 it leads all seven models: 38 of 96, and 40 for its abliterated version. In round 8 it scored 18 of 40 to GLM's 16, a gap inside each model's 95% interval.</li>
     <li>Removing refusal training made no measurable difference: +2 for DeepSeek and −1 for Qwen, inside each pair's 95% interval.</li>
     <li>GLM leads Qwen in all six rounds they both ran, by 45 questions on the 300-question round.</li>
     <li>The rounds use different questions, so compare models within a round. The weights are the quantized builds NEAR actually serves, not the full-precision checkpoints on public leaderboards.</li>
@@ -135,8 +135,8 @@ html[data-theme=light] #loader .box{color:#5d625f}html[data-theme=light] #loader
       <li>A named model's TEE key, attested on an approved OS and application, signed every committed answer, byte for byte.</li>
       <li>The test set and policy were sealed on NEAR before the results were committed.</li>
       <li>A future NEAR block, not the owner, picked the audited items. In a zero-reveal round there are none: every answer was re-scored inside a TEE, and no answer can predate the seal.</li>
-      <li>In an enclave-asked round (round 7), a TEE made each model call itself, in a project nobody can change, and kept one answer per question; any retry is counted and printed (round 7 had one), so no answer was quietly picked from several tries within the round. Round 7's asker could miss one retry if two asks of a question overlapped by milliseconds; a second locked asker, used by new rounds, counts every attempt. Separate rounds aren't linked.</li>
-      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE. That catches a key that appears nowhere in its line (an invented value, a typo); it doesn't show the key is the right answer. Keys that don't appear are flagged by number (rounds 4–7: 374 of 384 found, 10 flagged).</li>
+      <li>In an enclave-asked round (rounds 7 and 8), a TEE made each model call itself, in a project nobody can change, and kept one answer per question; any retry is counted and printed (one in each round), so no answer was quietly picked from several tries within the round. Round 7's asker could miss one retry if two asks of a question overlapped by milliseconds; round 8 ran on a second locked asker that counts every attempt. Separate rounds aren't linked.</li>
+      <li>In a grounded round, each answer key appears in the near/docs line it cites, checked inside a TEE. That catches a key that appears nowhere in its line (an invented value, a typo); it doesn't show the key is the right answer. Keys that don't appear are flagged by number (rounds 4–8: 414 of 424 found, 10 flagged).</li>
       <li>In an end-to-end-encrypted round, every signed request carried its question only as ciphertext to the answering model's attested key, and the TEE scorer rebuilt that exact ciphertext.</li>
       <li>The revealed answers re-score to the committed scores: 95% detection power for ≥10% wrong scores.</li>
       <li>The serving container and weights trace to NEAR's public deployment repo.</li></ul></div>
@@ -147,9 +147,9 @@ html[data-theme=light] #loader .box{color:#5d625f}html[data-theme=light] #loader
       <li>Whether the questions are any good, and whether a grounded key is the right answer: it appears in the line the owner cited, which can itself contain a wrong value. In a zero-reveal round, only the owner can see either.</li>
       <li>Each item's 0/1 score is public, so a certificate shows which hidden items a model got right, though not what they ask.</li>
       <li>The registry contract is locked, and its code rebuilds byte for byte from source on macOS (anyone can run the check on GitHub's runners), though not yet on Linux. Seals and commits are also checked against the owner's signed transactions.</li>
-      <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155, round 5's 96, round 6's 96 or round 7's 37.</li>
-      <li>Whether the owner asked each question once: an owner could re-send a sealed request and commit the best signed answer. Round 7 closes this: a TEE asked every question, once. Separate rounds still aren't linked.</li>
-      <li>Exactly when inference happened (rounds 4–7's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
+      <li>Reveals permanently disclose their questions: 24 of round 1's 60 (one indirectly), 23 of round 2's 60, 28 of round 3's 300, none of round 4's 155, round 5's 96, round 6's 96, round 7's 37 or round 8's 40.</li>
+      <li>Whether the owner asked each question once: an owner could re-send a sealed request and commit the best signed answer. Rounds 7 and 8 close this within a round: a TEE asked every question, once. Separate rounds still aren't linked.</li>
+      <li>Exactly when inference happened (rounds 4–8's answers can't predate their seals). Without end-to-end encryption (rounds 1–4), NEAR's gateway saw the questions. Testnet only.</li></ul></div>
   </div>
 </div></section>
 
