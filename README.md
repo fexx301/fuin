@@ -54,7 +54,7 @@ Every step in detail, with the deployment trace, the answer-key check and end-to
 
 ## Result: which NEAR AI Cloud model answers NEAR developer questions correctly?
 
-Seven rounds of private questions, each answer cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. They produced 20 certificates covering 2,302 answers from seven models. Every model ran with reasoning on and temperature 0. Every committed score was computed over every answer inside a TEE:
+Seven rounds of private questions, each answer cited to a line of [near/docs](https://github.com/near/docs) at commit `e2d2ea17`. They produced 20 certificates covering 2,302 answers from seven models. Every model ran with reasoning on and temperature 0. Every committed score in these 20 certificates was computed over every answer inside a TEE. For a sampled round that evidence is optional: a sampled certificate without it still verifies, with no `tee score` line and a scope that covers the revealed sample only, so read the scope line.
 
 | Round | Kind | Questions | Committed score |
 |---|---|---|---|
