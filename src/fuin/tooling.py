@@ -93,9 +93,11 @@ def disclosure(n: int, tee: bool = False, asked: bool = False) -> str:
             f"detection power {p:.2f}% for ≥{d} incorrect scores. Each later round of the same suite draws a new sample.")
 
 
-# measured on Nov 7 (evidence/2026-11-08-round-near-dev-37-r7): this model answers inside NEAR's ~2-minute window at a
-# 4,096-token cap (52 s) and does not at 8,192. Nothing else has been tried in an asked-once round.
-ASK_FITS, ASK_TOO_LONG = {"deepseek-ai/DeepSeek-V4.1-Flash-1017": 4096}, 8192
+# Token caps at which a model has finished a whole asked-once round inside NEAR's ~2-minute window: DeepSeek in rounds 7
+# and 8, GLM and Qwen3.6-35B in round 8 (evidence/2026-11-12-round-near-dev-40-r8; NEAR's serving speed can change).
+# ASK_TOO_LONG: caps measured not to fit (DeepSeek at 8,192, Nov 7). Anything else is untested and only warns.
+ASK_FITS = {"deepseek-ai/DeepSeek-V4.1-Flash-1017": 4096, "z-ai/glm-5.3-flash": 4096, "Qwen/Qwen3.6-35B-A3B-FP8": 4096}
+ASK_TOO_LONG = {"deepseek-ai/DeepSeek-V4.1-Flash-1017": 8192}
 MODES = {"sampled": "Sampled round. You run the models. After the close, a future NEAR block picks the audited questions; those questions "
                     "and answers become public and anyone can re-score them, and the rest stay private. Still possible: re-asking a "
                     "question and committing the best answer (a printed limit).",
@@ -167,7 +169,7 @@ def _ask_prerequisites(owner_account: str | None, models: list[str], max_tokens:
         cap = ASK_FITS.get(m)
         if cap and (max_tokens or cap) <= cap:
             out.append((True, f"{m} at {max_tokens or cap:,} tokens answered within the asker's time limit when measured"))
-        elif cap and max_tokens >= ASK_TOO_LONG:
+        elif cap and max_tokens >= ASK_TOO_LONG.get(m, float("inf")):
             out.append((False, f"{m} at {max_tokens:,} tokens did not answer within the asker's time limit when measured: use --max-tokens {cap}"))
         else:
             out.append((None, f"{m}" + (f" at {max_tokens:,} tokens" if max_tokens else "") + " is not tested in an asked-once round: "

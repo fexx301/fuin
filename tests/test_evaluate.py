@@ -146,3 +146,5 @@ def test_check_flags_an_untested_model_and_a_cap_measured_too_long():
     assert msgs[0][0] is True
     assert tooling._ask_prerequisites(None, ["deepseek-ai/DeepSeek-V4.1-Flash-1017"], 8192)[0][0] is False
     assert tooling._ask_prerequisites(None, ["Qwen/Qwen3.8-27B"], 4096)[0][0] is None   # a warning, never a pass
+    assert tooling._ask_prerequisites(None, ["z-ai/glm-5.3-flash"], 4096)[0][0] is True     # finished round 8 at this cap
+    assert tooling._ask_prerequisites(None, ["z-ai/glm-5.3-flash"], 8192)[0][0] is None     # never measured at 8,192: a warning, not a refusal
