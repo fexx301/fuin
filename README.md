@@ -7,7 +7,7 @@ Fūin (封印, pronounced *foo-een*) is Japanese for "seal": the test set is sea
   <img src="assets/fuin-logo.svg" alt="Fūin logo" width="320">
 </picture>
 
-Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all. In round 7 a TEE made every model call itself and recorded one answer per question and counted every retry (round 7 had one), so no owner could quietly re-ask and keep the best answer.
+Fūin publishes a private benchmark result that a stranger can check **without an account and without the test set**. Every answer carries a signature from the model's attested TEE key on NEAR AI Cloud, the set and results are committed on NEAR, and every answer is scored inside a TEE on OutLayer. A round can also reveal a sample picked by a future NEAR block, or reveal nothing at all. In round 7 a TEE made every model call itself and recorded one answer per question and counted every retry (round 7 had one), so within that round no owner could quietly re-ask and keep the best answer. Sealing the same questions again as a separate round is still possible: rounds aren't linked.
 
 Built at NEAR HACKATHON (Nov 1–14, 2026), tracks `privacy` and `open`.
 
